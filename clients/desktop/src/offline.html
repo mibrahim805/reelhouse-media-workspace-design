@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reelhouse is offline</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Could not reach Reelhouse</h1>
+      <p>
+        Check that the server is online and that this device has an internet
+        connection.
+      </p>
+      <div class="actions">
+        <button class="primary" id="retry" type="button">Try again</button>
+        <button id="settings" type="button">Server settings</button>
+      </div>
+      <p class="message" id="description"></p>
+    </main>
+    <script src="offline.js"></script>
+  </body>
+</html>

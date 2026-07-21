@@ -1,0 +1,213 @@
+from unittest.mock import patch
+
+from django.core.cache import cache
+from django.test import SimpleTestCase
+from django.test import override_settings
+from django.urls import reverse
+
+from .forms import DownloadForm
+from .jobs import _save_job, get_job
+from .services import normalize_video_url, normalize_youtube_url, platform_label, search_youtube_videos, youtube_embed_url
+
+
+class DownloadFormTests(SimpleTestCase):
+    def test_form_accepts_youtube_url(self):
+        form = DownloadForm({'url': 'https://www.youtube.com/watch?v=abc123'})
+
+        self.assertTrue(form.is_valid())
+
+
+@override_settings(
+    CACHES={
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'download-job-tests',
+        }
+    }
+)
+class DownloadJobTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+
+    def test_job_updates_keep_existing_state(self):
+        _save_job('job-123', status='queued', percent=0)
+        _save_job('job-123', status='downloading', percent=42)
+
+        self.assertEqual(
+            get_job('job-123'),
+            {'status': 'downloading', 'percent': 42},
+        )
+
+    def test_unknown_job_returns_empty_state(self):
+        self.assertEqual(get_job('missing-job'), {})
+
+
+@override_settings(FRONTEND_BASE_URL='https://reelhouse.example')
+class DownloadPageTests(SimpleTestCase):
+    def test_home_page_redirects_to_frontend(self):
+        response = self.client.get(reverse('home'))
+
+        self.assertRedirects(
+            response,
+            'https://reelhouse.example/',
+            fetch_redirect_response=False,
+        )
+
+    def test_download_app_redirects_to_frontend(self):
+        response = self.client.get(reverse('download_app'))
+
+        self.assertRedirects(
+            response,
+            'https://reelhouse.example/downloader',
+            fetch_redirect_response=False,
+        )
+
+    def test_youtube_app_redirects_to_frontend(self):
+        response = self.client.get(reverse('youtube_app'))
+
+        self.assertRedirects(
+            response,
+            'https://reelhouse.example/youtube',
+            fetch_redirect_response=False,
+        )
+
+    @patch('downloader.views.get_video_info')
+    def test_fetch_info_returns_video_details(self, mocked_info):
+        mocked_info.return_value = {
+            'source_url': 'https://www.youtube.com/watch?v=abc123',
+            'title': 'Demo video',
+            'channel': 'Demo channel',
+            'duration': '1:30',
+            'thumbnail': 'https://example.com/thumb.jpg',
+            'embed_url': 'https://www.youtube.com/embed/abc123',
+            'can_embed': True,
+            'platform': 'YouTube',
+            'qualities': [{'value': '720', 'label': '720p'}],
+        }
+
+        response = self.client.post(reverse('fetch_info'), {'url': 'https://www.youtube.com/watch?v=abc123'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['video']['title'], 'Demo video')
+
+    def test_fetch_info_rejects_invalid_url(self):
+        response = self.client.post(reverse('fetch_info'), {'url': 'not-a-url'})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a valid video URL.'})
+
+    @patch('downloader.views.start_download_job')
+    def test_start_download_returns_job_id(self, mocked_start):
+        mocked_start.return_value = 'job-123'
+
+        response = self.client.post(
+            reverse('start_download'),
+            {'url': 'https://www.youtube.com/watch?v=abc123', 'quality': '720'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['job_id'], 'job-123')
+
+    def test_start_download_rejects_invalid_url(self):
+        response = self.client.post(reverse('start_download'), {'url': 'not-a-url', 'quality': '720'})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a valid video URL.'})
+
+    @patch('downloader.views.search_youtube_videos')
+    def test_youtube_search_returns_results(self, mocked_search):
+        mocked_search.return_value = [
+            {
+                'id': 'abc123',
+                'title': 'Demo video',
+                'channel': 'Demo channel',
+                'duration': '1:30',
+                'thumbnail': 'https://example.com/thumb.jpg',
+                'source_url': 'https://www.youtube.com/watch?v=abc123',
+            }
+        ]
+
+        response = self.client.post(reverse('youtube_search'), {'query': 'demo'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['videos'][0]['title'], 'Demo video')
+
+    def test_youtube_search_rejects_empty_query(self):
+        response = self.client.post(reverse('youtube_search'), {'query': ''})
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a search term.'})
+
+
+class YoutubeUrlTests(SimpleTestCase):
+    def test_normalizes_short_youtube_url(self):
+        url = normalize_youtube_url('https://youtu.be/abc123?t=44')
+
+        self.assertEqual(url, 'https://www.youtube.com/watch?v=abc123')
+
+    def test_removes_extra_watch_query_params(self):
+        url = normalize_youtube_url('https://www.youtube.com/watch?v=abc123&list=playlist')
+
+        self.assertEqual(url, 'https://www.youtube.com/watch?v=abc123')
+
+    def test_builds_embed_url(self):
+        url = youtube_embed_url('https://youtu.be/abc123?t=44')
+
+        self.assertEqual(url, 'https://www.youtube.com/embed/abc123')
+
+    def test_keeps_non_youtube_url_unchanged(self):
+        url = normalize_video_url('https://www.tiktok.com/@demo/video/123')
+
+        self.assertEqual(url, 'https://www.tiktok.com/@demo/video/123')
+
+    def test_non_youtube_does_not_get_youtube_embed(self):
+        url = youtube_embed_url('https://www.instagram.com/reel/abc123/')
+
+        self.assertEqual(url, '')
+
+    def test_detects_platform_label(self):
+        label = platform_label('https://www.facebook.com/watch/?v=123')
+
+        self.assertEqual(label, 'Facebook')
+
+
+class YoutubeSearchTests(SimpleTestCase):
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_search_youtube_videos_formats_results(self, mocked_youtube_dl):
+        ydl = mocked_youtube_dl.return_value.__enter__.return_value
+        ydl.extract_info.return_value = {
+            'entries': [
+                {
+                    'id': 'abc123',
+                    'title': 'Demo video',
+                    'uploader': 'Demo channel',
+                    'duration': 90,
+                    'thumbnail': 'https://example.com/thumb.jpg',
+                    'url': 'abc123',
+                }
+            ]
+        }
+
+        results = search_youtube_videos('demo')
+
+        self.assertEqual(results[0]['duration'], '1:30')
+        self.assertEqual(results[0]['source_url'], 'https://www.youtube.com/watch?v=abc123')
+
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_search_youtube_videos_adds_thumbnail_fallback(self, mocked_youtube_dl):
+        ydl = mocked_youtube_dl.return_value.__enter__.return_value
+        ydl.extract_info.return_value = {
+            'entries': [
+                {
+                    'id': 'abc123',
+                    'title': 'Demo video',
+                    'url': 'abc123',
+                }
+            ]
+        }
+
+        results = search_youtube_videos('demo')
+
+        self.assertEqual(results[0]['thumbnail'], 'https://i.ytimg.com/vi/abc123/hqdefault.jpg')
+
+# Create your tests here.

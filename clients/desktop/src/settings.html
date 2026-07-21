@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self'; script-src 'self'"
+    />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Reelhouse settings</title>
+    <link rel="stylesheet" href="page.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Server settings</h1>
+      <p>
+        Enter the public HTTPS address of the Reelhouse web server. The desktop
+        app will keep videos in your device Downloads/Reelhouse folder.
+      </p>
+      <form id="settings-form">
+        <label for="server-url">Server URL</label>
+        <input
+          id="server-url"
+          name="server-url"
+          type="url"
+          inputmode="url"
+          placeholder="https://example.com"
+          required
+        />
+        <div class="actions">
+          <button class="primary" type="submit">Save and connect</button>
+          <button id="open-downloads" type="button">Open Downloads</button>
+        </div>
+        <div class="message" id="message" role="status"></div>
+      </form>
+      <p class="meta" id="meta"></p>
+    </main>
+    <script src="settings.js"></script>
+  </body>
+</html>

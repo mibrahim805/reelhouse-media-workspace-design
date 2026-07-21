@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#18181b" />
+    <title>Update required — Reelhouse</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+
+      :root {
+        color-scheme: dark;
+        font-family: Arial, Helvetica, sans-serif;
+        background: #0e0f12;
+        color: #f0f2f4;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+      }
+
+      main {
+        width: 100%;
+        max-width: 420px;
+        padding: 28px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 18px;
+        background: #17181c;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      }
+
+      .logo {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 13px;
+        background: #f45152;
+        color: #fff;
+        font-size: 24px;
+        margin-bottom: 20px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+      }
+
+      p {
+        margin: 12px 0 0;
+        color: #a5a7ad;
+        font-size: 15px;
+        line-height: 1.55;
+      }
+
+      .actions {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        margin-top: 24px;
+      }
+
+      a {
+        display: block;
+        padding: 13px 16px;
+        border-radius: 10px;
+        background: #f45152;
+        color: #fff;
+        font-weight: 700;
+        text-align: center;
+        text-decoration: none;
+      }
+
+      a.secondary {
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        background: #24262a;
+      }
+
+      .hint {
+        margin-top: 18px;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="logo" aria-hidden="true">▶</div>
+      <h1>Update Android WebView</h1>
+      <p>
+        Reelhouse needs a current browser engine to display and run correctly.
+        Update Android System WebView or Chrome, then close and reopen Reelhouse.
+      </p>
+      <div class="actions">
+        <a href="https://play.google.com/store/apps/details?id=com.google.android.webview">
+          Update Android System WebView
+        </a>
+        <a
+          class="secondary"
+          href="https://play.google.com/store/apps/details?id=com.android.chrome"
+        >
+          Update Google Chrome
+        </a>
+      </div>
+      <p class="hint">
+        If both apps are already updated, check your internet connection and
+        reopen Reelhouse.
+      </p>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+*.pyc
+.job-cache/
+data.json
+db.sqlite3
+logs.txt

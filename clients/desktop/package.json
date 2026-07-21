@@ -1,0 +1,71 @@
+{
+  "name": "reelhouse-desktop",
+  "version": "0.1.1",
+  "description": "Native Reelhouse client for Windows and Ubuntu",
+  "homepage": "https://github.com/mibrahim805/reelhouse-media-workspace-design",
+  "desktopName": "reelhouse.desktop",
+  "main": "src/main.cjs",
+  "author": "Reelhouse",
+  "license": "UNLICENSED",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:linux": "electron-builder --linux AppImage deb --x64",
+    "dist:win": "electron-builder --win nsis portable zip --x64"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3"
+  },
+  "build": {
+    "appId": "com.reelhouse.desktop",
+    "productName": "Reelhouse",
+    "asar": true,
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "linux": {
+      "artifactName": "Reelhouse-${version}-${arch}.${ext}",
+      "category": "AudioVideo",
+      "description": "Search, prepare, and save videos to your device.",
+      "executableName": "reelhouse",
+      "icon": "assets/icon.png",
+      "maintainer": "Reelhouse",
+      "syncDesktopName": true,
+      "synopsis": "Reelhouse media workspace",
+      "target": [
+        "AppImage",
+        "deb"
+      ]
+    },
+    "win": {
+      "icon": "assets/icon.ico",
+      "artifactName": "Reelhouse-${version}-Windows-${arch}.${ext}",
+      "target": [
+        "nsis",
+        "portable",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "artifactName": "Reelhouse-Setup-${version}-${arch}.${ext}",
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "oneClick": false,
+      "shortcutName": "Reelhouse"
+    },
+    "portable": {
+      "artifactName": "Reelhouse-Portable-${version}-${arch}.${ext}"
+    }
+  }
+}
