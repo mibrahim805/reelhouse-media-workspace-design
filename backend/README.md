@@ -2,21 +2,24 @@
 
 A small Django app that downloads a single YouTube video with `yt-dlp` and saves it in the local `downloads/` folder.
 
-## Run
+## Run the complete app
 
 ```bash
-cd /home/ibrahim/laptop/Projects/python
-source .venv/bin/activate
-pip install -r requirements.txt
-python manage.py migrate
-python manage.py runserver 127.0.0.1:8001
+cd /home/ibrahim/video_downloader/backend
+.venv/bin/python manage.py runapp
 ```
 
-Open:
+This starts the Next.js frontend on port `3000` and the Django API on port
+`8001`. Both processes stop together when you press `Ctrl+C`.
+
+Open the application at:
 
 ```text
-http://127.0.0.1:8001/
+http://localhost:3000/
 ```
+
+Running `downloader/jobs.py` directly from PyCharm also delegates to `runapp`.
+That file remains the background download worker when Django imports it.
 
 ## Test
 

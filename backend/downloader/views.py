@@ -1,5 +1,7 @@
-from django.http import JsonResponse
+from pathlib import Path
+
 from django.conf import settings
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect
 from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
@@ -107,3 +109,22 @@ def download_progress(request, job_id):
         return JsonResponse({'ok': False, 'error': 'Download job was not found.'}, status=404)
 
     return JsonResponse({'ok': True, 'job': job})
+
+
+def downloaded_file(request, file_path):
+    media_root = Path(settings.MEDIA_ROOT).resolve()
+    requested_file = (media_root / file_path).resolve()
+
+    try:
+        requested_file.relative_to(media_root)
+    except ValueError as exc:
+        raise Http404('Downloaded file was not found.') from exc
+
+    if not requested_file.is_file():
+        raise Http404('Downloaded file was not found.')
+
+    return FileResponse(
+        requested_file.open('rb'),
+        as_attachment=True,
+        filename=requested_file.name,
+    )

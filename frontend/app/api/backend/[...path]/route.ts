@@ -22,7 +22,11 @@ function backendUrl(path: string) {
     )
   }
 
-  return new URL(`${cleanPath([path])}/`, `${BACKEND_BASE_URL}/`).toString()
+  const cleanedPath = cleanPath([path])
+  const targetPath = cleanedPath.startsWith('media/')
+    ? cleanedPath
+    : `${cleanedPath}/`
+  return new URL(targetPath, `${BACKEND_BASE_URL}/`).toString()
 }
 
 function backendLabel() {
@@ -108,6 +112,30 @@ async function proxyJsonResponse(response: Response) {
   })
 }
 
+function proxyFileResponse(response: Response) {
+  const headers = new Headers()
+  const passthroughHeaders = [
+    'accept-ranges',
+    'content-disposition',
+    'content-length',
+    'content-range',
+    'content-type',
+    'last-modified',
+  ]
+
+  passthroughHeaders.forEach((name) => {
+    const value = response.headers.get(name)
+    if (value) headers.set(name, value)
+  })
+  headers.set('Cache-Control', 'private, no-store')
+  headers.set('X-Content-Type-Options', 'nosniff')
+
+  return new Response(response.body, {
+    status: response.status,
+    headers,
+  })
+}
+
 async function readPostBody(request: Request) {
   const contentType = request.headers.get('content-type') ?? ''
 
@@ -186,7 +214,10 @@ export async function GET(
   const { path: parts } = await context.params
   const path = cleanPath(parts)
 
-  if (!path.startsWith('progress/')) {
+  const isProgressRequest = path.startsWith('progress/')
+  const isMediaRequest = path.startsWith('media/')
+
+  if (!isProgressRequest && !isMediaRequest) {
     return jsonError('Unknown backend endpoint.', 404)
   }
 
@@ -196,13 +227,17 @@ export async function GET(
       'X-Requested-With': 'XMLHttpRequest',
     }
     if (inboundCookie) headers.Cookie = inboundCookie
+    const range = request.headers.get('range')
+    if (range && isMediaRequest) headers.Range = range
 
     const response = await fetch(backendUrl(path), {
       headers,
       cache: 'no-store',
     })
 
-    return proxyJsonResponse(response)
+    return isMediaRequest
+      ? proxyFileResponse(response)
+      : proxyJsonResponse(response)
   } catch (error) {
     const detail = error instanceof Error ? error.message : 'Unknown error.'
     return jsonError(

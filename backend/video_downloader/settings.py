@@ -27,6 +27,8 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'true').strip().lower() in {
     'yes',
     'on',
 }
+SESSION_COOKIE_SECURE = not DEBUG
+CSRF_COOKIE_SECURE = not DEBUG
 SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
     'django-insecure-local-development-only-not-for-production',
@@ -100,7 +102,10 @@ DATABASES = {
 CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.filebased.FileBasedCache',
-        'LOCATION': BASE_DIR / '.job-cache',
+        'LOCATION': os.environ.get(
+            'REELHOUSE_JOB_CACHE_DIR',
+            BASE_DIR / '.job-cache',
+        ),
         'TIMEOUT': 24 * 60 * 60,
         'OPTIONS': {
             'MAX_ENTRIES': 1000,
@@ -143,9 +148,9 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
 
-MEDIA_URL = 'media/'
+MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('REELHOUSE_DOWNLOAD_DIR', Path.home() / 'Downloads' / 'Reelhouse')).expanduser()
 
 FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000').rstrip('/')

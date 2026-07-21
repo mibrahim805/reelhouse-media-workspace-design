@@ -1,33 +1,60 @@
-# reelhouse-media-workspace-design
+---
+title: Reelhouse
+emoji: 🎬
+colorFrom: red
+colorTo: gray
+sdk: docker
+app_port: 7860
+pinned: false
+---
 
-This is a [Next.js](https://nextjs.org) project bootstrapped with [v0](https://v0.app).
+# Reelhouse
 
-## Built with v0
+Reelhouse is a focused media workspace for discovering, previewing, and saving
+videos. This repository packages the Next.js frontend and Django/yt-dlp backend
+as one Docker application.
 
-This repository is linked to a [v0](https://v0.app) project. You can continue developing by visiting the link below -- start new chats to make changes, and v0 will push commits directly to this repo. Every merge to `main` will automatically deploy.
+## Free hosted deployment
 
-[Continue working on v0 →](https://v0.app/chat/projects/prj_yyiNZz2nPI1T4a52EoKukm6ipQOF)
+Create a new **Docker Space** on Hugging Face, choose the free **CPU Basic**
+hardware, and push this repository to the Space. Use a **private Space** for
+personal use so strangers cannot consume the download service.
 
-## Getting Started
+The public container port is `7860`. Django remains internal on port `8001`,
+and the Next.js server proxies API and downloaded-file requests to it.
 
-First, run the development server:
+Downloaded videos and job state use ephemeral storage. They remain available
+while the Space is running, but are removed whenever the free Space restarts.
+The Space may sleep after an extended idle period and wakes when you visit it.
+
+### Push the deployment
+
+1. Create an empty Hugging Face Space using the **Docker** SDK and free
+   **CPU Basic** hardware.
+2. Create a Hugging Face token with write access.
+3. Run `./deploy/push-huggingface.sh`. The script asks for the Space ID and
+   token, then pushes the deployment.
+
+The script creates a clean deployment snapshot, so the repository's old large
+Git history and native client projects are not sent to the Space. The token is
+entered with hidden input and is not written to the repository.
+
+### Optional Space secrets
+
+- `DJANGO_SECRET_KEY`: a long random value. The container generates an
+  ephemeral key when this is omitted.
+- `YTDLP_COOKIE_CONTENT`: Netscape-format cookie-file contents for videos that
+  require authentication. Treat this as highly sensitive and only use it in a
+  private Space.
+- `REELHOUSE_WINDOWS_DOWNLOAD_URL`, `REELHOUSE_LINUX_APPIMAGE_URL`,
+  `REELHOUSE_LINUX_DEB_URL`, and `REELHOUSE_ANDROID_DOWNLOAD_URL`: optional
+  hosted release URLs shown by the app-download dialog.
+
+## Local development
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
+cd backend
+.venv/bin/python manage.py runapp
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
-
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
-
-## Learn More
-
-To learn more, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-- [v0 Documentation](https://v0.app/docs) - learn about v0 and how to use it.
+Then open <http://localhost:3000>.

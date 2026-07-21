@@ -1,5 +1,20 @@
+import os
+import sys
+from pathlib import Path
 from threading import Lock, Thread
 from uuid import uuid4
+
+
+# PyCharm commonly runs whichever file is currently open. This module is
+# normally imported by Django, but when it is executed directly, hand off to
+# the development launcher so "Run jobs.py" starts the actual application.
+if __name__ == '__main__' and not __package__:
+    backend_dir = Path(__file__).resolve().parents[1]
+    os.chdir(backend_dir)
+    os.execv(
+        sys.executable,
+        [sys.executable, str(backend_dir / 'manage.py'), 'runapp'],
+    )
 
 from django.core.cache import cache
 

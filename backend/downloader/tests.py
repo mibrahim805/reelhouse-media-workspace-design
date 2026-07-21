@@ -1,3 +1,5 @@
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from django.core.cache import cache
@@ -209,5 +211,39 @@ class YoutubeSearchTests(SimpleTestCase):
         results = search_youtube_videos('demo')
 
         self.assertEqual(results[0]['thumbnail'], 'https://i.ytimg.com/vi/abc123/hqdefault.jpg')
+
+
+class DownloadedFileTests(SimpleTestCase):
+    def test_serves_a_completed_download_as_an_attachment(self):
+        with TemporaryDirectory() as directory:
+            video = Path(directory) / 'demo-video.mp4'
+            video.write_bytes(b'demo video content')
+
+            with override_settings(MEDIA_ROOT=directory):
+                response = self.client.get(
+                    reverse(
+                        'downloaded_file',
+                        kwargs={'file_path': video.name},
+                    )
+                )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(
+                b''.join(response.streaming_content),
+                b'demo video content',
+            )
+            self.assertIn('attachment;', response['Content-Disposition'])
+
+    def test_missing_download_returns_not_found(self):
+        with TemporaryDirectory() as directory:
+            with override_settings(MEDIA_ROOT=directory):
+                response = self.client.get(
+                    reverse(
+                        'downloaded_file',
+                        kwargs={'file_path': 'missing.mp4'},
+                    )
+                )
+
+            self.assertEqual(response.status_code, 404)
 
 # Create your tests here.
