@@ -2,8 +2,9 @@
 set -Eeuo pipefail
 
 BACKEND_PORT="${BACKEND_PORT:-8001}"
-PUBLIC_PORT="${PORT:-7860}"
+PUBLIC_PORT="${PORT:-8080}"
 APP_ROOT="${APP_ROOT:-/app}"
+GUNICORN_THREADS="${GUNICORN_THREADS:-2}"
 
 if [[ -z "${DJANGO_SECRET_KEY:-}" ]]; then
   DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
@@ -21,7 +22,8 @@ python manage.py migrate --noinput
 gunicorn video_downloader.wsgi:application \
   --bind "127.0.0.1:${BACKEND_PORT}" \
   --workers 1 \
-  --threads 8 \
+  --threads "${GUNICORN_THREADS}" \
+  --preload \
   --timeout 600 \
   --graceful-timeout 30 \
   --access-logfile - \

@@ -1,7 +1,8 @@
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from threading import Lock, Thread
+from threading import Lock
 from uuid import uuid4
 
 
@@ -23,6 +24,19 @@ from .services import DownloadError, download_video
 
 _lock = Lock()
 _job_timeout = 24 * 60 * 60
+
+try:
+    _max_concurrent_downloads = max(
+        1,
+        int(os.environ.get('REELHOUSE_MAX_CONCURRENT_DOWNLOADS', '1')),
+    )
+except ValueError:
+    _max_concurrent_downloads = 1
+
+_download_executor = ThreadPoolExecutor(
+    max_workers=_max_concurrent_downloads,
+    thread_name_prefix='reelhouse-download',
+)
 
 
 def _job_key(job_id):
@@ -75,5 +89,8 @@ def start_download_job(url, quality):
         else:
             _save_job(job_id, status='complete', percent=100, result=result)
 
-    Thread(target=worker, daemon=True).start()
+    # Free containers have tight memory limits. A bounded executor prevents
+    # several ffmpeg/yt-dlp processes from running at the same time while still
+    # allowing additional requests to remain queued.
+    _download_executor.submit(worker)
     return job_id
