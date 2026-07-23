@@ -3,7 +3,7 @@ from pathlib import Path
 from django.conf import settings
 from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import redirect
-from django.views.decorators.csrf import ensure_csrf_cookie
+from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 
 from .forms import DownloadForm
@@ -35,6 +35,7 @@ def csrf_token(request):
     return JsonResponse({'ok': True})
 
 
+@csrf_exempt
 @require_POST
 def fetch_info(request):
     form = DownloadForm(request.POST)
@@ -49,6 +50,7 @@ def fetch_info(request):
     return JsonResponse({'ok': True, 'video': info})
 
 
+@csrf_exempt
 @require_POST
 def youtube_search(request):
     query = request.POST.get('query', '').strip()
@@ -63,6 +65,7 @@ def youtube_search(request):
     return JsonResponse({'ok': True, 'videos': videos})
 
 
+@csrf_exempt
 @require_POST
 def youtube_topic(request):
     topic = request.POST.get('topic', '').strip()
@@ -90,6 +93,7 @@ def youtube_topic(request):
     return JsonResponse({'ok': True, 'topic': topic, 'query': query, 'videos': videos})
 
 
+@csrf_exempt
 @require_POST
 def start_download(request):
     url = request.POST.get('url', '').strip()

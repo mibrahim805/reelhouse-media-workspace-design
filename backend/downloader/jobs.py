@@ -77,6 +77,7 @@ def _progress_hook(job_id):
 
 
 def start_download_job(url, quality):
+
     job_id = uuid4().hex
     _save_job(job_id, status='queued', percent=0, result=None, error=None)
 
