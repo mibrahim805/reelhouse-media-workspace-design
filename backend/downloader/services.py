@@ -73,6 +73,8 @@ def _base_ydl_options():
     proxy_url = getattr(settings, 'YTDLP_PROXY_URL', '')
     if proxy_url:
         options['proxy'] = proxy_url
+    if getattr(settings, 'YTDLP_FORCE_IPV6', False):
+        options['source_address'] = '::'
     return options
 
 

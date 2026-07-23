@@ -166,6 +166,12 @@ YTDLP_COOKIE_FILE = os.environ.get('YTDLP_COOKIE_FILE', str(BASE_DIR / 'youtube_
 YTDLP_COOKIES_FROM_BROWSER = os.environ.get('YTDLP_COOKIES_FROM_BROWSER', '').strip()
 YTDLP_POT_PROVIDER_DIR = os.environ.get('YTDLP_POT_PROVIDER_DIR', '').strip()
 YTDLP_PROXY_URL = os.environ.get('YTDLP_PROXY_URL', '').strip()
+YTDLP_FORCE_IPV6 = os.environ.get('YTDLP_FORCE_IPV6', '').strip().lower() in {
+    '1',
+    'true',
+    'yes',
+    'on',
+}
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

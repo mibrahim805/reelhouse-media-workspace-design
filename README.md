@@ -27,6 +27,12 @@ that port, so it must not be set manually. Cookies for authenticated YouTube
 downloads can optionally be stored as the secret variable
 `YTDLP_COOKIE_CONTENT`.
 
+To test YouTube through Railway's IPv6 network, enable **Outbound IPv6** under
+the service's **Settings → Networking**, add `YTDLP_FORCE_IPV6=true` in
+**Variables**, and redeploy. Remove the variable or set it to `false` if the
+service reports IPv6 connectivity errors. This is an experimental fallback;
+hosting-provider addresses can still be rejected by YouTube.
+
 Railway's Free plan is suitable only for testing this application. It currently
 starts with a 30-day, $5 trial and then provides $1 of monthly usage, with
 0.5 GB RAM and 1 GB of ephemeral disk. Downloaded videos and SQLite/job-cache
@@ -84,6 +90,8 @@ In ClawCloud, restart or update the app to pull the new image.
 - `YTDLP_COOKIE_CONTENT`: Netscape-format cookie-file contents for videos that
   require authentication. Treat this as highly sensitive, add it only through
   the host's secret settings, and never commit it to Git.
+- `YTDLP_FORCE_IPV6`: set to `true` only when the host has outbound IPv6
+  enabled and yt-dlp should bind all outgoing requests to IPv6.
 - `REELHOUSE_WINDOWS_DOWNLOAD_URL`, `REELHOUSE_LINUX_APPIMAGE_URL`,
   `REELHOUSE_LINUX_DEB_URL`, and `REELHOUSE_ANDROID_DOWNLOAD_URL`: optional
   hosted release URLs shown by the app-download dialog.

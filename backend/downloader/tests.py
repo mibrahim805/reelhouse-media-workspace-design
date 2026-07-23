@@ -231,6 +231,12 @@ class YtDlpOptionsTests(SimpleTestCase):
         )
         self.assertEqual(options['proxy'], 'http://proxy.example:8080')
 
+    @override_settings(YTDLP_FORCE_IPV6=True)
+    def test_can_force_outbound_ipv6(self):
+        options = _base_ydl_options()
+
+        self.assertEqual(options['source_address'], '::')
+
 
 @override_settings(
     CACHES={
