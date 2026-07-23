@@ -25,3 +25,18 @@ YTDLP_COOKIE_FILE=/path/to/cookies.txt python3 manage.py runserver 127.0.0.1:801
 ```
 
 Do not share or commit cookies. They can contain account session data.
+
+## Hosted container (Railway)
+
+The deployed container cannot read cookies from the browser on your own
+computer. Export Netscape-format cookies and add their complete contents as a
+secret environment variable named:
+
+```text
+YTDLP_COOKIE_CONTENT
+```
+
+The container writes this secret to its configured cookie file when it starts.
+Never commit this value or show it in logs or screenshots. YouTube may reject
+cookies used from a different IP address, and using account cookies with a
+downloader can put that account at risk.

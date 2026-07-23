@@ -29,11 +29,12 @@ def _base_ydl_options():
         'retries': 5,
         'fragment_retries': 5,
         'socket_timeout': 30,
+        'extractor_args': {
+            'generic': {
+                'impersonate': ['chrome'],
+            },
+        },
         'http_headers': {
-            'User-Agent': (
-                'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 '
-                '(KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36'
-            ),
             'Accept-Language': 'en-US,en;q=0.9',
         },
         **_cookie_options(),
@@ -46,9 +47,9 @@ def _download_error_message(error):
 
     if any(term in lowered for term in ('sign in', 'age', 'confirm your age', 'private video', 'cookies')):
         return (
-            'YouTube blocked this video for anonymous download. Export your YouTube cookies to '
-            'youtube_cookies.txt in the project folder, or set YTDLP_COOKIES_FROM_BROWSER=chrome '
-            'or firefox before starting the server.'
+            'YouTube rejected this server address for anonymous access. For a hosted deployment, '
+            'configure fresh Netscape-format cookies in the YTDLP_COOKIE_CONTENT secret, or use '
+            'a different outbound IP. Do not commit or share account cookies.'
         )
 
     if any(term in lowered for term in ('not available', 'unavailable', 'region', 'copyright')):
