@@ -8,6 +8,7 @@ import {
   ChevronDown,
   Check,
   Download,
+  ExternalLink,
   ListVideo,
   Loader2,
   Maximize2,
@@ -26,7 +27,30 @@ import {
   type QualityOption,
   youtubeEmbedUrl,
   youtubeUrlFromId,
+  videoIdFromUrl,
 } from '@/lib/backend-api'
+
+const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
+
+function browserPlaybackVideo(value: string): MediaVideo | null {
+  const id = value.startsWith('http') ? videoIdFromUrl(value) : value
+  if (!YOUTUBE_VIDEO_ID.test(id)) return null
+
+  const sourceUrl = youtubeUrlFromId(id)
+  return {
+    id,
+    title: 'YouTube video',
+    channel: 'YouTube',
+    channelInitials: 'YT',
+    thumbnail: `https://i.ytimg.com/vi/${id}/hqdefault.jpg`,
+    duration: 'Unknown duration',
+    sourceUrl,
+    platform: 'YouTube',
+    embedUrl: `https://www.youtube.com/embed/${id}`,
+    canEmbed: true,
+    qualities: [],
+  }
+}
 
 function watchHref(video: MediaVideo) {
   if (video.id && !video.id.startsWith('http')) {
@@ -56,23 +80,39 @@ export function WatchView({ videoId }: { videoId: string }) {
     async function loadVideo() {
       setLoading(true)
       setError('')
+      setPlaying(false)
+      setSuccess('')
+
+      const fallback = browserPlaybackVideo(videoId)
+      if (!fallback) {
+        setVideo(null)
+        setError('This is not a valid YouTube video link.')
+        setLoading(false)
+        return
+      }
+
+      // Playback happens in the visitor's browser, so it must not depend on
+      // yt-dlp being accepted from the hosted backend's IP address.
+      setVideo(fallback)
+      setQuality('best')
 
       try {
-        const sourceUrl = videoId.startsWith('http')
-          ? videoId
-          : youtubeUrlFromId(videoId)
-        const loaded = await fetchVideoInfo(sourceUrl)
+        const loaded = await fetchVideoInfo(fallback.sourceUrl)
         const options = loaded.qualities ?? []
-        if (options.length === 0) {
-          throw new Error('The backend did not return any download qualities.')
-        }
-        const preferred =
-          options.find((option) => option.value === '1080') ?? options[0]
 
         if (cancelled) return
-        setVideo(loaded)
-        setQuality(preferred.value)
-        setSuccess('')
+        setVideo({
+          ...loaded,
+          id: fallback.id,
+          sourceUrl: fallback.sourceUrl,
+          embedUrl: fallback.embedUrl,
+          canEmbed: true,
+        })
+        if (options.length > 0) {
+          const preferred =
+            options.find((option) => option.value === '1080') ?? options[0]
+          setQuality(preferred.value)
+        }
 
         try {
           const topic = await fetchYouTubeTopic('All')
@@ -88,8 +128,13 @@ export function WatchView({ videoId }: { videoId: string }) {
         }
       } catch (err) {
         if (!cancelled) {
-          setVideo(null)
-          setError(err instanceof Error ? err.message : 'Video not found.')
+          const reason =
+            err instanceof Error
+              ? err.message
+              : 'The download server could not load this video.'
+          setError(
+            `Browser playback is still available. Download options are unavailable: ${reason}`,
+          )
         }
       } finally {
         if (!cancelled) setLoading(false)
@@ -118,7 +163,7 @@ export function WatchView({ videoId }: { videoId: string }) {
     })
   }
 
-  if (loading) {
+  if (loading && !video) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 px-4 py-24 text-muted-foreground">
         <Loader2 className="size-6 animate-spin text-primary" />
@@ -127,13 +172,15 @@ export function WatchView({ videoId }: { videoId: string }) {
     )
   }
 
-  if (error || !video) {
+  if (!video) {
     return (
       <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-3 px-4 py-24 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
           <AlertCircle className="size-6" />
         </div>
-        <p className="text-lg font-semibold text-foreground">Video not found</p>
+        <p className="text-lg font-semibold text-foreground">
+          Invalid video link
+        </p>
         <p className="text-sm text-muted-foreground">{error}</p>
         <Link
           href="/youtube"
@@ -207,6 +254,24 @@ export function WatchView({ videoId }: { videoId: string }) {
             )}
           </div>
 
+          {error && (
+            <div
+              role="status"
+              className="mt-3 flex flex-wrap items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200"
+            >
+              <AlertCircle className="mt-0.5 size-4 shrink-0" />
+              <p className="min-w-0 flex-1 leading-relaxed">{error}</p>
+              <a
+                href={video.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex shrink-0 items-center gap-1 font-semibold underline underline-offset-2"
+              >
+                Open on YouTube <ExternalLink className="size-3.5" />
+              </a>
+            </div>
+          )}
+
           <h1 className="mt-3 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
           </h1>
@@ -243,32 +308,48 @@ export function WatchView({ videoId }: { videoId: string }) {
                 <Share2 className="size-4" /> Share
               </button>
 
-              <div className="flex items-center overflow-hidden rounded-full">
-                <label className="sr-only" htmlFor="quality-select">
-                  Quality
-                </label>
-                <div className="relative">
-                  <select
-                    id="quality-select"
-                    value={quality}
-                    onChange={(e) => setQuality(e.target.value)}
-                    className="h-9 appearance-none rounded-l-full border-y border-l border-border bg-card pl-3 pr-7 text-sm font-medium text-foreground outline-none focus:border-primary/50"
+              {qualities.length > 0 ? (
+                <div className="flex items-center overflow-hidden rounded-full">
+                  <label className="sr-only" htmlFor="quality-select">
+                    Quality
+                  </label>
+                  <div className="relative">
+                    <select
+                      id="quality-select"
+                      value={quality}
+                      onChange={(e) => setQuality(e.target.value)}
+                      className="h-9 appearance-none rounded-l-full border-y border-l border-border bg-card pl-3 pr-7 text-sm font-medium text-foreground outline-none focus:border-primary/50"
+                    >
+                      {qualities.map((q) => (
+                        <option key={q.value} value={q.value}>
+                          {q.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                  </div>
+                  <button
+                    onClick={() => setDialogOpen(true)}
+                    className="flex h-9 items-center gap-1.5 rounded-r-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
-                    {qualities.map((q) => (
-                      <option key={q.value} value={q.value}>
-                        {q.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                    <Download className="size-4" /> Download
+                  </button>
                 </div>
-                <button
-                  onClick={() => setDialogOpen(true)}
-                  className="flex h-9 items-center gap-1.5 rounded-r-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              ) : (
+                <a
+                  href={video.sourceUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                 >
-                  <Download className="size-4" /> Download
-                </button>
-              </div>
+                  {loading ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <ExternalLink className="size-4" />
+                  )}
+                  {loading ? 'Preparing download…' : 'Open on YouTube'}
+                </a>
+              )}
             </div>
           </div>
 
@@ -340,7 +421,7 @@ export function WatchView({ videoId }: { videoId: string }) {
         </aside>
       </div>
 
-      {dialogOpen && (
+      {dialogOpen && qualities.length > 0 && (
         <QualityDialog
           open={dialogOpen}
           target={{

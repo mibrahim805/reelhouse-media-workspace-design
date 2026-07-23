@@ -14,6 +14,7 @@ from .services import (
     _cache_video_info,
     _cached_video_info,
     download_video,
+    get_video_info,
     normalize_video_url,
     normalize_youtube_url,
     platform_label,
@@ -181,6 +182,29 @@ class YoutubeUrlTests(SimpleTestCase):
         label = platform_label('https://www.facebook.com/watch/?v=123')
 
         self.assertEqual(label, 'Facebook')
+
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_video_info_allows_youtube_browser_embed(self, mocked_youtube_dl):
+        ydl = mocked_youtube_dl.return_value.__enter__.return_value
+        info = {
+            'title': 'Demo video',
+            'uploader': 'Demo channel',
+            'duration': 90,
+            'thumbnail': 'https://example.com/thumb.jpg',
+            'extractor_key': 'Youtube',
+            'webpage_url': 'https://www.youtube.com/watch?v=abc123',
+            'formats': [],
+        }
+        ydl.extract_info.return_value = info
+        ydl.sanitize_info.return_value = info
+
+        video = get_video_info('https://www.youtube.com/watch?v=abc123')
+
+        self.assertTrue(video['can_embed'])
+        self.assertEqual(
+            video['embed_url'],
+            'https://www.youtube.com/embed/abc123',
+        )
 
 
 class YtDlpOptionsTests(SimpleTestCase):

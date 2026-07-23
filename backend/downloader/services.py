@@ -214,7 +214,7 @@ def get_video_info(url):
     if not qualities:
         qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
 
-    can_embed = False
+    can_embed = is_youtube_url(cleaned_url)
 
     return {
         'source_url': cleaned_url,
