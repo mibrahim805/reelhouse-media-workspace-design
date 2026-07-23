@@ -254,24 +254,6 @@ export function WatchView({ videoId }: { videoId: string }) {
             )}
           </div>
 
-          {error && (
-            <div
-              role="status"
-              className="mt-3 flex flex-wrap items-start gap-2 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-xs text-amber-200"
-            >
-              <AlertCircle className="mt-0.5 size-4 shrink-0" />
-              <p className="min-w-0 flex-1 leading-relaxed">{error}</p>
-              <a
-                href={video.sourceUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex shrink-0 items-center gap-1 font-semibold underline underline-offset-2"
-              >
-                Open on YouTube <ExternalLink className="size-3.5" />
-              </a>
-            </div>
-          )}
-
           <h1 className="mt-3 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
           </h1>
