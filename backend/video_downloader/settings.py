@@ -33,7 +33,7 @@ SECRET_KEY = os.environ.get(
     'DJANGO_SECRET_KEY',
     'django-insecure-local-development-only-not-for-production',
 )
-ALLOWED_HOSTS = [
+_configured_allowed_hosts = [
     host.strip()
     for host in os.environ.get(
         'DJANGO_ALLOWED_HOSTS',
@@ -41,6 +41,13 @@ ALLOWED_HOSTS = [
     ).split(',')
     if host.strip()
 ]
+# The bundled Next.js server talks to Django over loopback. Keep these hosts
+# available even when a deployment supplies its own public host list.
+ALLOWED_HOSTS = list(dict.fromkeys([
+    *_configured_allowed_hosts,
+    '127.0.0.1',
+    'localhost',
+]))
 
 
 # Application definition
