@@ -23,22 +23,39 @@ def _cookie_options():
 
 
 def _base_ydl_options():
-    return {
+    extractor_args = {
+        'generic': {
+            'impersonate': ['chrome'],
+        },
+        'youtube': {
+            'player_client': ['web_embedded', 'mweb'],
+        },
+    }
+    pot_provider_dir = Path(getattr(settings, 'YTDLP_POT_PROVIDER_DIR', ''))
+    if (pot_provider_dir / 'build' / 'generate_once.js').is_file():
+        extractor_args['youtubepot-bgutilscript'] = {
+            'server_home': [str(pot_provider_dir)],
+        }
+
+    options = {
         'quiet': True,
         'no_warnings': True,
         'retries': 5,
         'fragment_retries': 5,
         'socket_timeout': 30,
-        'extractor_args': {
-            'generic': {
-                'impersonate': ['chrome'],
-            },
+        'js_runtimes': {
+            'node': {},
         },
+        'extractor_args': extractor_args,
         'http_headers': {
             'Accept-Language': 'en-US,en;q=0.9',
         },
         **_cookie_options(),
     }
+    proxy_url = getattr(settings, 'YTDLP_PROXY_URL', '')
+    if proxy_url:
+        options['proxy'] = proxy_url
+    return options
 
 
 def _download_error_message(error):
@@ -47,9 +64,9 @@ def _download_error_message(error):
 
     if any(term in lowered for term in ('sign in', 'age', 'confirm your age', 'private video', 'cookies')):
         return (
-            'YouTube rejected this server address for anonymous access. For a hosted deployment, '
-            'configure fresh Netscape-format cookies in the YTDLP_COOKIE_CONTENT secret, or use '
-            'a different outbound IP. Do not commit or share account cookies.'
+            'YouTube did not allow this server to access the video. It may be private, restricted, '
+            'or blocked for this hosting address. Try another public video, or configure the '
+            'YTDLP_COOKIE_CONTENT or YTDLP_PROXY_URL secret.'
         )
 
     if any(term in lowered for term in ('not available', 'unavailable', 'region', 'copyright')):

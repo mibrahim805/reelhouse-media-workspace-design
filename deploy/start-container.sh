@@ -6,6 +6,11 @@ PUBLIC_PORT="${PORT:-8080}"
 APP_ROOT="${APP_ROOT:-/app}"
 GUNICORN_THREADS="${GUNICORN_THREADS:-2}"
 
+# Both processes run in this container. Always send server-side API requests
+# over loopback instead of routing them through the public Railway domain.
+REELHOUSE_INTERNAL_BACKEND_URL="http://127.0.0.1:${BACKEND_PORT}"
+export REELHOUSE_INTERNAL_BACKEND_URL
+
 if [[ -z "${DJANGO_SECRET_KEY:-}" ]]; then
   DJANGO_SECRET_KEY="$(python -c 'import secrets; print(secrets.token_urlsafe(48))')"
   export DJANGO_SECRET_KEY

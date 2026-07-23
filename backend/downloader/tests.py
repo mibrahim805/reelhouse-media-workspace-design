@@ -9,7 +9,14 @@ from django.urls import reverse
 
 from .forms import DownloadForm
 from .jobs import _save_job, get_job
-from .services import normalize_video_url, normalize_youtube_url, platform_label, search_youtube_videos, youtube_embed_url
+from .services import (
+    _base_ydl_options,
+    normalize_video_url,
+    normalize_youtube_url,
+    platform_label,
+    search_youtube_videos,
+    youtube_embed_url,
+)
 
 
 class DownloadFormTests(SimpleTestCase):
@@ -171,6 +178,31 @@ class YoutubeUrlTests(SimpleTestCase):
         label = platform_label('https://www.facebook.com/watch/?v=123')
 
         self.assertEqual(label, 'Facebook')
+
+
+class YtDlpOptionsTests(SimpleTestCase):
+    def test_enables_node_and_hosted_youtube_fallbacks(self):
+        with TemporaryDirectory() as directory:
+            provider_script = Path(directory) / 'build' / 'generate_once.js'
+            provider_script.parent.mkdir()
+            provider_script.touch()
+
+            with override_settings(
+                YTDLP_POT_PROVIDER_DIR=directory,
+                YTDLP_PROXY_URL='http://proxy.example:8080',
+            ):
+                options = _base_ydl_options()
+
+        self.assertIn('node', options['js_runtimes'])
+        self.assertEqual(
+            options['extractor_args']['youtube']['player_client'],
+            ['web_embedded', 'mweb'],
+        )
+        self.assertEqual(
+            options['extractor_args']['youtubepot-bgutilscript']['server_home'],
+            [directory],
+        )
+        self.assertEqual(options['proxy'], 'http://proxy.example:8080')
 
 
 class YoutubeSearchTests(SimpleTestCase):

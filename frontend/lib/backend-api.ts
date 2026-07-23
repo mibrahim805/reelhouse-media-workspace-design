@@ -149,7 +149,22 @@ export function youtubeEmbedUrl(video: Pick<MediaVideo, 'id' | 'sourceUrl'>) {
 
 function absoluteBackendUrl(path: string) {
   if (!path) return ''
-  if (!BACKEND_BASE_URL) return path
+
+  try {
+    const absoluteUrl = new URL(path)
+    if (absoluteUrl.protocol === 'http:' || absoluteUrl.protocol === 'https:') {
+      return absoluteUrl.toString()
+    }
+  } catch {
+    // Relative backend paths are handled below.
+  }
+
+  if (!BACKEND_BASE_URL) {
+    const publicPath = path.replace(/^\/+/, '')
+    return publicPath.startsWith('api/backend/')
+      ? `/${publicPath}`
+      : `/api/backend/${publicPath}`
+  }
 
   try {
     return new URL(path, `${BACKEND_BASE_URL}/`).toString()

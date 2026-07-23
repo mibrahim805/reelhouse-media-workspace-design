@@ -57,6 +57,7 @@ type DownloadContextValue = {
   panelOpen: boolean
   setPanelOpen: (open: boolean) => void
   startDownload: (input: StartInput) => void
+  saveDownload: (id: string) => void
   removeDownload: (id: string) => void
   retryDownload: (id: string) => void
   clearCompleted: () => void
@@ -64,11 +65,22 @@ type DownloadContextValue = {
 
 const DownloadContext = createContext<DownloadContextValue | null>(null)
 
+function requestDeviceDownload(fileUrl: string, filename?: string) {
+  const link = document.createElement('a')
+  link.href = fileUrl
+  link.download = filename || 'download'
+  link.style.display = 'none'
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+}
+
 export function DownloadProvider({ children }: { children: React.ReactNode }) {
   const [downloads, setDownloads] = useState<DownloadItem[]>([])
   const [panelOpen, setPanelOpen] = useState(false)
   const pollers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
   const pollFailures = useRef<Map<string, number>>(new Map())
+  const deviceDownloadsStarted = useRef<Set<string>>(new Set())
 
   const stopPolling = useCallback((id: string) => {
     const existing = pollers.current.get(id)
@@ -86,6 +98,15 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
           const job = await fetchDownloadProgress(jobId)
           const terminal = job.status === 'complete' || job.status === 'error'
           pollFailures.current.delete(id)
+
+          if (
+            job.status === 'complete' &&
+            job.result?.fileUrl &&
+            !deviceDownloadsStarted.current.has(id)
+          ) {
+            deviceDownloadsStarted.current.add(id)
+            requestDeviceDownload(job.result.fileUrl, job.result.filename)
+          }
 
           setDownloads((prev) =>
             prev.map((download) => {
@@ -159,6 +180,7 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
 
       if (existingId) {
         stopPolling(existingId)
+        deviceDownloadsStarted.current.delete(existingId)
         setDownloads((prev) =>
           prev.map((download) =>
             download.id === existingId
@@ -231,8 +253,18 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
 
   const removeDownload = useCallback((id: string) => {
     stopPolling(id)
+    deviceDownloadsStarted.current.delete(id)
     setDownloads((prev) => prev.filter((d) => d.id !== id))
   }, [stopPolling])
+
+  const saveDownload = useCallback(
+    (id: string) => {
+      const item = downloads.find((download) => download.id === id)
+      if (!item?.fileUrl) return
+      requestDeviceDownload(item.fileUrl, item.filename)
+    },
+    [downloads],
+  )
 
   const retryDownload = useCallback(
     (id: string) => {
@@ -285,6 +317,7 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
         panelOpen,
         setPanelOpen,
         startDownload,
+        saveDownload,
         removeDownload,
         retryDownload,
         clearCompleted,

@@ -40,3 +40,8 @@ The container writes this secret to its configured cookie file when it starts.
 Never commit this value or show it in logs or screenshots. YouTube may reject
 cookies used from a different IP address, and using account cookies with a
 downloader can put that account at risk.
+
+The production image also includes a local PO-token provider and enables
+Node.js challenge solving. This improves anonymous YouTube support but cannot
+guarantee access when YouTube has blocked the hosting IP. A trusted proxy can
+optionally be configured through the `YTDLP_PROXY_URL` secret.

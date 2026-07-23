@@ -11,6 +11,25 @@ COPY frontend/ ./
 RUN npm run build
 
 
+FROM node:22-bookworm-slim AS pot-provider-build
+
+ARG BGUTIL_VERSION=1.3.1
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates git \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+RUN git clone --depth 1 --branch "${BGUTIL_VERSION}" \
+    https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git bgutil
+
+WORKDIR /build/bgutil/server
+RUN npm ci \
+    && ./node_modules/.bin/tsc --pretty false \
+    && rm -rf node_modules \
+    && npm ci --omit=dev
+
+
 FROM node:22-bookworm-slim AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -31,6 +50,8 @@ COPY backend/requirements.txt /tmp/backend-requirements.txt
 RUN /opt/venv/bin/pip install --no-cache-dir -r /tmp/backend-requirements.txt
 
 COPY --chown=node:node backend/ /app/backend/
+COPY --from=pot-provider-build --chown=node:node /build/bgutil/server/ /opt/bgutil-provider/server/
+COPY --from=pot-provider-build --chown=node:node /build/bgutil/LICENSE /opt/bgutil-provider/LICENSE
 COPY --from=frontend-build --chown=node:node /app/frontend/.next/standalone/ /app/frontend/
 COPY --from=frontend-build --chown=node:node /app/frontend/.next/static/ /app/frontend/.next/static/
 COPY --from=frontend-build --chown=node:node /app/frontend/public/ /app/frontend/public/
@@ -57,6 +78,7 @@ ENV REELHOUSE_DOWNLOAD_DIR=/data/downloads
 ENV REELHOUSE_JOB_CACHE_DIR=/data/job-cache
 ENV REELHOUSE_MAX_CONCURRENT_DOWNLOADS=1
 ENV YTDLP_COOKIE_FILE=/data/youtube_cookies.txt
+ENV YTDLP_POT_PROVIDER_DIR=/opt/bgutil-provider/server
 
 USER node
 WORKDIR /app/frontend

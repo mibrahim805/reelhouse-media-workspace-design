@@ -1,4 +1,5 @@
 const BACKEND_BASE_URL = (
+  process.env.REELHOUSE_INTERNAL_BACKEND_URL ||
   process.env.BACKEND_BASE_URL ||
   process.env.NEXT_PUBLIC_BACKEND_BASE_URL ||
   ''
@@ -18,7 +19,7 @@ function cleanPath(parts: string[]) {
 function backendUrl(path: string) {
   if (!BACKEND_BASE_URL) {
     throw new Error(
-      'BACKEND_BASE_URL or NEXT_PUBLIC_BACKEND_BASE_URL is not configured.',
+      'The internal backend URL is not configured.',
     )
   }
 
@@ -38,62 +39,6 @@ function getSetCookies(headers: Headers) {
     getSetCookie?: () => string[]
   }
   return withGetSetCookie.getSetCookie?.() ?? [headers.get('set-cookie') ?? '']
-}
-
-async function getCsrf(inboundCookie = '') {
-  const existingToken = readCookie(inboundCookie, 'csrftoken')
-  if (existingToken) {
-    return {
-      token: decodeURIComponent(existingToken),
-      cookie: inboundCookie,
-    }
-  }
-
-  const headers: HeadersInit = {}
-  if (inboundCookie) headers.Cookie = inboundCookie
-
-  const response = await fetch(backendUrl('csrf'), {
-    headers,
-    cache: 'no-store',
-  })
-
-  const cookieHeader = getSetCookies(response.headers).join('; ')
-  const match = cookieHeader.match(/csrftoken=([^;]+)/)
-
-  if (!response.ok || !match) {
-    throw new Error('Could not get a CSRF token from the backend.')
-  }
-
-  const token = decodeURIComponent(match[1])
-  return {
-    token,
-    cookie: mergeCookieHeaders(inboundCookie, `csrftoken=${token}`),
-  }
-}
-
-function readCookie(cookieHeader: string, name: string) {
-  const prefix = `${name}=`
-  return cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .find((part) => part.startsWith(prefix))
-    ?.slice(prefix.length)
-}
-
-function mergeCookieHeaders(...headers: string[]) {
-  const cookies = new Map<string, string>()
-
-  headers
-    .filter(Boolean)
-    .flatMap((header) => header.split(';'))
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .forEach((cookie) => {
-      const name = cookie.split('=')[0]
-      if (name) cookies.set(name, cookie)
-    })
-
-  return Array.from(cookies.values()).join('; ')
 }
 
 async function proxyJsonResponse(response: Response) {
@@ -183,14 +128,10 @@ export async function POST(
 
   try {
     const payload = await readPostBody(request)
-    const inboundCookie = request.headers.get('cookie') ?? ''
-    const csrf = await getCsrf(inboundCookie)
     const response = await fetch(backendUrl(path), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-        Cookie: csrf.cookie,
-        'X-CSRFToken': csrf.token,
         'X-Requested-With': 'XMLHttpRequest',
       },
       body: formEncode(payload).toString(),

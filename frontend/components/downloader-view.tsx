@@ -407,7 +407,7 @@ export function DownloaderView() {
                       )}
                     >
                       {d.status === 'completed'
-                        ? 'Done'
+                        ? 'Ready'
                         : `${Math.round(d.progress)}%`}
                     </span>
                   </div>

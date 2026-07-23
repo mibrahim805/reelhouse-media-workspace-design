@@ -4,6 +4,35 @@ Reelhouse is a focused media workspace for discovering, previewing, and saving
 videos. This repository packages the Next.js frontend and Django/yt-dlp backend
 as one Docker application.
 
+## Deploy on Railway
+
+Railway automatically uses the root `Dockerfile` and `railway.json`. The
+frontend and backend run in one service, so do not create separate services or
+override the start command.
+
+1. Push this repository to GitHub.
+2. In Railway, choose **New Project → Deploy from GitHub repo** and select the
+   repository.
+3. Wait for the Docker build and health check to complete.
+4. Open the service's **Settings → Networking** and choose
+   **Generate Domain**.
+5. In **Variables**, add a stable production secret:
+
+   ```text
+   DJANGO_SECRET_KEY=<a-long-random-secret>
+   ```
+
+`PORT` is supplied by Railway automatically. The container already listens on
+that port, so it must not be set manually. Cookies for authenticated YouTube
+downloads can optionally be stored as the secret variable
+`YTDLP_COOKIE_CONTENT`.
+
+Railway's Free plan is suitable only for testing this application. It currently
+starts with a 30-day, $5 trial and then provides $1 of monthly usage, with
+0.5 GB RAM and 1 GB of ephemeral disk. Downloaded videos and SQLite/job-cache
+state can disappear on restart or redeploy, and large downloads can fill the
+disk. Keep `REELHOUSE_MAX_CONCURRENT_DOWNLOADS=1` on this tier.
+
 ## Free hosted deployment (no card)
 
 Deploy the published Docker image with **ClawCloud Run**. Its Free Plan does not

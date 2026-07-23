@@ -3,7 +3,6 @@
 import {
   Check,
   Download,
-  FolderOpen,
   RotateCw,
   Trash2,
   X,
@@ -15,7 +14,7 @@ function StatusBadge({ item }: { item: DownloadItem }) {
   if (item.status === 'completed') {
     return (
       <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success">
-        <Check className="size-3" /> Done
+        <Check className="size-3" /> Ready
       </span>
     )
   }
@@ -38,7 +37,7 @@ function StatusBadge({ item }: { item: DownloadItem }) {
 }
 
 function DownloadRow({ item }: { item: DownloadItem }) {
-  const { removeDownload, retryDownload } = useDownloads()
+  const { removeDownload, retryDownload, saveDownload } = useDownloads()
   return (
     <div className="flex gap-3 rounded-lg p-2 transition-colors hover:bg-muted/60">
       <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
@@ -77,13 +76,12 @@ function DownloadRow({ item }: { item: DownloadItem }) {
         {item.status !== 'downloading' && item.status !== 'processing' && (
           <div className="mt-1.5 flex items-center gap-1">
             {item.status === 'completed' && item.fileUrl && (
-              <a
-                href={item.fileUrl}
-                download
+              <button
+                onClick={() => saveDownload(item.id)}
                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
               >
-                <FolderOpen className="size-3" /> Open
-              </a>
+                <Download className="size-3" /> Save to device
+              </button>
             )}
             {item.status === 'failed' && (
               <button
