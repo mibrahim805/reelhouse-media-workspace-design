@@ -11,6 +11,9 @@ from .forms import DownloadForm
 from .jobs import _save_job, get_job
 from .services import (
     _base_ydl_options,
+    _cache_video_info,
+    _cached_video_info,
+    download_video,
     normalize_video_url,
     normalize_youtube_url,
     platform_label,
@@ -203,6 +206,40 @@ class YtDlpOptionsTests(SimpleTestCase):
             [directory],
         )
         self.assertEqual(options['proxy'], 'http://proxy.example:8080')
+
+
+@override_settings(
+    CACHES={
+        'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+            'LOCATION': 'video-info-cache-tests',
+        }
+    }
+)
+class CachedVideoDownloadTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_reuses_preview_info_for_download(self, mocked_youtube_dl):
+        source_url = 'https://www.youtube.com/watch?v=abc123'
+        cached_info = {'id': 'abc123', 'title': 'Demo video', 'ext': 'mp4'}
+        _cache_video_info(source_url, cached_info)
+
+        with TemporaryDirectory() as directory:
+            output_file = Path(directory) / 'demo.mp4'
+            output_file.write_bytes(b'demo video')
+            ydl = mocked_youtube_dl.return_value.__enter__.return_value
+            ydl.process_ie_result.return_value = cached_info
+            ydl.prepare_filename.return_value = str(output_file)
+
+            with override_settings(MEDIA_ROOT=directory):
+                result = download_video(source_url)
+
+        ydl.process_ie_result.assert_called_once_with(cached_info, download=True)
+        ydl.extract_info.assert_not_called()
+        self.assertEqual(result['filename'], 'demo.mp4')
+        self.assertIsNone(_cached_video_info(source_url))
 
 
 class YoutubeSearchTests(SimpleTestCase):

@@ -1,12 +1,30 @@
+from hashlib import sha256
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 from django.conf import settings
+from django.core.cache import cache
 
 
 class DownloadError(Exception):
     pass
+
+
+_info_cache_timeout = 10 * 60
+
+
+def _info_cache_key(url):
+    digest = sha256(url.encode('utf-8')).hexdigest()
+    return f'video-info:{digest}'
+
+
+def _cache_video_info(url, info):
+    cache.set(_info_cache_key(url), info, timeout=_info_cache_timeout)
+
+
+def _cached_video_info(url):
+    return cache.get(_info_cache_key(url))
 
 
 def _cookie_options():
@@ -188,6 +206,7 @@ def get_video_info(url):
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(cleaned_url, download=False)
+            _cache_video_info(cleaned_url, ydl.sanitize_info(info))
     except Exception as exc:
         raise DownloadError(_download_error_message(exc)) from exc
 
@@ -283,10 +302,16 @@ def download_video(url, quality='best', progress_hook=None):
 
     try:
         with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(cleaned_url, download=True)
+            cached_info = _cached_video_info(cleaned_url)
+            if cached_info:
+                info = ydl.process_ie_result(cached_info, download=True)
+            else:
+                info = ydl.extract_info(cleaned_url, download=True)
             filepath = Path(ydl.prepare_filename(info))
     except Exception as exc:
         raise DownloadError(_download_error_message(exc)) from exc
+    else:
+        cache.delete(_info_cache_key(cleaned_url))
 
     mp4_path = filepath.with_suffix('.mp4')
     if mp4_path.exists():
