@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 
 from django.conf import settings
 from django.http import FileResponse, Http404, JsonResponse
@@ -12,6 +13,22 @@ from .services import DownloadError, get_video_info, search_youtube_videos
 
 
 INVALID_URL_ERROR = 'Enter a valid video URL.'
+
+
+def _request_data(request):
+    """Read both browser form posts and the JSON requests used by the web app."""
+    if request.POST:
+        return request.POST
+
+    content_type = request.headers.get('Content-Type', '')
+    if 'application/json' in content_type:
+        try:
+            payload = json.loads(request.body or '{}')
+        except (TypeError, ValueError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    return {}
 
 
 def frontend_redirect(path=''):
@@ -38,7 +55,7 @@ def csrf_token(request):
 @csrf_exempt
 @require_POST
 def fetch_info(request):
-    form = DownloadForm(request.POST)
+    form = DownloadForm(_request_data(request))
     if not form.is_valid():
         return JsonResponse({'ok': False, 'error': INVALID_URL_ERROR}, status=400)
 
@@ -53,7 +70,7 @@ def fetch_info(request):
 @csrf_exempt
 @require_POST
 def youtube_search(request):
-    query = request.POST.get('query', '').strip()
+    query = str(_request_data(request).get('query', '')).strip()
     if not query:
         return JsonResponse({'ok': False, 'error': 'Enter a search term.'}, status=400)
 
@@ -68,7 +85,7 @@ def youtube_search(request):
 @csrf_exempt
 @require_POST
 def youtube_topic(request):
-    topic = request.POST.get('topic', '').strip()
+    topic = str(_request_data(request).get('topic', '')).strip()
     topic_queries = {
         'All': 'popular videos Pakistan',
         'Music': 'latest music videos',
@@ -96,8 +113,9 @@ def youtube_topic(request):
 @csrf_exempt
 @require_POST
 def start_download(request):
-    url = request.POST.get('url', '').strip()
-    quality = request.POST.get('quality', 'best').strip() or 'best'
+    data = _request_data(request)
+    url = str(data.get('url', '')).strip()
+    quality = str(data.get('quality', 'best')).strip() or 'best'
     form = DownloadForm({'url': url})
 
     if not form.is_valid():

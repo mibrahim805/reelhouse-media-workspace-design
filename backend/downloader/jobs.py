@@ -87,6 +87,15 @@ def start_download_job(url, quality):
             result = download_video(url, quality=quality, progress_hook=_progress_hook(job_id))
         except DownloadError as exc:
             _save_job(job_id, status='error', percent=0, error=str(exc))
+        except Exception:
+            # Never leave the UI polling a job that died outside yt-dlp's
+            # normal error handling (for example, an ffmpeg/process error).
+            _save_job(
+                job_id,
+                status='error',
+                percent=0,
+                error='The download failed unexpectedly. Please try again.',
+            )
         else:
             _save_job(job_id, status='complete', percent=100, result=result)
 
