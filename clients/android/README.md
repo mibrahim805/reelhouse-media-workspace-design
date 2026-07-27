@@ -42,7 +42,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This local-workspace release is version 1.4.0 with `versionCode 10`. An
+client. This local-workspace release is version 1.4.1 with `versionCode 11`. An
 installed build is upgrade-compatible only when it is signed with the same
 private signing key.
 

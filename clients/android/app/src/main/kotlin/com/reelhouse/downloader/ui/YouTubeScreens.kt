@@ -2,6 +2,7 @@ package com.reelhouse.downloader.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
+import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
@@ -59,7 +60,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
-import com.reelhouse.downloader.BuildConfig
 import com.reelhouse.downloader.youtube.BackendDownloadPhase
 import com.reelhouse.downloader.youtube.BackendVideo
 import com.reelhouse.downloader.youtube.YouTubeState
@@ -408,9 +408,7 @@ fun YouTubeWatchScreen(
 @Composable
 private fun YouTubeEmbedPlayer(videoId: String) {
     val embedUrl = remember(videoId) { YouTubeUrls.embedUrl(videoId).orEmpty() }
-    val requestHeaders = remember {
-        mapOf("Referer" to "${BuildConfig.REELHOUSE_WEB_BASE_URL.trimEnd('/')}/")
-    }
+    val playerDocument = remember(embedUrl) { playerHtml(embedUrl) }
     var webView by remember { mutableStateOf<WebView?>(null) }
 
     DisposableEffect(Unit) {
@@ -431,6 +429,7 @@ private fun YouTubeEmbedPlayer(videoId: String) {
                 webView = this
                 tag = videoId
                 setBackgroundColor(AndroidColor.BLACK)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 settings.apply {
                     javaScriptEnabled = true
                     domStorageEnabled = true
@@ -443,14 +442,48 @@ private fun YouTubeEmbedPlayer(videoId: String) {
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
                 webViewClient = WebViewClient()
-                loadUrl(embedUrl, requestHeaders)
+                loadDataWithBaseURL(
+                    "https://www.youtube.com/",
+                    playerDocument,
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
             }
         },
         update = { view ->
             if (view.tag != videoId) {
                 view.tag = videoId
-                view.loadUrl(embedUrl, requestHeaders)
+                view.loadDataWithBaseURL(
+                    "https://www.youtube.com/",
+                    playerDocument,
+                    "text/html",
+                    "UTF-8",
+                    null,
+                )
             }
         },
     )
 }
+
+private fun playerHtml(embedUrl: String) = """
+    <!doctype html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <style>
+          html,body,iframe {
+            position:fixed; inset:0; margin:0; width:100%; height:100%;
+            border:0; overflow:hidden; background:#000;
+          }
+        </style>
+      </head>
+      <body>
+        <iframe
+          src="$embedUrl"
+          allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+          allowfullscreen>
+        </iframe>
+      </body>
+    </html>
+""".trimIndent()
