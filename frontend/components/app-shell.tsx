@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { Download, Link2, MonitorPlay, Play } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
@@ -80,6 +81,49 @@ function DownloadButton() {
   )
 }
 
+function InstallAppButton() {
+  const [installEvent, setInstallEvent] = useState<Event | null>(null)
+
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      void navigator.serviceWorker.register('/sw.js')
+    }
+
+    const onInstallPrompt = (event: Event) => {
+      event.preventDefault()
+      setInstallEvent(event)
+    }
+
+    window.addEventListener('beforeinstallprompt', onInstallPrompt)
+    return () => window.removeEventListener('beforeinstallprompt', onInstallPrompt)
+  }, [])
+
+  async function install() {
+    const prompt = installEvent as (Event & {
+      prompt: () => Promise<void>
+      userChoice: Promise<{ outcome: string }>
+    }) | null
+
+    if (!prompt) {
+      window.alert('On Android Chrome, open the browser menu and choose “Add to home screen”.')
+      return
+    }
+
+    await prompt.prompt()
+    await prompt.userChoice
+    setInstallEvent(null)
+  }
+
+  return (
+    <button
+      onClick={() => void install()}
+      className="flex rounded-lg border border-primary/40 px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/10"
+    >
+      Install app
+    </button>
+  )
+}
+
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
@@ -121,11 +165,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {pathname !== '/' && (
-            <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2">
+            <InstallAppButton />
+            {pathname !== '/' && (
               <DownloadButton />
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </header>
 

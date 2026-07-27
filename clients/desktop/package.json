@@ -1,6 +1,6 @@
 {
   "name": "reelhouse-desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Native Reelhouse client for Windows and Ubuntu",
   "homepage": "https://github.com/mibrahim805/reelhouse-media-workspace-design",
   "desktopName": "reelhouse.desktop",

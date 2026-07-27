@@ -12,7 +12,10 @@ const path = require('node:path')
 
 const DEFAULT_SERVER_URL =
   process.env.REELHOUSE_SERVER_URL ||
-  'https://pajamas-hexagon-equation.ngrok-free.dev'
+  'https://reelhouse-media-workspace-design-production.up.railway.app'
+const LEGACY_SERVER_URLS = new Set([
+  'https://pajamas-hexagon-equation.ngrok-free.dev',
+])
 
 let mainWindow = null
 
@@ -50,7 +53,10 @@ function readServerUrl() {
 
   try {
     const config = JSON.parse(fs.readFileSync(configFile(), 'utf8'))
-    if (config.serverUrl) return normalizeServerUrl(config.serverUrl)
+    if (config.serverUrl) {
+      const configuredUrl = normalizeServerUrl(config.serverUrl)
+      if (!LEGACY_SERVER_URLS.has(configuredUrl)) return configuredUrl
+    }
   } catch {
     // Missing or invalid user config falls back to the packaged default.
   }

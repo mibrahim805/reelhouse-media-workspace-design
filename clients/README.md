@@ -10,10 +10,14 @@ operating system instead of Chrome.
 | Ubuntu | Electron `.AppImage` or `.deb` | The user's `Downloads/Reelhouse` folder |
 | Android | Capacitor `.apk` | The public device `Download` folder |
 
-The Django and Next.js services must still be reachable from the device while
-the app is being used. The current ngrok address is the development default; it
-only works while that tunnel and both local services are running. Set a stable
-HTTPS address before distributing a permanent build.
+The packaged clients connect directly to the production Railway deployment:
+
+```text
+https://reelhouse-media-workspace-design-production.up.railway.app
+```
+
+No server needs to run on the user's laptop or phone. Railway must be online
+and the device must have internet access.
 
 ## Configure the server
 
@@ -28,8 +32,7 @@ Server settings**. Android stores the address in the APK, so rebuild the APK
 when that address changes.
 
 For GitHub Actions, create a repository Actions variable named
-`REELHOUSE_SERVER_URL`. If it is absent, the workflow uses the current ngrok
-development URL.
+`REELHOUSE_SERVER_URL` only when a different deployment should be packaged.
 
 ## Website download button
 

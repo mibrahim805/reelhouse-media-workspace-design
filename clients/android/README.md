@@ -1,6 +1,10 @@
 # Reelhouse Android
 
-This directory is an independent native Kotlin/Jetpack Compose Android application. It does not contain a WebView and does not call the Reelhouse website or Railway backend.
+This Android app opens the production Reelhouse Railway deployment in a native
+WebView, providing the website's Home, YouTube, watch, downloader, quality, and
+download-progress features without a server on the user's device.
+
+Production URL: `https://reelhouse-media-workspace-design-production.up.railway.app`
 
 ## Local data flow
 
@@ -27,7 +31,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client, and this native replacement uses `versionCode 5`. An installed build is
+client, and this Railway-connected release uses `versionCode 6`. An installed build is
 upgrade-compatible only when it is signed with the same private signing key.
 
 ## Engine and FFmpeg choice
