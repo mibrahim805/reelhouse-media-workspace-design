@@ -137,9 +137,12 @@ class FileManager(private val context: Context) {
             destination == "media" -> Environment.DIRECTORY_MOVIES
             else -> Environment.DIRECTORY_DOWNLOADS
         }
+        // Android 7–9 normally requires WRITE_EXTERNAL_STORAGE for a public
+        // folder. Use the app-specific external collection instead so local
+        // downloads work without any runtime storage permission.
         val downloadsDir = File(
-            Environment.getExternalStoragePublicDirectory(publicDirectory),
-            "Reelhouse"
+            context.getExternalFilesDir(publicDirectory) ?: context.filesDir,
+            "Reelhouse",
         ).apply { mkdirs() }
 
         val destFile = File(downloadsDir, displayName)
@@ -164,7 +167,12 @@ class FileManager(private val context: Context) {
             "${context.packageName}.files",
             finalFile,
         )
-        return SavedMedia(uri, uniqueName, "${publicDirectory}/Reelhouse", finalFile.length())
+        return SavedMedia(
+            uri,
+            uniqueName,
+            "Android/data/${context.packageName}/files/$publicDirectory/Reelhouse",
+            finalFile.length(),
+        )
     }
 
     private fun uniqueMediaStoreName(

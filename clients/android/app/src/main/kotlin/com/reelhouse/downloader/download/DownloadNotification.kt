@@ -1,13 +1,17 @@
 package com.reelhouse.downloader.download
 
+import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.reelhouse.downloader.MainActivity
 import com.reelhouse.downloader.R
 
@@ -86,13 +90,16 @@ class DownloadNotification(private val context: Context) {
             .build()
     }
 
+    @SuppressLint("NotificationPermission")
     fun updateServiceNotification(jobCount: Int) {
+        if (!canPostOptionalNotifications()) return
         notificationManager.notify(
             SERVICE_NOTIFICATION_ID,
             buildServiceNotification(jobCount),
         )
     }
 
+    @SuppressLint("NotificationPermission")
     fun showProgressNotification(
         downloadId: String,
         title: String,
@@ -100,6 +107,7 @@ class DownloadNotification(private val context: Context) {
         speed: String,
         cancelIntent: PendingIntent,
     ) {
+        if (!canPostOptionalNotifications()) return
         notificationManager.notify(
             progressId(downloadId),
             buildProgressNotification(title, progress, speed, cancelIntent),
@@ -119,7 +127,9 @@ class DownloadNotification(private val context: Context) {
             .build()
     }
 
+    @SuppressLint("NotificationPermission")
     fun showCompleteNotification(title: String, notificationId: Int) {
+        if (!canPostOptionalNotifications()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(context.getString(R.string.notification_complete))
@@ -131,7 +141,9 @@ class DownloadNotification(private val context: Context) {
         notificationManager.notify(notificationId, notification)
     }
 
+    @SuppressLint("NotificationPermission")
     fun showFailedNotification(title: String, errorMessage: String, notificationId: Int) {
+        if (!canPostOptionalNotifications()) return
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(errorMessage)
@@ -146,6 +158,13 @@ class DownloadNotification(private val context: Context) {
     fun cancelNotification(id: Int) {
         notificationManager.cancel(id)
     }
+
+    private fun canPostOptionalNotifications(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+            ContextCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS,
+            ) == PackageManager.PERMISSION_GRANTED
 
     private fun createMainIntent(): PendingIntent {
         val intent = Intent(context, MainActivity::class.java).apply {

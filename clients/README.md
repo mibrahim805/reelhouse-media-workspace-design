@@ -1,23 +1,22 @@
 # Reelhouse native clients
 
-Reelhouse has native wrappers for Windows, Ubuntu, and Android. They load the
-shared Reelhouse web application, but completed media is handled by the native
-operating system instead of Chrome.
+Reelhouse has native wrappers for Windows and Ubuntu plus an independent native
+Android downloader.
 
 | Platform | Package | Completed files |
 | --- | --- | --- |
 | Windows | Electron installer or portable `.exe` | The user's `Downloads\\Reelhouse` folder |
 | Ubuntu | Electron `.AppImage` or `.deb` | The user's `Downloads/Reelhouse` folder |
-| Android | Capacitor `.apk` | The public device `Download` folder |
+| Android | Native Kotlin `.apk` | `Download/Reelhouse` on Android 10+ |
 
-The packaged clients connect directly to the production Railway deployment:
+The desktop clients connect directly to the production Railway deployment:
 
 ```text
 https://reelhouse-media-workspace-design-production.up.railway.app
 ```
 
-No server needs to run on the user's laptop or phone. Railway must be online
-and the device must have internet access.
+The Android app does not use Railway for extraction or downloads. It runs
+yt-dlp and FFmpeg locally on the phone.
 
 ## Configure the server
 
@@ -28,8 +27,7 @@ REELHOUSE_SERVER_URL=https://reelhouse.example.com npm run dist:linux
 ```
 
 The desktop app also lets each user change the address later from **Reelhouse >
-Server settings**. Android stores the address in the APK, so rebuild the APK
-when that address changes.
+Server settings**. Android does not need a server address.
 
 For GitHub Actions, create a repository Actions variable named
 `REELHOUSE_SERVER_URL` only when a different deployment should be packaged.
@@ -38,7 +36,7 @@ For GitHub Actions, create a repository Actions variable named
 
 The website header includes **Download app**. Its package API reads desktop
 files from `clients/desktop/dist` and Android APKs from
-`clients/android/android/app/build/outputs/apk` by default. Override those
+`clients/android/app/build/outputs/apk` by default. Override those
 locations with `REELHOUSE_DESKTOP_RELEASE_DIR` and
 `REELHOUSE_ANDROID_RELEASE_DIR`.
 

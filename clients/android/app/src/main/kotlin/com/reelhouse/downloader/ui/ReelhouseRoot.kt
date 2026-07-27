@@ -1,14 +1,9 @@
 package com.reelhouse.downloader.ui
 
-import android.Manifest
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -76,7 +71,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -384,7 +378,6 @@ private fun DetailsScreen(
     onBack: () -> Unit,
     onStart: (MediaInfo, Boolean, Int?, Int?, String, String, Long) -> Unit,
 ) {
-    val context = LocalContext.current
     val media = state.media
     var audioOnly by rememberSaveable(media?.id) { mutableStateOf(settings.downloadType == "audio") }
     val videoFormats = remember(media) {
@@ -420,8 +413,6 @@ private fun DetailsScreen(
         )
     }
     var confirming by remember { mutableStateOf(false) }
-    var pending by remember { mutableStateOf<DownloadChoice?>(null) }
-    var permissionError by remember { mutableStateOf<String?>(null) }
 
     fun submit(choice: DownloadChoice) {
         onStart(
@@ -433,16 +424,6 @@ private fun DetailsScreen(
             choice.label,
             choice.expectedBytes,
         )
-    }
-    val storagePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) pending?.let(::submit)
-        else permissionError = "Storage permission is required on Android 9 and earlier."
-        pending = null
-    }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) pending?.let(::submit)
-        else permissionError = "Notification permission is required so an active download remains visible and cancellable."
-        pending = null
     }
     val selectedAudioFormat = if (audioBitrate == null) {
         audioFormats.firstOrNull()
@@ -559,15 +540,11 @@ private fun DetailsScreen(
             }
             item {
                 Button(onClick = {
-                    permissionError = null
                     confirming = true
                 }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Download, null)
                     Spacer(Modifier.size(8.dp))
                     Text("Confirm local download")
-                }
-                permissionError?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             }
         }
@@ -595,17 +572,7 @@ private fun DetailsScreen(
                         label,
                         expectedBytes,
                     )
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        pending = choice
-                        notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                    } else if (Build.VERSION.SDK_INT <= Build.VERSION_CODES.P &&
-                        ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED
-                    ) {
-                        pending = choice
-                        storagePermission.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
-                    } else submit(choice)
+                    submit(choice)
                 }) { Text("Download") }
             },
             dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancel") } },

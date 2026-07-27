@@ -1,10 +1,8 @@
 # Reelhouse Android
 
-This Android app opens the production Reelhouse Railway deployment in a native
-WebView, providing the website's Home, YouTube, watch, downloader, quality, and
-download-progress features without a server on the user's device.
-
-Production URL: `https://reelhouse-media-workspace-design-production.up.railway.app`
+This is a native Kotlin/Jetpack Compose downloader. Extraction, downloading,
+quality selection, and FFmpeg processing run directly on the Android device.
+YouTube media traffic does not pass through Railway.
 
 ## Local data flow
 
@@ -13,7 +11,10 @@ Production URL: `https://reelhouse-media-workspace-design-production.up.railway.
 3. Kotlin displays locally extracted metadata and a whitelisted set of download options.
 4. `DownloadService` runs the selected job as an Android foreground service. Source media travels directly from the source to the phone.
 5. The wrapper's FFmpeg component performs required merges or audio conversion locally.
-6. Temporary output stays in the app cache. Finished media is copied through MediaStore to `Downloads/Reelhouse`, or optionally `Movies/Reelhouse` / `Music/Reelhouse`.
+6. Temporary output stays in the app cache. On Android 10 and newer, finished
+   media is copied through MediaStore to `Downloads/Reelhouse`, or optionally
+   `Movies/Reelhouse` / `Music/Reelhouse`. Android 7–9 uses the app-specific
+   external media directory to avoid requesting storage permission.
 
 Railway remains responsible only for the existing browser product. The root `.dockerignore` excludes `clients`, and the root Dockerfile does not copy or build this directory.
 
@@ -31,7 +32,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client, and this Railway-connected release uses `versionCode 6`. An installed build is
+client, and this local-downloader release uses `versionCode 6`. An installed build is
 upgrade-compatible only when it is signed with the same private signing key.
 
 ## Engine and FFmpeg choice

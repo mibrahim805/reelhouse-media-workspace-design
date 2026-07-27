@@ -219,7 +219,6 @@ function androidPackages(): AppPackage[] {
   const directory = releaseDirectory('REELHOUSE_ANDROID_RELEASE_DIR', [
     'clients',
     'android',
-    'android',
     'app',
     'build',
     'outputs',
