@@ -4,6 +4,18 @@ This is a native Kotlin/Jetpack Compose downloader. Extraction, downloading,
 quality selection, and FFmpeg processing run directly on the Android device.
 YouTube media traffic does not pass through Railway.
 
+## Online YouTube playback
+
+The YouTube destination opens YouTube's mobile website inside an app WebView.
+Visitors can browse, search, and play online videos without downloading them
+first. The WebView keeps YouTube-owned URLs inside Reelhouse, opens unrelated
+websites in the device browser, supports playback fullscreen requests, and
+offers a download action when the current page is a recognized video URL.
+
+Online playback streams directly from YouTube and does not use Railway or the
+Reelhouse website backend. YouTube controls availability, advertising, cookies,
+regional restrictions, sign-in prompts, and whether a particular video plays.
+
 ## Local data flow
 
 1. Kotlin validates an HTTPS URL and rejects local/private destinations.
@@ -32,8 +44,9 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client, and this local-downloader release uses `versionCode 6`. An installed build is
-upgrade-compatible only when it is signed with the same private signing key.
+client. This online-playback release is version 1.2.0 with `versionCode 7`. An
+installed build is upgrade-compatible only when it is signed with the same
+private signing key.
 
 ## Engine and FFmpeg choice
 

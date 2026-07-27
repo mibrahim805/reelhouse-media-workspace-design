@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
@@ -92,6 +93,7 @@ private data class Destination(val route: String, val label: String, val icon: I
 
 private val destinations = listOf(
     Destination("home", "Home", Icons.Default.Home),
+    Destination("youtube", "YouTube", Icons.Default.PlayCircle),
     Destination("downloads", "Downloads", Icons.Default.Download),
     Destination("history", "History", Icons.Default.History),
     Destination("settings", "Settings", Icons.Default.Settings),
@@ -180,6 +182,19 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                         ) {
                             navController.navigate("downloads")
                         }
+                    },
+                )
+            }
+            composable("youtube") {
+                YouTubeBrowserScreen(
+                    onDownloadVideo = { url ->
+                        viewModel.clearUrl()
+                        viewModel.setUrl(url)
+                        navController.navigate("home") {
+                            popUpTo(navController.graph.findStartDestination().id)
+                            launchSingleTop = true
+                        }
+                        viewModel.analyze()
                     },
                 )
             }
@@ -862,6 +877,8 @@ private const val LEGAL_TEXT = """Use this application only to download media th
 Do not use it to bypass copyright restrictions, subscriptions, DRM, authentication, or access controls. Public unauthenticated content is the only supported mode. No browser cookies or account credentials are collected.
 
 Media URLs are passed only to the embedded local yt-dlp runtime. Media extraction, downloading, and FFmpeg processing occur on this Android device using its network connection. Railway and the Reelhouse website backend are not used by this app. Thumbnail images are loaded directly from the source URL returned by yt-dlp.
+
+The optional YouTube browser loads YouTube's mobile website directly in an Android WebView. Online playback is streamed by YouTube and is separate from Reelhouse downloads. YouTube may receive normal browser information and store cookies or site data on this device according to its own privacy policy.
 
 Download-engine updates occur only after an explicit action. The app fetches the official yt-dlp stable release and verifies the component against that release's SHA-256 manifest before installation. Extraction can still break when source platforms change.
 
