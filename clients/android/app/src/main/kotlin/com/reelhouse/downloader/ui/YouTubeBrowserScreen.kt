@@ -21,15 +21,18 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -173,7 +176,7 @@ fun YouTubeBrowserScreen(onDownloadVideo: (String) -> Unit) {
                     }
                 }
                 AndroidView(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.weight(1f),
                     factory = { context ->
                         WebView(context).apply webView@ {
                             browser = this
@@ -226,6 +229,18 @@ fun YouTubeBrowserScreen(onDownloadVideo: (String) -> Unit) {
                         }
                     },
                 )
+                if (downloadUrl != null) {
+                    Button(
+                        onClick = { onDownloadVideo(downloadUrl) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                    ) {
+                        Icon(Icons.Default.Download, contentDescription = null)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Download this video")
+                    }
+                }
             }
         }
 

@@ -44,7 +44,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This online-playback release is version 1.2.0 with `versionCode 7`. An
+client. This online-playback release is version 1.2.1 with `versionCode 8`. An
 installed build is upgrade-compatible only when it is signed with the same
 private signing key.
 
