@@ -199,6 +199,58 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         return id
     }
 
+    fun startDirectVideoDownload(
+        url: String,
+        sourceId: String,
+        title: String,
+        uploader: String,
+        thumbnail: String,
+        quality: String,
+    ): String? {
+        val validation = UrlValidator.validateSyntax(url)
+        if (validation !is UrlValidator.ValidationResult.Valid) {
+            _messages.tryEmit((validation as UrlValidator.ValidationResult.Invalid).reason)
+            return null
+        }
+        if (settings.value.wifiOnly && !NetworkUtil.isOnWifi(app)) {
+            _messages.tryEmit("Wi-Fi-only downloads are enabled. Connect to Wi-Fi and retry.")
+            return null
+        }
+        if (activeDownloads.value.any { it.url == validation.url }) {
+            _messages.tryEmit("This URL already has an active download.")
+            return null
+        }
+
+        val height = quality.toIntOrNull()
+        val id = UUID.randomUUID().toString()
+        val request = DownloadRequest(
+            id = id,
+            url = validation.url,
+            mediaInfo = MediaInfo(
+                id = sourceId,
+                title = title,
+                uploader = uploader,
+                thumbnail = thumbnail,
+                platform = "YouTube",
+                webpageUrl = validation.url,
+            ),
+            formatSelector = extractor.buildFormatSelector(
+                isAudioOnly = false,
+                videoHeight = height,
+                audioBitrate = null,
+                videoContainer = "mp4",
+            ),
+            isAudioOnly = false,
+            mergeFormat = "mp4",
+            qualityLabel = height?.let { "${it}p" } ?: "Best available",
+            destination = settings.value.directory,
+            expectedBytes = 0,
+        )
+        ContextCompat.startForegroundService(app, DownloadService.createStartIntent(app, request))
+        _messages.tryEmit("The hosted backend was blocked, so Reelhouse continued the download on this phone.")
+        return id
+    }
+
     fun cancelDownload(id: String) {
         app.startService(DownloadService.createCancelIntent(app, id))
     }

@@ -1,20 +1,25 @@
 # Reelhouse Android
 
-This is a native Kotlin/Jetpack Compose downloader. Extraction, downloading,
-quality selection, and FFmpeg processing run directly on the Android device.
-YouTube media traffic does not pass through Railway.
+This is a native Kotlin/Jetpack Compose downloader. The Home downloader runs
+extraction, downloading, quality selection, and FFmpeg processing directly on
+the Android device. The YouTube workspace mirrors the web product's hosted
+backend flow and automatically falls back to that local engine if the host is
+blocked.
 
-## Online YouTube playback
+## Reelhouse YouTube workspace
 
-The YouTube destination opens YouTube's mobile website inside an app WebView.
-Visitors can browse, search, and play online videos without downloading them
-first. The WebView keeps YouTube-owned URLs inside Reelhouse, opens unrelated
-websites in the device browser, supports playback fullscreen requests, and
-offers a download action when the current page is a recognized video URL.
+The YouTube destination mirrors the website's custom feed, topic, search, watch,
+quality, and download flow. Native Compose screens call the production
+Reelhouse proxy endpoints for `youtube-topic`, `youtube-search`, `fetch-info`,
+`start-download`, and `progress`. The watch page contains only the YouTube embed
+player; it never loads YouTube's mobile website as the app interface.
 
-Online playback streams directly from YouTube and does not use Railway or the
-Reelhouse website backend. YouTube controls availability, advertising, cookies,
-regional restrictions, sign-in prompts, and whether a particular video plays.
+YouTube workspace downloads follow the website architecture: the Django
+backend uses Python yt-dlp and FFmpeg, Android polls the backend job, and the
+completed file is handed to Android's system download manager for storage in
+`Downloads/Reelhouse`. If YouTube rejects the hosting provider's IP, the same
+download automatically continues through the app's bundled local
+yt-dlp/FFmpeg engine. The separate Home downloader also remains local.
 
 ## Local data flow
 
@@ -28,7 +33,10 @@ regional restrictions, sign-in prompts, and whether a particular video plays.
    `Movies/Reelhouse` / `Music/Reelhouse`. Android 7–9 uses the app-specific
    external media directory to avoid requesting storage permission.
 
-Railway remains responsible only for the existing browser product. The root `.dockerignore` excludes `clients`, and the root Dockerfile does not copy or build this directory.
+The Android project is not built into the Railway deployment: the root
+`.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
+directory. The installed app does, however, call the public web proxy for its
+YouTube workspace.
 
 ## Build
 
@@ -44,7 +52,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This online-playback release is version 1.2.1 with `versionCode 8`. An
+client. This backend-workspace release is version 1.3.0 with `versionCode 9`. An
 installed build is upgrade-compatible only when it is signed with the same
 private signing key.
 
@@ -73,7 +81,7 @@ terms. Public unauthenticated, non-DRM media is the supported product scope.
 ## Limitations
 
 - Public, unauthenticated content only. The app does not read browser cookies or implement account login.
-- No DRM circumvention, proxy fallback, Railway fallback, or arbitrary yt-dlp arguments.
+- No DRM circumvention, account-cookie import, or arbitrary yt-dlp arguments.
 - Android force-stop and reboot terminate active jobs; the next launch marks interrupted jobs failed so the user can retry.
 - On Android 15 and newer, `dataSync` foreground services have a platform-wide
   background time budget. The service handles the timeout and cancels cleanly,

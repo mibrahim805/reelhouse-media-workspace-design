@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel as composeViewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -87,6 +88,8 @@ import com.reelhouse.downloader.SettingsState
 import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.MediaInfo
+import com.reelhouse.downloader.ReelhouseApp
+import com.reelhouse.downloader.youtube.YouTubeViewModel
 import kotlinx.coroutines.delay
 
 private data class Destination(val route: String, val label: String, val icon: ImageVector)
@@ -108,6 +111,9 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
     val route = backStack?.destination?.route
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+    val youtubeViewModel: YouTubeViewModel = composeViewModel(
+        factory = YouTubeViewModel.Factory(context.applicationContext as ReelhouseApp),
+    )
 
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
@@ -186,16 +192,42 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                 )
             }
             composable("youtube") {
-                YouTubeBrowserScreen(
-                    onDownloadVideo = { url ->
-                        viewModel.clearUrl()
-                        viewModel.setUrl(url)
-                        navController.navigate("home") {
-                            popUpTo(navController.graph.findStartDestination().id)
-                            launchSingleTop = true
-                        }
-                        viewModel.analyze()
+                val youtubeState by youtubeViewModel.state.collectAsStateWithLifecycle()
+                YouTubeWorkspaceScreen(
+                    state = youtubeState,
+                    onTopic = youtubeViewModel::loadTopic,
+                    onSearch = youtubeViewModel::search,
+                    onVideo = { video ->
+                        youtubeViewModel.selectVideo(video)
+                        navController.navigate("youtube/watch")
                     },
+                )
+            }
+            composable("youtube/watch") {
+                val youtubeState by youtubeViewModel.state.collectAsStateWithLifecycle()
+                val localFallback = youtubeState.localFallback
+                LaunchedEffect(localFallback?.token) {
+                    if (localFallback != null) {
+                        val video = localFallback.video
+                        val started = viewModel.startDirectVideoDownload(
+                            url = video.sourceUrl,
+                            sourceId = video.id,
+                            title = video.title,
+                            uploader = video.channel,
+                            thumbnail = video.thumbnail,
+                            quality = localFallback.quality,
+                        )
+                        youtubeViewModel.consumeLocalFallback()
+                        if (started != null) navController.navigate("downloads")
+                    }
+                }
+                YouTubeWatchScreen(
+                    state = youtubeState,
+                    onBack = { navController.popBackStack() },
+                    onQuality = youtubeViewModel::setQuality,
+                    onDownload = youtubeViewModel::startBackendDownload,
+                    onNext = youtubeViewModel::selectVideo,
+                    onDismissDownload = youtubeViewModel::clearDownloadStatus,
                 )
             }
             composable("downloads") {
@@ -876,9 +908,9 @@ private const val LEGAL_TEXT = """Use this application only to download media th
 
 Do not use it to bypass copyright restrictions, subscriptions, DRM, authentication, or access controls. Public unauthenticated content is the only supported mode. No browser cookies or account credentials are collected.
 
-Media URLs are passed only to the embedded local yt-dlp runtime. Media extraction, downloading, and FFmpeg processing occur on this Android device using its network connection. Railway and the Reelhouse website backend are not used by this app. Thumbnail images are loaded directly from the source URL returned by yt-dlp.
+The Home downloader passes media URLs only to the embedded local yt-dlp runtime. Its extraction, downloading, and FFmpeg processing occur on this Android device using its network connection. Thumbnail images are loaded directly from the source URL returned by yt-dlp.
 
-The optional YouTube browser loads YouTube's mobile website directly in an Android WebView. Online playback is streamed by YouTube and is separate from Reelhouse downloads. YouTube may receive normal browser information and store cookies or site data on this device according to its own privacy policy.
+The YouTube workspace sends public video URLs and search terms to the same Reelhouse backend endpoints as the website for topics, search, metadata, quality selection, download jobs, and progress. The custom watch screen loads only YouTube's embedded player for online playback. Backend-generated files are transferred to Downloads/Reelhouse through Android's system download manager. If the hosted backend is blocked, the selected public video URL is automatically passed to the local yt-dlp runtime instead. YouTube and the Reelhouse server receive the network requests required for these features.
 
 Download-engine updates occur only after an explicit action. The app fetches the official yt-dlp stable release and verifies the component against that release's SHA-256 manifest before installation. Extraction can still break when source platforms change.
 

@@ -25,8 +25,14 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 8
-        versionName = "1.2.1"
+        versionCode = 9
+        versionName = "1.3.0"
+
+        buildConfigField(
+            "String",
+            "REELHOUSE_WEB_BASE_URL",
+            "\"https://reelhouse-media-workspace-design-production.up.railway.app\"",
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
