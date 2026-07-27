@@ -1,0 +1,51 @@
+package com.reelhouse.downloader
+
+import android.app.Application
+import com.reelhouse.downloader.data.DownloadDatabase
+import com.reelhouse.downloader.data.PreferencesRepository
+import com.yausername.ffmpeg.FFmpeg
+import com.yausername.youtubedl_android.YoutubeDL
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+
+class ReelhouseApp : Application() {
+    val database by lazy { DownloadDatabase.getInstance(this) }
+    val preferences by lazy { PreferencesRepository(this) }
+
+    @Volatile
+    var engineError: String? = null
+        private set
+
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val engineReady = CompletableDeferred<Unit>()
+
+    override fun onCreate() {
+        super.onCreate()
+        applicationScope.launch {
+            database.downloadDao().markInterruptedDownloads()
+        }
+        applicationScope.launch {
+            try {
+                // Both wrappers unpack sizeable native/runtime payloads. Keep
+                // that work off the main thread so first launch cannot ANR.
+                YoutubeDL.getInstance().init(this@ReelhouseApp)
+                FFmpeg.getInstance().init(this@ReelhouseApp)
+                engineReady.complete(Unit)
+            } catch (error: Exception) {
+                val message = "The local download engine could not be initialized. " +
+                    "Reinstall the app or restore the bundled engine from Settings."
+                engineError = message
+                engineReady.completeExceptionally(
+                    IllegalStateException(message, error)
+                )
+            }
+        }
+    }
+
+    suspend fun awaitEngineReady() {
+        engineReady.await()
+    }
+}

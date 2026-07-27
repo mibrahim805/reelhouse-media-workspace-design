@@ -1,0 +1,27 @@
+# Gradle
+.gradle/
+.kotlin/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local config
+local.properties
+
+# IDE
+.idea/
+*.iml
+.cxx/
+
+# APK signing
+*.jks
+*.keystore
+release-signing.properties
+
+# Build outputs
+*.apk
+*.aab
+*.ap_
+
+# OS junk
+.DS_Store
+Thumbs.db

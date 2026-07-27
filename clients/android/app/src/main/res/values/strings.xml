@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Reelhouse</string>
+
+    <string name="downloads_processing">Processing locally…</string>
+
+    <string name="error_invalid_url">Please enter a valid URL</string>
+    <string name="error_unsupported_platform">This platform is not supported</string>
+    <string name="error_private_content">This content is private or requires authentication</string>
+    <string name="error_age_restricted">This content is age-restricted and cannot be accessed without authentication</string>
+    <string name="error_auth_required">This content requires authentication, which is not supported in this version</string>
+    <string name="error_region_restricted">This content is not available in your region</string>
+    <string name="error_rate_limited">Too many requests. Please wait and try again</string>
+    <string name="error_forbidden">Access denied by the source (HTTP 403)</string>
+    <string name="error_extraction_failed">Failed to extract media information</string>
+    <string name="error_no_formats">No downloadable formats were found</string>
+    <string name="error_network">Network error. Check your connection and try again</string>
+    <string name="error_insufficient_storage">Not enough storage space on your device</string>
+    <string name="error_ffmpeg_failed">Failed to process media (FFmpeg error)</string>
+    <string name="error_cancelled">Download was cancelled</string>
+    <string name="error_outdated_extractor">The download engine may be outdated. Check for an update in Settings</string>
+    <string name="error_storage_failed">Failed to save the file</string>
+    <string name="error_unknown">An unexpected local error occurred</string>
+    <string name="error_blocked_url">This URL type is not allowed for security reasons</string>
+
+    <string name="notification_channel_name">Downloads</string>
+    <string name="notification_channel_description">Download progress and completion</string>
+    <string name="notification_complete">Download complete</string>
+    <string name="notification_cancel_action">Cancel</string>
+</resources>
