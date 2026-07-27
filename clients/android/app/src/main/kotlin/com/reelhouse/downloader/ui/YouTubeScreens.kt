@@ -2,6 +2,7 @@ package com.reelhouse.downloader.ui
 
 import android.annotation.SuppressLint
 import android.graphics.Color as AndroidColor
+import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -299,7 +300,7 @@ fun YouTubeWatchScreen(
                     Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.size(8.dp))
-                        Text("Loading qualities from Reelhouse…")
+                        Text("Loading qualities on this phone…")
                     }
                 }
             }
@@ -407,6 +408,9 @@ fun YouTubeWatchScreen(
 @Composable
 private fun YouTubeEmbedPlayer(videoId: String) {
     val embedUrl = remember(videoId) { YouTubeUrls.embedUrl(videoId).orEmpty() }
+    val requestHeaders = remember {
+        mapOf("Referer" to "${BuildConfig.REELHOUSE_WEB_BASE_URL.trimEnd('/')}/")
+    }
     var webView by remember { mutableStateOf<WebView?>(null) }
 
     DisposableEffect(Unit) {
@@ -435,37 +439,18 @@ private fun YouTubeEmbedPlayer(videoId: String) {
                     allowFileAccess = false
                     allowContentAccess = false
                 }
+                CookieManager.getInstance().setAcceptCookie(true)
+                CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
                 webViewClient = WebViewClient()
-                loadDataWithBaseURL(
-                    BuildConfig.REELHOUSE_WEB_BASE_URL,
-                    playerHtml(embedUrl),
-                    "text/html",
-                    "UTF-8",
-                    null,
-                )
+                loadUrl(embedUrl, requestHeaders)
             }
         },
         update = { view ->
             if (view.tag != videoId) {
                 view.tag = videoId
-                view.loadDataWithBaseURL(
-                    BuildConfig.REELHOUSE_WEB_BASE_URL,
-                    playerHtml(embedUrl),
-                    "text/html",
-                    "UTF-8",
-                    null,
-                )
+                view.loadUrl(embedUrl, requestHeaders)
             }
         },
     )
 }
-
-private fun playerHtml(embedUrl: String) = """
-    <!doctype html>
-    <html><head><meta name="viewport" content="width=device-width,initial-scale=1">
-    <style>html,body,iframe{margin:0;width:100%;height:100%;background:#000;border:0;overflow:hidden}</style>
-    </head><body>
-    <iframe src="$embedUrl" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>
-    </body></html>
-""".trimIndent()

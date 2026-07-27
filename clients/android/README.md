@@ -1,25 +1,16 @@
 # Reelhouse Android
 
-This is a native Kotlin/Jetpack Compose downloader. The Home downloader runs
-extraction, downloading, quality selection, and FFmpeg processing directly on
-the Android device. The YouTube workspace mirrors the web product's hosted
-backend flow and automatically falls back to that local engine if the host is
-blocked.
+This is a native Kotlin/Jetpack Compose downloader. The Home downloader and
+YouTube workspace run search, extraction, quality selection, downloading, and
+FFmpeg processing directly on the Android device.
 
 ## Reelhouse YouTube workspace
 
 The YouTube destination mirrors the website's custom feed, topic, search, watch,
-quality, and download flow. Native Compose screens call the production
-Reelhouse proxy endpoints for `youtube-topic`, `youtube-search`, `fetch-info`,
-`start-download`, and `progress`. The watch page contains only the YouTube embed
-player; it never loads YouTube's mobile website as the app interface.
-
-YouTube workspace downloads follow the website architecture: the Django
-backend uses Python yt-dlp and FFmpeg, Android polls the backend job, and the
-completed file is handed to Android's system download manager for storage in
-`Downloads/Reelhouse`. If YouTube rejects the hosting provider's IP, the same
-download automatically continues through the app's bundled local
-yt-dlp/FFmpeg engine. The separate Home downloader also remains local.
+quality, and download flow. Search, metadata extraction, quality discovery, and
+downloads use the bundled local yt-dlp/FFmpeg engine and the phone's own network
+connection. The watch page uses YouTube's official embedded player directly;
+the hosted Reelhouse backend is not part of the Android media path.
 
 ## Local data flow
 
@@ -35,8 +26,7 @@ yt-dlp/FFmpeg engine. The separate Home downloader also remains local.
 
 The Android project is not built into the Railway deployment: the root
 `.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
-directory. The installed app does, however, call the public web proxy for its
-YouTube workspace.
+directory. The installed app's media flows do not call the public web proxy.
 
 ## Build
 
@@ -52,7 +42,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This backend-workspace release is version 1.3.0 with `versionCode 9`. An
+client. This local-workspace release is version 1.4.0 with `versionCode 10`. An
 installed build is upgrade-compatible only when it is signed with the same
 private signing key.
 

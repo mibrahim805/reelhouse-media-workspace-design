@@ -247,7 +247,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             expectedBytes = 0,
         )
         ContextCompat.startForegroundService(app, DownloadService.createStartIntent(app, request))
-        _messages.tryEmit("The hosted backend was blocked, so Reelhouse continued the download on this phone.")
+        _messages.tryEmit("Download started locally on this phone.")
         return id
     }
 

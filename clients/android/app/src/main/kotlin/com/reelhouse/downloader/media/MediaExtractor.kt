@@ -59,6 +59,35 @@ class MediaExtractor(private val context: Context) {
     }
 
     /**
+     * Searches YouTube through the embedded yt-dlp runtime. The request and
+     * response stay on this Android device; the Reelhouse host is not used.
+     */
+    suspend fun searchYouTube(query: String, limit: Int = 12): List<MediaInfo> =
+        withContext(Dispatchers.IO) {
+            val cleanedQuery = query.trim().replace(Regex("""[\r\n]+"""), " ").take(120)
+            require(cleanedQuery.isNotBlank()) { "Enter a search term." }
+            val safeLimit = limit.coerceIn(1, 20)
+
+            awaitEngine()
+            val request = YoutubeDLRequest("ytsearch$safeLimit:$cleanedQuery").apply {
+                addOption("--dump-single-json")
+                addOption("--flat-playlist")
+                addOption("--skip-download")
+                addOption("--no-warnings")
+                addOption("--no-config")
+                addOption("--socket-timeout", "30")
+            }
+            val response = YoutubeDL.getInstance().execute(request)
+            val output = response.out
+            if (output.isNullOrBlank()) return@withContext emptyList()
+
+            val root = json.parseToJsonElement(output).jsonObject
+            root["entries"]?.jsonArray?.mapNotNull { element ->
+                runCatching { parseSearchResult(element.jsonObject) }.getOrNull()
+            }.orEmpty()
+        }
+
+    /**
      * Downloads media to the specified output path.
      * Reports progress via callback.
      *
@@ -161,6 +190,31 @@ class MediaExtractor(private val context: Context) {
             },
             webpageUrl = obj.str("webpage_url"),
             formats = formats,
+        )
+    }
+
+    private fun parseSearchResult(obj: JsonObject): MediaInfo {
+        val id = obj.str("id")
+        val rawUrl = obj.str("webpage_url").ifBlank { obj.str("url") }
+        val webpageUrl = when {
+            rawUrl.startsWith("https://") -> rawUrl
+            id.matches(Regex("""^[A-Za-z0-9_-]{11}$""")) ->
+                "https://www.youtube.com/watch?v=$id"
+            else -> ""
+        }
+        return MediaInfo(
+            id = id,
+            title = obj.str("title", "Untitled"),
+            uploader = obj.str("uploader"),
+            channel = obj.str("channel"),
+            duration = obj.longOrZero("duration"),
+            thumbnail = obj.str("thumbnail").ifBlank {
+                id.takeIf { it.matches(Regex("""^[A-Za-z0-9_-]{11}$""")) }
+                    ?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }
+                    .orEmpty()
+            },
+            platform = "YouTube",
+            webpageUrl = webpageUrl,
         )
     }
 

@@ -225,7 +225,7 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     state = youtubeState,
                     onBack = { navController.popBackStack() },
                     onQuality = youtubeViewModel::setQuality,
-                    onDownload = youtubeViewModel::startBackendDownload,
+                    onDownload = youtubeViewModel::startLocalDownload,
                     onNext = youtubeViewModel::selectVideo,
                     onDismissDownload = youtubeViewModel::clearDownloadStatus,
                 )
@@ -910,7 +910,7 @@ Do not use it to bypass copyright restrictions, subscriptions, DRM, authenticati
 
 The Home downloader passes media URLs only to the embedded local yt-dlp runtime. Its extraction, downloading, and FFmpeg processing occur on this Android device using its network connection. Thumbnail images are loaded directly from the source URL returned by yt-dlp.
 
-The YouTube workspace sends public video URLs and search terms to the same Reelhouse backend endpoints as the website for topics, search, metadata, quality selection, download jobs, and progress. The custom watch screen loads only YouTube's embedded player for online playback. Backend-generated files are transferred to Downloads/Reelhouse through Android's system download manager. If the hosted backend is blocked, the selected public video URL is automatically passed to the local yt-dlp runtime instead. YouTube and the Reelhouse server receive the network requests required for these features.
+The YouTube workspace sends public search terms and video requests directly from this device through the embedded local yt-dlp runtime. Metadata extraction, quality selection, downloading, and FFmpeg processing occur on this Android device using its network connection. The custom watch screen loads YouTube's official embedded player for online playback. YouTube receives the network requests required for these features; the Reelhouse server is not part of the Android media path.
 
 Download-engine updates occur only after an explicit action. The app fetches the official yt-dlp stable release and verifies the component against that release's SHA-256 manifest before installation. Extraction can still break when source platforms change.
 
