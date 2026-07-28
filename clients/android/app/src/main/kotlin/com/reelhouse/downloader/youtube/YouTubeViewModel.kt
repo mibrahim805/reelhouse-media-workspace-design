@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import android.os.SystemClock
 
 val youtubeTopics = listOf(
     "All",
@@ -73,6 +74,7 @@ class YouTubeViewModel(
 
     private var browseJob: Job? = null
     private var watchJob: Job? = null
+    private val resultCache = mutableMapOf<String, Pair<Long, List<BackendVideo>>>()
 
     init {
         loadTopic("All")
@@ -86,7 +88,12 @@ class YouTubeViewModel(
                 it.copy(topic = topic, query = "", loading = true, error = null)
             }
             try {
-                val videos = extractor.searchYouTube(topicQuery(topic)).map(::localVideo)
+                val cacheKey = "topic:${topic.lowercase()}"
+                val cached = resultCache[cacheKey]
+                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < 600_000L }
+                    ?.second
+                val videos = cached ?: extractor.searchYouTube(topicQuery(topic), limit = 8)
+                    .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
                 _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -113,7 +120,12 @@ class YouTubeViewModel(
                 it.copy(query = cleaned, loading = true, error = null)
             }
             try {
-                val videos = extractor.searchYouTube(cleaned).map(::localVideo)
+                val cacheKey = "search:${cleaned.lowercase()}"
+                val cached = resultCache[cacheKey]
+                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < 600_000L }
+                    ?.second
+                val videos = cached ?: extractor.searchYouTube(cleaned, limit = 8)
+                    .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
                 _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error

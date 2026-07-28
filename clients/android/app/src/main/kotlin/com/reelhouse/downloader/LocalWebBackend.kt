@@ -88,7 +88,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun search(body: JsonObject): Pair<Int, JsonObject> {
         val query = body.string("query").trim()
         require(query.isNotBlank()) { "Enter a search term." }
-        val videos = extractor.searchYouTube(query)
+        val videos = extractor.searchYouTube(query, limit = 8)
         return 200 to buildJsonObject {
             put("ok", true)
             put("videos", mediaArray(videos))
@@ -98,7 +98,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun topic(body: JsonObject): Pair<Int, JsonObject> {
         val topic = body.string("topic").ifBlank { "All" }
         val query = topicQuery(topic)
-        val videos = extractor.searchYouTube(query)
+        val videos = extractor.searchYouTube(query, limit = 8)
         return 200 to buildJsonObject {
             put("ok", true)
             put("topic", topic)

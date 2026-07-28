@@ -2,6 +2,7 @@ package com.reelhouse.downloader
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
@@ -13,6 +14,8 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import android.view.View
+import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.lifecycle.lifecycleScope
@@ -34,6 +37,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var localBackend: LocalWebBackend
     private val webBaseUrl = BuildConfig.REELHOUSE_WEB_BASE_URL.trimEnd('/')
     private val trustedOrigin = URI(webBaseUrl).let { "${it.scheme}://${it.host}" }
+    private var fullscreenView: View? = null
+    private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,7 +60,37 @@ class MainActivity : ComponentActivity() {
             }
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
-            webChromeClient = WebChromeClient()
+            webChromeClient = object : WebChromeClient() {
+                override fun onShowCustomView(view: View, callback: CustomViewCallback) {
+                    if (fullscreenView != null) {
+                        callback.onCustomViewHidden()
+                        return
+                    }
+                    fullscreenView = view
+                    fullscreenCallback = callback
+                    (window.decorView as ViewGroup).addView(
+                        view,
+                        ViewGroup.LayoutParams(
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                        ),
+                    )
+                    webView.visibility = View.GONE
+                    window.decorView.systemUiVisibility = (
+                        View.SYSTEM_UI_FLAG_FULLSCREEN or
+                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
+                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                        )
+                    requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                }
+
+                override fun onHideCustomView() {
+                    exitFullscreen()
+                }
+            }
+            setDownloadListener { url, _, _, _, _ ->
+                if (url.startsWith(LOCAL_RESULT_SCHEME)) showSavedMessage(Uri.parse(url))
+            }
             webViewClient = ReelhouseWebViewClient()
         }
         setContentView(webView)
@@ -68,7 +103,13 @@ class MainActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (webView.canGoBack()) webView.goBack() else finish()
+                    if (fullscreenView != null) {
+                        exitFullscreen()
+                    } else if (webView.canGoBack()) {
+                        webView.goBack()
+                    } else {
+                        finish()
+                    }
                 }
             },
         )
@@ -83,6 +124,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        exitFullscreen()
         webView.apply {
             stopLoading()
             loadUrl("about:blank")
@@ -176,6 +218,17 @@ class MainActivity : ComponentActivity() {
             }
             return null
         }
+    }
+
+    private fun exitFullscreen() {
+        val view = fullscreenView ?: return
+        (view.parent as? ViewGroup)?.removeView(view)
+        fullscreenView = null
+        fullscreenCallback?.onCustomViewHidden()
+        fullscreenCallback = null
+        webView.visibility = View.VISIBLE
+        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
     private fun showSavedMessage(uri: Uri) {
