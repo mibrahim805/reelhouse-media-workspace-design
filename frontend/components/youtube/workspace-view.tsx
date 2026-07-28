@@ -22,6 +22,30 @@ function watchHref(video: MediaVideo) {
   return `/downloader?url=${encodeURIComponent(video.sourceUrl)}`
 }
 
+const SEARCH_CACHE_TTL = 10 * 60 * 1000
+
+function readCachedResults(key: string) {
+  try {
+    const raw = window.sessionStorage.getItem(`reelhouse.results.${key}`)
+    if (!raw) return null
+    const cached = JSON.parse(raw) as { savedAt: number; videos: MediaVideo[] }
+    return Date.now() - cached.savedAt < SEARCH_CACHE_TTL ? cached.videos : null
+  } catch {
+    return null
+  }
+}
+
+function writeCachedResults(key: string, videos: MediaVideo[]) {
+  try {
+    window.sessionStorage.setItem(
+      `reelhouse.results.${key}`,
+      JSON.stringify({ savedAt: Date.now(), videos }),
+    )
+  } catch {
+    // Cache is an optimization only.
+  }
+}
+
 function FeedCard({ video }: { video: MediaVideo }) {
   return (
     <Link href={watchHref(video)} className="group flex flex-col">
@@ -29,6 +53,8 @@ function FeedCard({ video }: { video: MediaVideo }) {
         <img
           src={video.thumbnail || '/placeholder.svg'}
           alt={video.title}
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
         <span className="absolute bottom-2 right-2 rounded bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground">
@@ -65,6 +91,8 @@ function ResultRow({ video }: { video: MediaVideo }) {
         <img
           src={video.thumbnail || '/placeholder.svg'}
           alt={video.title}
+          loading="lazy"
+          decoding="async"
           className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
         <span className="absolute bottom-2 right-2 rounded bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground">
@@ -107,7 +135,10 @@ export function WorkspaceView() {
   const [error, setError] = useState('')
 
   async function loadTopic(nextTopic: string) {
-    setLoading(true)
+    const cacheKey = `topic.${nextTopic.toLowerCase()}`
+    const cached = readCachedResults(cacheKey)
+    if (cached) setResults(cached)
+    setLoading(!cached)
     setError('')
     setSubmitted('')
     setTopic(nextTopic)
@@ -115,6 +146,7 @@ export function WorkspaceView() {
     try {
       const payload = await fetchYouTubeTopic(nextTopic)
       setResults(payload.videos)
+      writeCachedResults(cacheKey, payload.videos)
     } catch (err) {
       setResults([])
       setError(err instanceof Error ? err.message : 'Could not load videos.')
@@ -130,7 +162,10 @@ export function WorkspaceView() {
       return
     }
 
-    setLoading(true)
+    const cacheKey = `search.${t.toLowerCase()}`
+    const cached = readCachedResults(cacheKey)
+    if (cached) setResults(cached)
+    setLoading(!cached)
     setError('')
     setSubmitted(t)
     setTopic('All')
@@ -142,6 +177,7 @@ export function WorkspaceView() {
     try {
       const videos = await searchYouTube(t)
       setResults(videos)
+      writeCachedResults(cacheKey, videos)
     } catch (err) {
       setResults([])
       setError(err instanceof Error ? err.message : 'Search failed.')
@@ -154,9 +190,18 @@ export function WorkspaceView() {
     let cancelled = false
 
     async function loadInitialTopic() {
+      const cacheKey = 'topic.all'
+      const cached = readCachedResults(cacheKey)
+      if (cached) {
+        setResults(cached)
+        setLoading(false)
+      }
       try {
         const payload = await fetchYouTubeTopic('All')
-        if (!cancelled) setResults(payload.videos)
+        if (!cancelled) {
+          setResults(payload.videos)
+          writeCachedResults(cacheKey, payload.videos)
+        }
       } catch (err) {
         if (!cancelled) {
           setResults([])
