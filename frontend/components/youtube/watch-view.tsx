@@ -65,9 +65,12 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [success, setSuccess] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
-  async function toggleFullscreen() {
-    const player = playerRef.current
+  async function toggleFullscreen(event?: React.MouseEvent<HTMLButtonElement>) {
+    event?.preventDefault()
+    event?.stopPropagation()
+    const player = iframeRef.current ?? playerRef.current
     if (!player) return
     try {
       if (document.fullscreenElement) {
@@ -211,8 +214,9 @@ export function WatchView({ videoId }: { videoId: string }) {
               <iframe
                 src={embedUrl}
                 title={video.title}
+                ref={iframeRef}
                 className="h-full w-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
                 referrerPolicy="strict-origin-when-cross-origin"
                 allowFullScreen
               />
@@ -236,6 +240,7 @@ export function WatchView({ videoId }: { videoId: string }) {
             )}
 
             <button
+              type="button"
               onClick={toggleFullscreen}
               aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
               className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-lg bg-black/65 text-white transition-colors hover:bg-black/85"
