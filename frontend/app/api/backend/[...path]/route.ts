@@ -10,6 +10,11 @@ const POST_ENDPOINTS = new Set([
   'youtube-search',
   'youtube-topic',
   'start-download',
+  'account/register',
+  'account/login',
+  'account/logout',
+  'account/search',
+  'account/google/start',
 ])
 
 function cleanPath(parts: string[]) {
@@ -128,11 +133,13 @@ export async function POST(
 
   try {
     const payload = await readPostBody(request)
+    const inboundCookie = request.headers.get('cookie') ?? ''
     const response = await fetch(backendUrl(path), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
         'X-Requested-With': 'XMLHttpRequest',
+        ...(inboundCookie ? { Cookie: inboundCookie } : {}),
       },
       body: formEncode(payload).toString(),
       cache: 'no-store',
@@ -157,8 +164,9 @@ export async function GET(
 
   const isProgressRequest = path.startsWith('progress/')
   const isMediaRequest = path.startsWith('media/')
+  const isAccountRequest = path === 'account/me' || path === 'account/google/start'
 
-  if (!isProgressRequest && !isMediaRequest) {
+  if (!isProgressRequest && !isMediaRequest && !isAccountRequest) {
     return jsonError('Unknown backend endpoint.', 404)
   }
 

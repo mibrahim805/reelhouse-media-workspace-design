@@ -3,11 +3,22 @@ import json
 
 from django.conf import settings
 from django.http import FileResponse, Http404, JsonResponse
+from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.shortcuts import redirect
 from django.views.decorators.csrf import csrf_exempt, ensure_csrf_cookie
 from django.views.decorators.http import require_POST
+from django.urls import reverse
+from urllib.parse import urlencode
+from urllib.request import Request as UrlRequest, urlopen
+from urllib.error import HTTPError, URLError
+from google.auth.transport import requests as google_requests
+from google.oauth2 import id_token
 
 from .forms import DownloadForm
+from .models import SearchHistory
 from .jobs import get_job, start_download_job
 from .services import DownloadError, get_video_info, search_youtube_videos
 
@@ -50,6 +61,129 @@ def youtube_app(request):
 @ensure_csrf_cookie
 def csrf_token(request):
     return JsonResponse({'ok': True})
+
+
+def _account_payload(request):
+    if not request.user.is_authenticated:
+        return {'authenticated': False, 'user': None, 'searches': []}
+    return {
+        'authenticated': True,
+        'user': {'id': request.user.id, 'email': request.user.email, 'name': request.user.get_full_name() or request.user.username},
+        'searches': list(SearchHistory.objects.filter(user=request.user).values_list('query', flat=True)[:20]),
+    }
+
+
+@csrf_exempt
+@require_POST
+def account_register(request):
+    data = _request_data(request)
+    email = str(data.get('email', '')).strip().lower()
+    password = str(data.get('password', ''))
+    name = str(data.get('name', '')).strip()
+    if not email or '@' not in email or not password:
+        return JsonResponse({'ok': False, 'error': 'Enter a valid email and password.'}, status=400)
+    if User.objects.filter(email__iexact=email).exists():
+        return JsonResponse({'ok': False, 'error': 'An account with this email already exists.'}, status=409)
+    try:
+        validate_password(password)
+    except ValidationError as exc:
+        return JsonResponse({'ok': False, 'error': ' '.join(exc.messages)}, status=400)
+    user = User.objects.create_user(username=email, email=email, password=password, first_name=name[:150])
+    login(request, user)
+    return JsonResponse({'ok': True, **_account_payload(request)})
+
+
+@csrf_exempt
+@require_POST
+def account_login(request):
+    data = _request_data(request)
+    email = str(data.get('email', '')).strip().lower()
+    user = authenticate(request, username=email, password=str(data.get('password', '')))
+    if user is None:
+        return JsonResponse({'ok': False, 'error': 'Email or password is incorrect.'}, status=401)
+    login(request, user)
+    return JsonResponse({'ok': True, **_account_payload(request)})
+
+
+def account_me(request):
+    return JsonResponse({'ok': True, **_account_payload(request)})
+
+
+@csrf_exempt
+@require_POST
+def account_logout(request):
+    logout(request)
+    return JsonResponse({'ok': True, 'authenticated': False, 'user': None, 'searches': []})
+
+
+@csrf_exempt
+@require_POST
+def account_search(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({'ok': False, 'error': 'Sign in to save searches.'}, status=401)
+    query = str(_request_data(request).get('query', '')).strip()
+    if query:
+        SearchHistory.objects.update_or_create(user=request.user, query=query, defaults={})
+    return JsonResponse({'ok': True})
+
+
+def google_start(request):
+    if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        return JsonResponse({'ok': False, 'error': 'Google sign-in is not configured on the server.'}, status=503)
+    params = {
+        'client_id': settings.GOOGLE_CLIENT_ID,
+        'redirect_uri': settings.GOOGLE_REDIRECT_URI,
+        'response_type': 'code',
+        'scope': 'openid email profile',
+        'access_type': 'online',
+        'prompt': 'select_account',
+    }
+    return redirect('https://accounts.google.com/o/oauth2/v2/auth?' + urlencode(params))
+
+
+def google_callback(request):
+    error = request.GET.get('error')
+    if error:
+        return redirect(f"{settings.FRONTEND_BASE_URL}/account?error=google_{error}")
+    code = request.GET.get('code', '')
+    if not code or not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
+        return redirect(f'{settings.FRONTEND_BASE_URL}/account?error=google_configuration')
+    try:
+        body = urlencode({
+            'code': code,
+            'client_id': settings.GOOGLE_CLIENT_ID,
+            'client_secret': settings.GOOGLE_CLIENT_SECRET,
+            'redirect_uri': settings.GOOGLE_REDIRECT_URI,
+            'grant_type': 'authorization_code',
+        }).encode()
+        token_request = UrlRequest(
+            'https://oauth2.googleapis.com/token',
+            data=body,
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+        )
+        with urlopen(token_request, timeout=15) as response:
+            token_payload = json.loads(response.read().decode())
+        claims = id_token.verify_oauth2_token(
+            token_payload['id_token'], google_requests.Request(), settings.GOOGLE_CLIENT_ID,
+        )
+        email = str(claims.get('email', '')).lower().strip()
+        if not email or not claims.get('email_verified'):
+            raise ValueError('Google did not return a verified email address.')
+        user, created = User.objects.get_or_create(
+            email__iexact=email,
+            defaults={
+                'username': email,
+                'email': email,
+                'first_name': str(claims.get('name', ''))[:150],
+            },
+        )
+        if created:
+            user.set_unusable_password()
+            user.save(update_fields=['password'])
+        login(request, user)
+        return redirect(f'{settings.FRONTEND_BASE_URL}/account?google=success')
+    except (KeyError, ValueError, HTTPError, URLError, TimeoutError) as exc:
+        return redirect(f'{settings.FRONTEND_BASE_URL}/account?error=google_auth_failed')
 
 
 @csrf_exempt

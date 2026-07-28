@@ -8,6 +8,7 @@ import { useSearch } from '@/components/youtube/search-store'
 import {
   fetchYouTubeTopic,
   searchYouTube,
+  saveAccountSearch,
   YOUTUBE_TOPICS,
   type MediaVideo,
 } from '@/lib/backend-api'
@@ -133,7 +134,10 @@ export function WorkspaceView() {
     setError('')
     setSubmitted(t)
     setTopic('All')
-    if (t) addRecent(t)
+    if (t) {
+      addRecent(t)
+      void saveAccountSearch(t).catch(() => undefined)
+    }
 
     try {
       const videos = await searchYouTube(t)

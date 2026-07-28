@@ -7,8 +7,23 @@ import { fetchYouTubeTopic, type MediaVideo } from '@/lib/backend-api'
 
 export function HomeView() {
   const router = useRouter()
-  const [trending, setTrending] = useState<MediaVideo[]>([])
-  const [feedLoading, setFeedLoading] = useState(true)
+  const [trending, setTrending] = useState<MediaVideo[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const cached = window.sessionStorage.getItem('reelhouse.home-feed')
+      return cached ? (JSON.parse(cached) as MediaVideo[]) : []
+    } catch {
+      return []
+    }
+  })
+  const [feedLoading, setFeedLoading] = useState(() => {
+    if (typeof window === 'undefined') return true
+    try {
+      return !window.sessionStorage.getItem('reelhouse.home-feed')
+    } catch {
+      return true
+    }
+  })
   const [feedError, setFeedError] = useState(false)
 
   useEffect(() => {
@@ -19,7 +34,15 @@ export function HomeView() {
       setFeedError(false)
       try {
         const payload = await fetchYouTubeTopic('All')
-        if (!cancelled) setTrending(payload.videos.slice(0, 5))
+        if (!cancelled) {
+          const videos = payload.videos.slice(0, 5)
+          setTrending(videos)
+          try {
+            window.sessionStorage.setItem('reelhouse.home-feed', JSON.stringify(videos))
+          } catch {
+            // Cache is an optimization only.
+          }
+        }
       } catch {
         if (!cancelled) {
           setTrending([])

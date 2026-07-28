@@ -82,6 +82,32 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
   const pollFailures = useRef<Map<string, number>>(new Map())
   const deviceDownloadsStarted = useRef<Set<string>>(new Set())
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('reelhouse.downloads')
+      if (saved) {
+        const restored = JSON.parse(saved) as DownloadItem[]
+        setDownloads(
+          restored.map((item) =>
+            item.status === 'queued' || item.status === 'downloading' || item.status === 'processing'
+              ? { ...item, status: 'failed', error: 'Download was interrupted. Retry to continue.' }
+              : item,
+          ),
+        )
+      }
+    } catch {
+      // Storage is optional; downloads still work for the current session.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('reelhouse.downloads', JSON.stringify(downloads.slice(0, 50)))
+    } catch {
+      // Ignore quota and embedded-browser storage failures.
+    }
+  }, [downloads])
+
   const stopPolling = useCallback((id: string) => {
     const existing = pollers.current.get(id)
     if (existing) clearInterval(existing)

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Download, Link2, MonitorPlay, Play } from 'lucide-react'
+import { Download, Link2, MonitorPlay, Play, UserRound } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
@@ -122,6 +122,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <Link
+              href="/account"
+              aria-label="Account"
+              className="flex size-9 items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-muted"
+            >
+              <UserRound className="size-4" />
+            </Link>
             {pathname !== '/' && (
               <DownloadButton />
             )}

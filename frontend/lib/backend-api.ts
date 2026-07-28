@@ -2,6 +2,27 @@ export const BACKEND_BASE_URL = (
   process.env.NEXT_PUBLIC_BACKEND_BASE_URL || ''
 ).replace(/\/+$/, '')
 
+export type Account = { id: number; email: string; name: string }
+export type AccountState = { authenticated: boolean; user: Account | null; searches: string[] }
+
+async function accountRequest(path: string, payload?: Record<string, string>) {
+  const response = await fetch(`/api/backend/account/${path}/`, {
+    method: payload ? 'POST' : 'GET',
+    headers: payload ? { 'Content-Type': 'application/json' } : undefined,
+    body: payload ? JSON.stringify(payload) : undefined,
+    credentials: 'include',
+  })
+  const data = (await response.json()) as { ok: boolean; error?: string } & AccountState
+  if (!response.ok || !data.ok) throw new Error(data.error || 'Account request failed.')
+  return data
+}
+
+export const getAccount = () => accountRequest('me')
+export const registerAccount = (payload: { name: string; email: string; password: string }) => accountRequest('register', payload)
+export const loginAccount = (payload: { email: string; password: string }) => accountRequest('login', payload)
+export const logoutAccount = () => accountRequest('logout', {})
+export const saveAccountSearch = (query: string) => accountRequest('search', { query })
+
 export type QualityOption = {
   value: string
   label: string

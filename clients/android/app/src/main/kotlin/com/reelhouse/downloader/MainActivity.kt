@@ -161,7 +161,8 @@ class MainActivity : ComponentActivity() {
             if (
                 uri.scheme == "https" &&
                 uri.host == URI(webBaseUrl).host &&
-                uri.path.orEmpty().startsWith("/api/backend/")
+                uri.path.orEmpty().startsWith("/api/backend/") &&
+                !uri.path.orEmpty().startsWith("/api/backend/account/")
             ) {
                 val body = """{"ok":false,"error":"Android local backend bridge was not ready."}"""
                 return WebResourceResponse(
@@ -226,7 +227,8 @@ class MainActivity : ComponentActivity() {
                 const request = input instanceof Request ? input : null;
                 const url = new URL(request ? request.url : String(input), location.href);
                 if (url.origin !== location.origin ||
-                    !url.pathname.startsWith('/api/backend/')) {
+                    !url.pathname.startsWith('/api/backend/') ||
+                    url.pathname.startsWith('/api/backend/account/')) {
                   return nativeFetch(input, init);
                 }
 

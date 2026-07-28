@@ -6,6 +6,7 @@ import {
   useContext,
   useMemo,
   useState,
+  useEffect,
 } from 'react'
 
 type SearchContextValue = {
@@ -17,7 +18,23 @@ type SearchContextValue = {
 const SearchContext = createContext<SearchContextValue | null>(null)
 
 export function SearchProvider({ children }: { children: React.ReactNode }) {
-  const [recent, setRecent] = useState<string[]>([])
+  const [recent, setRecent] = useState<string[]>(() => {
+    if (typeof window === 'undefined') return []
+    try {
+      const saved = window.localStorage.getItem('reelhouse.recent-searches')
+      return saved ? JSON.parse(saved).slice(0, 8) : []
+    } catch {
+      return []
+    }
+  })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('reelhouse.recent-searches', JSON.stringify(recent))
+    } catch {
+      // Private browsing and embedded WebViews may disable storage.
+    }
+  }, [recent])
 
   const addRecent = useCallback((term: string) => {
     const t = term.trim()

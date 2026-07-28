@@ -13,6 +13,14 @@ https://docs.djangoproject.com/en/5.2/ref/settings/
 import os
 from pathlib import Path
 
+_local_env = Path(__file__).resolve().parent.parent / '.env'
+if _local_env.is_file():
+    for _line in _local_env.read_text().splitlines():
+        _line = _line.strip()
+        if _line and not _line.startswith('#') and '=' in _line:
+            _key, _value = _line.split('=', 1)
+            os.environ.setdefault(_key.strip(), _value.strip().strip('"\''))
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -161,6 +169,14 @@ MEDIA_URL = '/media/'
 MEDIA_ROOT = Path(os.environ.get('REELHOUSE_DOWNLOAD_DIR', Path.home() / 'Downloads' / 'Reelhouse')).expanduser()
 
 FRONTEND_BASE_URL = os.environ.get('FRONTEND_BASE_URL', 'http://localhost:3000').rstrip('/')
+
+# Google OAuth. Keep credentials outside source control and inject them at deploy time.
+GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID', '').strip()
+GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET', '').strip()
+GOOGLE_REDIRECT_URI = os.environ.get(
+    'GOOGLE_REDIRECT_URI',
+    'http://localhost:8000/account/google/callback/',
+).strip()
 
 YTDLP_COOKIE_FILE = os.environ.get('YTDLP_COOKIE_FILE', str(BASE_DIR / 'youtube_cookies.txt'))
 YTDLP_COOKIES_FROM_BROWSER = os.environ.get('YTDLP_COOKIES_FROM_BROWSER', '').strip()

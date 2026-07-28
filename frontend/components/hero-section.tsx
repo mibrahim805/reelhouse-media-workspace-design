@@ -211,6 +211,8 @@ export function HeroSection({
                 <img
                   src={v.thumbnail || '/placeholder.svg'}
                   alt=""
+                  loading="lazy"
+                  decoding="async"
                   className="h-16 w-full object-cover"
                 />
               </button>
