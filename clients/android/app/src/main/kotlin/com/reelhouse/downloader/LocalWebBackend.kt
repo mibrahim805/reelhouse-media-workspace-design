@@ -61,9 +61,18 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             bridgeResponse(
                 requestId,
                 400,
-                errorEnvelope(error.message ?: "The local Android backend failed.").toString(),
+                errorEnvelope(userFacingError(error)).toString(),
             )
         }
+    }
+
+    private fun userFacingError(error: Exception): String {
+        val message = error.message.orEmpty()
+        val lower = message.lowercase()
+        if ("empty media response" in lower || "instagram" in lower && "cookies" in lower) {
+            return "Instagram did not provide this post to the downloader. The app tried to update its download engine automatically; the post must be public and accessible without an Instagram login."
+        }
+        return message.ifBlank { "The local Android backend failed." }
     }
 
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {

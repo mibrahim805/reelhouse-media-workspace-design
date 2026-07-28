@@ -48,7 +48,9 @@ class MediaExtractor(private val context: Context) {
             addOption("--socket-timeout", "30")
         }
 
-        val response = YoutubeDL.getInstance().execute(request)
+        val response = executeWithEngineRecovery {
+            YoutubeDL.getInstance().execute(request)
+        }
         val jsonStr = response.out
 
         if (jsonStr.isNullOrBlank()) {
@@ -77,7 +79,9 @@ class MediaExtractor(private val context: Context) {
                 addOption("--no-config")
                 addOption("--socket-timeout", "30")
             }
-            val response = YoutubeDL.getInstance().execute(request)
+            val response = executeWithEngineRecovery {
+                YoutubeDL.getInstance().execute(request)
+            }
             val output = response.out
             if (output.isNullOrBlank()) return@withContext emptyList()
 
@@ -130,9 +134,32 @@ class MediaExtractor(private val context: Context) {
             addOption("--restrict-filenames")
         }
 
-        YoutubeDL.getInstance().execute(request, processId) { progress, eta, line ->
-            onProgress(progress, eta.toLong(), line ?: "")
+        executeWithEngineRecovery {
+            YoutubeDL.getInstance().execute(request, processId) { progress, eta, line ->
+                onProgress(progress, eta.toLong(), line ?: "")
+            }
         }
+    }
+
+    private suspend fun <T> executeWithEngineRecovery(operation: () -> T): T {
+        return try {
+            operation()
+        } catch (error: Exception) {
+            if (!needsEngineRecovery(error)) throw error
+
+            when (YtDlpUpdater(context).update()) {
+                is YtDlpUpdater.UpdateResult.Updated,
+                YtDlpUpdater.UpdateResult.AlreadyLatest -> operation()
+                is YtDlpUpdater.UpdateResult.Failed -> throw error
+            }
+        }
+    }
+
+    private fun needsEngineRecovery(error: Throwable): Boolean {
+        val message = (error.message ?: "").lowercase()
+        return "empty media response" in message ||
+            "confirm you are on the latest version" in message ||
+            "no video formats found" in message
     }
 
     /**
