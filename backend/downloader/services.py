@@ -45,12 +45,15 @@ def _base_ydl_options():
         'generic': {
             'impersonate': ['chrome'],
         },
-        'youtube': {
-            'player_client': ['web_embedded', 'mweb'],
-        },
     }
     pot_provider_dir = Path(getattr(settings, 'YTDLP_POT_PROVIDER_DIR', ''))
     if (pot_provider_dir / 'build' / 'generate_once.js').is_file():
+        # Let yt-dlp select its maintained default clients unless the mweb
+        # PO-token provider is actually available. Forcing mweb without a
+        # token can return metadata but no downloadable formats.
+        extractor_args['youtube'] = {
+            'player_client': ['mweb'],
+        }
         extractor_args['youtubepot-bgutilscript'] = {
             'server_home': [str(pot_provider_dir)],
         }
@@ -277,6 +280,8 @@ def search_youtube_videos(query, limit=12):
 
 
 def _download_format(quality):
+    if str(quality).lower() in {'audio', 'audio-only', 'mp3'}:
+        return 'bestaudio/best'
     if not quality or quality == 'best':
         return 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best'
 
@@ -299,6 +304,15 @@ def download_video(url, quality='best', progress_hook=None):
         'noplaylist': True,
         'restrictfilenames': True,
     }
+    if str(quality).lower() in {'audio', 'audio-only', 'mp3'}:
+        options.update({
+            'format': 'bestaudio/best',
+            'postprocessors': [{
+                'key': 'FFmpegExtractAudio',
+                'preferredcodec': 'mp3',
+                'preferredquality': '320',
+            }],
+        })
     if progress_hook:
         options['progress_hooks'] = [progress_hook]
 
@@ -315,9 +329,14 @@ def download_video(url, quality='best', progress_hook=None):
     else:
         cache.delete(_info_cache_key(cleaned_url))
 
-    mp4_path = filepath.with_suffix('.mp4')
-    if mp4_path.exists():
-        filepath = mp4_path
+    if str(quality).lower() in {'audio', 'audio-only', 'mp3'}:
+        mp3_path = filepath.with_suffix('.mp3')
+        if mp3_path.exists():
+            filepath = mp3_path
+    else:
+        mp4_path = filepath.with_suffix('.mp4')
+        if mp4_path.exists():
+            filepath = mp4_path
 
     if not filepath.exists():
         raise DownloadError('The download finished, but the output file was not found.')

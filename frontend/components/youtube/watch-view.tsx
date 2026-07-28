@@ -8,7 +8,6 @@ import {
   ChevronDown,
   Check,
   Download,
-  ExternalLink,
   ListVideo,
   Loader2,
   Maximize2,
@@ -73,6 +72,9 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [success, setSuccess] = useState('')
 
   const qualities = video?.qualities ?? []
+  const downloadQualities: QualityOption[] = qualities.length > 0
+    ? qualities
+    : [{ value: 'best', label: 'Best available', note: 'MP4 video', size: 'Unknown size' }]
 
   useEffect(() => {
     let cancelled = false
@@ -254,6 +256,21 @@ export function WatchView({ videoId }: { videoId: string }) {
             )}
           </div>
 
+          <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Download this video</p>
+              <p className="text-xs text-muted-foreground">Choose a quality and save the file to your device.</p>
+            </div>
+            <button
+              onClick={() => setDialogOpen(true)}
+              disabled={loading}
+              className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
+              {loading ? 'Loading options…' : 'Download'}
+            </button>
+          </div>
+
           <h1 className="mt-3 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
           </h1>
@@ -290,48 +307,7 @@ export function WatchView({ videoId }: { videoId: string }) {
                 <Share2 className="size-4" /> Share
               </button>
 
-              {qualities.length > 0 ? (
-                <div className="flex items-center overflow-hidden rounded-full">
-                  <label className="sr-only" htmlFor="quality-select">
-                    Quality
-                  </label>
-                  <div className="relative">
-                    <select
-                      id="quality-select"
-                      value={quality}
-                      onChange={(e) => setQuality(e.target.value)}
-                      className="h-9 appearance-none rounded-l-full border-y border-l border-border bg-card pl-3 pr-7 text-sm font-medium text-foreground outline-none focus:border-primary/50"
-                    >
-                      {qualities.map((q) => (
-                        <option key={q.value} value={q.value}>
-                          {q.label}
-                        </option>
-                      ))}
-                    </select>
-                    <ChevronDown className="pointer-events-none absolute right-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                  </div>
-                  <button
-                    onClick={() => setDialogOpen(true)}
-                    className="flex h-9 items-center gap-1.5 rounded-r-full bg-primary px-4 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-                  >
-                    <Download className="size-4" /> Download
-                  </button>
-                </div>
-              ) : (
-                <a
-                  href={video.sourceUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex h-9 items-center gap-1.5 rounded-full border border-border bg-card px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                >
-                  {loading ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <ExternalLink className="size-4" />
-                  )}
-                  {loading ? 'Preparing download…' : 'Open on YouTube'}
-                </a>
-              )}
+              <span className="rounded-full bg-card px-3.5 py-2 text-xs text-muted-foreground">{selectedQuality?.label ?? 'Best available'}</span>
             </div>
           </div>
 
@@ -403,7 +379,7 @@ export function WatchView({ videoId }: { videoId: string }) {
         </aside>
       </div>
 
-      {dialogOpen && qualities.length > 0 && (
+      {dialogOpen && (
         <QualityDialog
           open={dialogOpen}
           target={{
@@ -412,7 +388,7 @@ export function WatchView({ videoId }: { videoId: string }) {
             thumbnail: video.thumbnail,
             source: video.platform,
           }}
-          qualities={qualities}
+          qualities={downloadQualities}
           onClose={() => setDialogOpen(false)}
           onConfirm={confirmDownload}
         />

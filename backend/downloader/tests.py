@@ -13,6 +13,7 @@ from .services import (
     _base_ydl_options,
     _cache_video_info,
     _cached_video_info,
+    _download_format,
     download_video,
     get_video_info,
     normalize_video_url,
@@ -208,7 +209,13 @@ class YoutubeUrlTests(SimpleTestCase):
 
 
 class YtDlpOptionsTests(SimpleTestCase):
-    def test_enables_node_and_hosted_youtube_fallbacks(self):
+    def test_download_format_selects_requested_video_quality(self):
+        self.assertIn('height<=720', _download_format('720'))
+
+    def test_download_format_selects_audio_only(self):
+        self.assertEqual(_download_format('audio'), 'bestaudio/best')
+
+    def test_enables_node_and_mweb_when_token_provider_is_available(self):
         with TemporaryDirectory() as directory:
             provider_script = Path(directory) / 'build' / 'generate_once.js'
             provider_script.parent.mkdir()
@@ -223,13 +230,19 @@ class YtDlpOptionsTests(SimpleTestCase):
         self.assertIn('node', options['js_runtimes'])
         self.assertEqual(
             options['extractor_args']['youtube']['player_client'],
-            ['web_embedded', 'mweb'],
+            ['mweb'],
         )
         self.assertEqual(
             options['extractor_args']['youtubepot-bgutilscript']['server_home'],
             [directory],
         )
         self.assertEqual(options['proxy'], 'http://proxy.example:8080')
+
+    def test_uses_yt_dlp_default_youtube_clients_without_token_provider(self):
+        with override_settings(YTDLP_POT_PROVIDER_DIR=''):
+            options = _base_ydl_options()
+
+        self.assertNotIn('youtube', options['extractor_args'])
 
     @override_settings(YTDLP_FORCE_IPV6=True)
     def test_can_force_outbound_ipv6(self):
@@ -270,6 +283,30 @@ class CachedVideoDownloadTests(SimpleTestCase):
         ydl.extract_info.assert_not_called()
         self.assertEqual(result['filename'], 'demo.mp4')
         self.assertIsNone(_cached_video_info(source_url))
+
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_audio_download_returns_generated_mp3(self, mocked_youtube_dl):
+        source_url = 'https://www.youtube.com/watch?v=abc123'
+        info = {'id': 'abc123', 'title': 'Demo audio', 'ext': 'webm'}
+
+        with TemporaryDirectory() as directory:
+            source_file = Path(directory) / 'demo.webm'
+            mp3_file = source_file.with_suffix('.mp3')
+            mp3_file.write_bytes(b'demo audio')
+            ydl = mocked_youtube_dl.return_value.__enter__.return_value
+            ydl.extract_info.return_value = info
+            ydl.prepare_filename.return_value = str(source_file)
+
+            with override_settings(MEDIA_ROOT=directory):
+                result = download_video(source_url, quality='audio')
+
+        self.assertEqual(result['filename'], 'demo.mp3')
+        options = mocked_youtube_dl.call_args.args[0]
+        self.assertEqual(options['format'], 'bestaudio/best')
+        self.assertEqual(
+            options['postprocessors'][0]['key'],
+            'FFmpegExtractAudio',
+        )
 
 
 class YoutubeSearchTests(SimpleTestCase):
