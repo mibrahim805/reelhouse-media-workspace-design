@@ -5,17 +5,12 @@ import Link from 'next/link'
 import {
   AlertCircle,
   ArrowLeft,
-  ChevronDown,
   Check,
   Download,
   ListVideo,
   Loader2,
   Maximize2,
   Play,
-  Settings,
-  Share2,
-  ThumbsUp,
-  Volume2,
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
@@ -66,9 +61,7 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState(false)
-  const [quality, setQuality] = useState('best')
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [descOpen, setDescOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
   const playerRef = useRef<HTMLDivElement>(null)
@@ -118,12 +111,9 @@ export function WatchView({ videoId }: { videoId: string }) {
       // Playback happens in the visitor's browser, so it must not depend on
       // yt-dlp being accepted from the hosted backend's IP address.
       setVideo(fallback)
-      setQuality('best')
 
       try {
         const loaded = await fetchVideoInfo(fallback.sourceUrl)
-        const options = loaded.qualities ?? []
-
         if (cancelled) return
         setVideo({
           ...loaded,
@@ -132,12 +122,6 @@ export function WatchView({ videoId }: { videoId: string }) {
           embedUrl: fallback.embedUrl,
           canEmbed: true,
         })
-        if (options.length > 0) {
-          const preferred =
-            options.find((option) => option.value === '1080') ?? options[0]
-          setQuality(preferred.value)
-        }
-
         try {
           const topic = await fetchYouTubeTopic('All')
           if (!cancelled) {
@@ -216,8 +200,6 @@ export function WatchView({ videoId }: { videoId: string }) {
     )
   }
 
-  const selectedQuality =
-    qualities.find((option) => option.value === quality) ?? qualities[0]
   const embedUrl = youtubeEmbedUrl(video)
 
   return (
@@ -253,109 +235,32 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            {!playing && (
-              <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-3">
-                <div className="mb-2 h-1 w-full overflow-hidden rounded-full bg-white/25">
-                  <div className="h-full w-[8%] rounded-full bg-primary" />
-                </div>
-                <div className="flex items-center gap-3 text-white">
-                  <button onClick={() => setPlaying(true)} aria-label="Play">
-                    <Play className="size-5 fill-current" />
-                  </button>
-                  <Volume2 className="size-5" />
-                  <span className="text-xs tabular-nums text-white/90">
-                    Ready / {video.duration}
-                  </span>
-                  <div className="ml-auto flex items-center gap-3">
-                    <span className="rounded bg-white/15 px-1.5 py-0.5 text-[11px] font-medium">
-                      {selectedQuality?.label ?? 'Best'}
-                    </span>
-                    <Settings className="size-5" />
-                    <button onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-                      <Maximize2 className="size-5" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-3 flex flex-col gap-3 rounded-2xl border border-primary/20 bg-primary/5 p-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-foreground">Download this video</p>
-              <p className="text-xs text-muted-foreground">Choose a quality and save the file to your device.</p>
-            </div>
             <button
-              onClick={() => setDialogOpen(true)}
-              disabled={loading}
-              className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
+              onClick={toggleFullscreen}
+              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+              className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-lg bg-black/65 text-white transition-colors hover:bg-black/85"
             >
-              {loading ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
-              {loading ? 'Loading options…' : 'Download'}
+              <Maximize2 className="size-4" />
             </button>
           </div>
 
-          <h1 className="mt-3 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
+          <h1 className="mt-4 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
           </h1>
+          <button
+            onClick={() => setDialogOpen(true)}
+            disabled={loading}
+            className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
+          >
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {loading ? 'Loading…' : 'Download'}
+          </button>
           {success && (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-success">
               <Check className="size-3.5" />
               {success}
             </p>
           )}
-
-          <div className="mt-3 flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-10 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-foreground">
-                {video.channelInitials}
-              </span>
-              <div>
-                <p className="text-sm font-medium text-foreground">
-                  {video.channel}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {video.duration} · {video.platform}
-                </p>
-              </div>
-              <button className="ml-2 h-9 rounded-full bg-foreground px-4 text-sm font-semibold text-background transition-opacity hover:opacity-90">
-                Subscribe
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 sm:ml-auto">
-              <button className="flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted">
-                <ThumbsUp className="size-4" /> Like
-              </button>
-              <button className="flex h-9 items-center gap-1.5 rounded-full bg-card px-3.5 text-sm font-medium text-foreground transition-colors hover:bg-muted">
-                <Share2 className="size-4" /> Share
-              </button>
-
-              <span className="rounded-full bg-card px-3.5 py-2 text-xs text-muted-foreground">{selectedQuality?.label ?? 'Best available'}</span>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setDescOpen((o) => !o)}
-            className="mt-3 w-full rounded-xl bg-card p-3 text-left transition-colors hover:bg-muted/60"
-          >
-            <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <span>{video.duration}</span>
-              <span>·</span>
-              <span>{video.platform}</span>
-              <span className="ml-auto flex items-center gap-1 text-foreground">
-                {descOpen ? 'Show less' : 'Show more'}
-                <ChevronDown
-                  className={`size-4 transition-transform ${descOpen ? 'rotate-180' : ''}`}
-                />
-              </span>
-            </div>
-            <p
-              className={`mt-2 text-[13px] leading-relaxed text-foreground ${descOpen ? '' : 'line-clamp-2'}`}
-            >
-              {video.sourceUrl}
-            </p>
-          </button>
         </div>
 
         <aside className="min-w-0">
