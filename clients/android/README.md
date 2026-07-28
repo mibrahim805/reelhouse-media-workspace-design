@@ -1,22 +1,23 @@
 # Reelhouse Android
 
-This is a native Kotlin/Jetpack Compose downloader. The Home downloader and
-YouTube workspace run search, extraction, quality selection, downloading, and
-FFmpeg processing directly on the Android device.
+This Android client renders the production Reelhouse web frontend in a secured
+WebView, so its layout and interaction model stay aligned with the website.
+An origin-scoped document-start bridge implements the website's backend API
+contract with Kotlin and the embedded local media engine.
 
 ## Reelhouse YouTube workspace
 
-The YouTube destination mirrors the website's custom feed, topic, search, watch,
-quality, and download flow. Search, metadata extraction, quality discovery, and
-downloads use the bundled local yt-dlp/FFmpeg engine and the phone's own network
-connection. The watch page uses YouTube's official embedded player directly;
-the hosted Reelhouse backend is not part of the Android media path.
+The Android app loads the same production pages used by web visitors. Requests
+from those pages to `/api/backend/*` are replaced before page JavaScript starts
+and handled on the phone. Search, metadata extraction, quality discovery, and
+downloads use the bundled local yt-dlp/FFmpeg engine and the phone's network.
+The hosted Reelhouse backend is not part of the Android media path.
 
 ## Local data flow
 
 1. Kotlin validates an HTTPS URL and rejects local/private destinations.
 2. The embedded `youtubedl-android` runtime runs yt-dlp in the app process on an IO dispatcher.
-3. Kotlin displays locally extracted metadata and a whitelisted set of download options.
+3. Kotlin returns website-compatible JSON to the unchanged web UI.
 4. `DownloadService` runs the selected job as an Android foreground service. Source media travels directly from the source to the phone.
 5. The wrapper's FFmpeg component performs required merges or audio conversion locally.
 6. Temporary output stays in the app cache. On Android 10 and newer, finished
@@ -26,7 +27,9 @@ the hosted Reelhouse backend is not part of the Android media path.
 
 The Android project is not built into the Railway deployment: the root
 `.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
-directory. The installed app's media flows do not call the public web proxy.
+directory. Railway serves the frontend pages/assets to the WebView, while an
+origin-bound Android bridge prevents backend media API requests from leaving
+the device.
 
 ## Build
 
@@ -42,7 +45,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This local-workspace release is version 1.4.1 with `versionCode 11`. An
+client. This web-shell/local-backend release is version 1.5.0 with `versionCode 12`. An
 installed build is upgrade-compatible only when it is signed with the same
 private signing key.
 

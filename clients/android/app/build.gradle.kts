@@ -25,8 +25,8 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 11
-        versionName = "1.4.1"
+        versionCode = 12
+        versionName = "1.5.0"
 
         buildConfigField(
             "String",
@@ -96,6 +96,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
+    implementation("androidx.webkit:webkit:1.12.1")
 
     // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
