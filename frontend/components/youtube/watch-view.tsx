@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle,
@@ -70,6 +70,28 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [descOpen, setDescOpen] = useState(false)
   const [success, setSuccess] = useState('')
+  const [isFullscreen, setIsFullscreen] = useState(false)
+  const playerRef = useRef<HTMLDivElement>(null)
+
+  async function toggleFullscreen() {
+    const player = playerRef.current
+    if (!player) return
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+      } else {
+        await player.requestFullscreen()
+      }
+    } catch {
+      setError('Fullscreen is not available in this player.')
+    }
+  }
+
+  useEffect(() => {
+    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
+    document.addEventListener('fullscreenchange', onFullscreenChange)
+    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
+  }, [])
 
   const qualities = video?.qualities ?? []
   const downloadQualities: QualityOption[] = qualities.length > 0
@@ -202,7 +224,7 @@ export function WatchView({ videoId }: { videoId: string }) {
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">
-          <div className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black">
+          <div ref={playerRef} className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-full [&:fullscreen]:rounded-none">
             {playing && embedUrl ? (
               <iframe
                 src={embedUrl}
@@ -249,7 +271,9 @@ export function WatchView({ videoId }: { videoId: string }) {
                       {selectedQuality?.label ?? 'Best'}
                     </span>
                     <Settings className="size-5" />
-                    <Maximize2 className="size-5" />
+                    <button onClick={toggleFullscreen} aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+                      <Maximize2 className="size-5" />
+                    </button>
                   </div>
                 </div>
               </div>

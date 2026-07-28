@@ -2,10 +2,12 @@ package com.reelhouse.downloader
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.app.DownloadManager
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
+import android.os.Environment
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -89,7 +91,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
             setDownloadListener { url, _, _, _, _ ->
-                if (url.startsWith(LOCAL_RESULT_SCHEME)) showSavedMessage(Uri.parse(url))
+                if (url.startsWith(LOCAL_RESULT_SCHEME)) {
+                    showSavedMessage(Uri.parse(url))
+                } else if (url.startsWith("http://") || url.startsWith("https://")) {
+                    enqueueExternalDownload(Uri.parse(url))
+                }
             }
             webViewClient = ReelhouseWebViewClient()
         }
@@ -245,6 +251,22 @@ class MainActivity : ComponentActivity() {
                 Toast.LENGTH_LONG,
             ).show()
         }
+    }
+
+    private fun enqueueExternalDownload(uri: Uri) {
+        val name = uri.lastPathSegment?.substringAfterLast('/')
+            ?.takeIf { it.isNotBlank() && it.length <= 120 }
+            ?: "reelhouse-video.mp4"
+        val request = DownloadManager.Request(uri)
+            .setTitle(name)
+            .setDescription("Reelhouse download")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(
+                Environment.DIRECTORY_DOWNLOADS,
+                "Reelhouse/$name",
+            )
+        (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
+        Toast.makeText(this, "Download saved to Downloads/Reelhouse", Toast.LENGTH_LONG).show()
     }
 
     companion object {
