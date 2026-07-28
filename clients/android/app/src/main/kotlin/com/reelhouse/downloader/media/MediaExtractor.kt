@@ -46,7 +46,6 @@ class MediaExtractor(private val context: Context) {
             addOption("--no-warnings")
             addOption("--no-config")
             addOption("--socket-timeout", "30")
-            addYouTubeClient()
         }
 
         val response = YoutubeDL.getInstance().execute(request)
@@ -77,7 +76,6 @@ class MediaExtractor(private val context: Context) {
                 addOption("--no-warnings")
                 addOption("--no-config")
                 addOption("--socket-timeout", "30")
-                addYouTubeClient()
             }
             val response = YoutubeDL.getInstance().execute(request)
             val output = response.out
@@ -118,7 +116,6 @@ class MediaExtractor(private val context: Context) {
             addOption("--retries", "3")
             addOption("--fragment-retries", "3")
             addOption("--socket-timeout", "30")
-            addYouTubeClient()
             if (audioOnly) {
                 addOption("--extract-audio")
                 addOption("--audio-format", mergeFormat)
@@ -136,16 +133,6 @@ class MediaExtractor(private val context: Context) {
         YoutubeDL.getInstance().execute(request, processId) { progress, eta, line ->
             onProgress(progress, eta.toLong(), line ?: "")
         }
-    }
-
-    /**
-     * The official yt-dlp guidance currently lists web_embedded as a YouTube
-     * client whose media requests do not require a GVS PO token. Reelhouse only
-     * supports public embeddable videos, so this avoids the token-related 403
-     * responses produced by the default Android/web clients.
-     */
-    private fun YoutubeDLRequest.addYouTubeClient() {
-        addOption("--extractor-args", "youtube:player_client=web_embedded")
     }
 
     /**
