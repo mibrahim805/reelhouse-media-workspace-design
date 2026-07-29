@@ -29,7 +29,7 @@ object YouTubeUrls {
 
     fun embedUrl(id: String): String? =
         id.takeIf(videoIdPattern::matches)?.let {
-            "https://www.youtube.com/embed/$it?autoplay=1&playsinline=1&rel=0"
+            "https://www.youtube.com/embed/$it?autoplay=1&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1"
         }
 
     private fun queryParameter(rawQuery: String?, name: String): String? =

@@ -25,7 +25,7 @@ class YouTubeUrlsTest {
         val id = "dQw4w9WgXcQ"
         assertEquals("https://www.youtube.com/watch?v=$id", YouTubeUrls.watchUrl(id))
         assertEquals(
-            "https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&rel=0",
+            "https://www.youtube.com/embed/$id?autoplay=1&playsinline=1&rel=0&modestbranding=1&iv_load_policy=3&enablejsapi=1",
             YouTubeUrls.embedUrl(id),
         )
         assertNull(YouTubeUrls.embedUrl("invalid"))

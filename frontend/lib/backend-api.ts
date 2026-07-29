@@ -184,7 +184,9 @@ export function videoIdFromUrl(url: string) {
 
 export function youtubeEmbedUrl(video: Pick<MediaVideo, 'id' | 'sourceUrl'>) {
   const id = video.id || videoIdFromUrl(video.sourceUrl)
-  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0` : ''
+  return id
+    ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3`
+    : ''
 }
 
 function absoluteBackendUrl(path: string) {

@@ -197,6 +197,7 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     state = youtubeState,
                     onTopic = youtubeViewModel::loadTopic,
                     onSearch = youtubeViewModel::search,
+                    onResultFilter = youtubeViewModel::setResultFilter,
                     onVideo = { video ->
                         youtubeViewModel.selectVideo(video)
                         navController.navigate("youtube/watch")
@@ -226,7 +227,6 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     onBack = { navController.popBackStack() },
                     onQuality = youtubeViewModel::setQuality,
                     onDownload = youtubeViewModel::startLocalDownload,
-                    onNext = youtubeViewModel::selectVideo,
                     onDismissDownload = youtubeViewModel::clearDownloadStatus,
                 )
             }

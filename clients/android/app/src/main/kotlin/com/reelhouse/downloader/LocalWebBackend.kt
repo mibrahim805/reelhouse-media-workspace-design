@@ -9,6 +9,7 @@ import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.FormatSelector
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
+import com.reelhouse.downloader.media.PlaylistInfo
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import java.util.UUID
@@ -89,9 +90,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val query = body.string("query").trim()
         require(query.isNotBlank()) { "Enter a search term." }
         val videos = extractor.searchYouTube(query, limit = 8)
+        val playlists = extractor.searchYouTubePlaylists(query, limit = 8)
         return 200 to buildJsonObject {
             put("ok", true)
             put("videos", mediaArray(videos))
+            put("playlists", playlistArray(playlists))
         }
     }
 
@@ -180,6 +183,19 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     .orEmpty()
             }
             if (url.isNotBlank()) add(mediaJson(media, url, includeQualities = false))
+        }
+    }
+
+    private fun playlistArray(playlists: List<PlaylistInfo>): JsonArray = buildJsonArray {
+        playlists.forEach { playlist ->
+            add(buildJsonObject {
+                put("id", playlist.id)
+                put("title", playlist.title)
+                put("channel", playlist.displayUploader)
+                put("thumbnail", playlist.thumbnail)
+                put("video_count", playlist.videoCount)
+                put("source_url", playlist.webpageUrl)
+            })
         }
     }
 

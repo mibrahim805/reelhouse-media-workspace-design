@@ -7,7 +7,6 @@ import {
   ArrowLeft,
   Check,
   Download,
-  ListVideo,
   Loader2,
   Maximize2,
   Play,
@@ -16,7 +15,6 @@ import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
 import {
   fetchVideoInfo,
-  fetchYouTubeTopic,
   type MediaVideo,
   type QualityOption,
   youtubeEmbedUrl,
@@ -46,18 +44,9 @@ function browserPlaybackVideo(value: string): MediaVideo | null {
   }
 }
 
-function watchHref(video: MediaVideo) {
-  if (video.id && !video.id.startsWith('http')) {
-    return `/youtube/watch/${encodeURIComponent(video.id)}`
-  }
-
-  return `/downloader?url=${encodeURIComponent(video.sourceUrl)}`
-}
-
 export function WatchView({ videoId }: { videoId: string }) {
   const { startDownload } = useDownloads()
   const [video, setVideo] = useState<MediaVideo | null>(null)
-  const [upNext, setUpNext] = useState<MediaVideo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState(false)
@@ -125,18 +114,6 @@ export function WatchView({ videoId }: { videoId: string }) {
           embedUrl: fallback.embedUrl,
           canEmbed: true,
         })
-        try {
-          const topic = await fetchYouTubeTopic('All')
-          if (!cancelled) {
-            setUpNext(
-              topic.videos
-                .filter((item) => item.id !== loaded.id)
-                .slice(0, 8),
-            )
-          }
-        } catch {
-          if (!cancelled) setUpNext([])
-        }
       } catch (err) {
         if (!cancelled) {
           const reason =
@@ -207,7 +184,6 @@ export function WatchView({ videoId }: { videoId: string }) {
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
         <div className="min-w-0">
           <div ref={playerRef} className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-full [&:fullscreen]:rounded-none">
             {playing && embedUrl ? (
@@ -267,51 +243,6 @@ export function WatchView({ videoId }: { videoId: string }) {
             </p>
           )}
         </div>
-
-        <aside className="min-w-0">
-          <div className="mb-2 flex items-center gap-2">
-            <ListVideo className="size-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground">Up next</h2>
-          </div>
-          <div className="flex flex-col gap-2">
-            {upNext.length === 0 ? (
-              <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                Search or load a topic to fill the up-next list.
-              </div>
-            ) : (
-              upNext.map((v) => (
-                <Link
-                  key={v.id || v.sourceUrl}
-                  href={watchHref(v)}
-                  className="group flex gap-2.5 rounded-xl p-1.5 transition-colors hover:bg-card"
-                >
-                  <div className="relative aspect-video w-40 shrink-0 overflow-hidden rounded-lg bg-muted">
-                    <img
-                      src={v.thumbnail || '/placeholder.svg'}
-                      alt={v.title}
-                      className="h-full w-full object-cover"
-                    />
-                    <span className="absolute bottom-1 right-1 rounded bg-background/85 px-1 py-0.5 text-[10px] font-medium tabular-nums text-foreground">
-                      {v.duration}
-                    </span>
-                  </div>
-                  <div className="min-w-0 flex-1 py-0.5">
-                    <h3 className="line-clamp-2 text-[13px] font-medium leading-snug text-foreground group-hover:text-primary">
-                      {v.title}
-                    </h3>
-                    <p className="mt-1 truncate text-xs text-muted-foreground">
-                      {v.channel}
-                    </p>
-                    <p className="truncate text-xs text-muted-foreground">
-                      {v.platform}
-                    </p>
-                  </div>
-                </Link>
-              ))
-            )}
-          </div>
-        </aside>
-      </div>
 
       {dialogOpen && (
         <QualityDialog

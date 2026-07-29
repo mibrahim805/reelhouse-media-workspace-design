@@ -1,11 +1,12 @@
 package com.reelhouse.downloader.ui
 
 import android.annotation.SuppressLint
+import android.content.Intent
 import android.graphics.Color as AndroidColor
+import android.net.Uri
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -63,7 +64,9 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.reelhouse.downloader.youtube.BackendDownloadPhase
 import com.reelhouse.downloader.youtube.BackendVideo
+import com.reelhouse.downloader.youtube.BackendPlaylist
 import com.reelhouse.downloader.youtube.YouTubeState
+import com.reelhouse.downloader.youtube.YouTubeResultFilter
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import com.reelhouse.downloader.youtube.youtubeTopics
 
@@ -73,9 +76,11 @@ fun YouTubeWorkspaceScreen(
     state: YouTubeState,
     onTopic: (String) -> Unit,
     onSearch: (String) -> Unit,
+    onResultFilter: (YouTubeResultFilter) -> Unit,
     onVideo: (BackendVideo) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(topBar = { TopAppBar(title = { Text("Reelhouse YouTube") }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -109,6 +114,28 @@ fun YouTubeWorkspaceScreen(
                         },
                         label = { Text(topic) },
                     )
+                }
+            }
+
+            if (state.query.isNotBlank()) {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    item {
+                        FilterChip(
+                            selected = state.resultFilter == YouTubeResultFilter.ALL,
+                            onClick = { onResultFilter(YouTubeResultFilter.ALL) },
+                            label = { Text("All") },
+                        )
+                    }
+                    item {
+                        FilterChip(
+                            selected = state.resultFilter == YouTubeResultFilter.PLAYLISTS,
+                            onClick = { onResultFilter(YouTubeResultFilter.PLAYLISTS) },
+                            label = { Text("Playlists") },
+                        )
+                    }
                 }
             }
 
@@ -148,8 +175,8 @@ fun YouTubeWorkspaceScreen(
                     }
                 }
 
-                state.videos.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No videos found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                (state.resultFilter == YouTubeResultFilter.PLAYLISTS && state.playlists.isEmpty()) || (state.resultFilter == YouTubeResultFilter.ALL && state.videos.isEmpty() && state.playlists.isEmpty()) -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(if (state.resultFilter == YouTubeResultFilter.PLAYLISTS) "No playlists found." else "No results found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 else -> LazyColumn(
@@ -158,16 +185,56 @@ fun YouTubeWorkspaceScreen(
                 ) {
                     item {
                         Text(
-                            if (state.query.isBlank()) "Recommended" else "Results for “${state.query}”",
+                            if (state.query.isBlank()) "Recommended" else if (state.resultFilter == YouTubeResultFilter.PLAYLISTS) "Playlists for “${state.query}”" else "Results for “${state.query}”",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                     }
-                    items(state.videos, key = { it.id.ifBlank { it.sourceUrl } }) { video ->
-                        VideoFeedCard(video = video, onClick = { onVideo(video) })
+                    if (state.resultFilter == YouTubeResultFilter.ALL) {
+                        items(state.videos, key = { it.id.ifBlank { it.sourceUrl } }) { video ->
+                            VideoFeedCard(video = video, onClick = { onVideo(video) })
+                        }
+                    }
+                    if (state.playlists.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Playlists",
+                                modifier = Modifier.padding(top = 4.dp),
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+                        items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
+                            PlaylistCard(
+                                playlist = playlist,
+                                onClick = {
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playlist.sourceUrl)))
+                                },
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun PlaylistCard(playlist: BackendPlaylist, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        AsyncImage(
+            model = playlist.thumbnail,
+            contentDescription = playlist.title,
+            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
+        )
+        Column(Modifier.padding(12.dp)) {
+            Text(playlist.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "${playlist.channel} · ${playlist.videoCount.takeIf { it > 0 } ?: "Playlist"}",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -204,7 +271,6 @@ fun YouTubeWatchScreen(
     onBack: () -> Unit,
     onQuality: (String) -> Unit,
     onDownload: () -> Unit,
-    onNext: (BackendVideo) -> Unit,
     onDismissDownload: () -> Unit,
 ) {
     val video = state.selectedVideo
@@ -245,10 +311,7 @@ fun YouTubeWatchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (playing && videoId.isNotBlank()) {
-                        YouTubeEmbedPlayer(
-                            videoId = videoId,
-                            onVideoSelected = onNext,
-                        )
+                        YouTubeEmbedPlayer(videoId = videoId)
                     } else {
                         AsyncImage(
                             model = video.thumbnail,
@@ -371,39 +434,6 @@ fun YouTubeWatchScreen(
                 }
             }
 
-            val upNext = state.videos.filter { it.id != video.id }.take(8)
-            if (upNext.isNotEmpty()) {
-                item {
-                    Text(
-                        "Up next",
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                items(upNext, key = { it.id.ifBlank { it.sourceUrl } }) { item ->
-                    Card(
-                        onClick = { onNext(item) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    ) {
-                        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(
-                                model = item.thumbnail,
-                                contentDescription = item.title,
-                                modifier = Modifier.size(width = 128.dp, height = 72.dp),
-                            )
-                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    item.channel,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -412,7 +442,6 @@ fun YouTubeWatchScreen(
 @Composable
 private fun YouTubeEmbedPlayer(
     videoId: String,
-    onVideoSelected: (BackendVideo) -> Unit,
 ) {
     val embedUrl = remember(videoId) { YouTubeUrls.embedUrl(videoId).orEmpty() }
     val playerDocument = remember(embedUrl) { playerHtml(embedUrl) }
@@ -448,28 +477,7 @@ private fun YouTubeEmbedPlayer(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): Boolean {
-                        val nextId = YouTubeUrls.videoId(request.url.toString())
-                            ?: return false
-                        if (nextId == videoId) return true
-
-                        onVideoSelected(
-                            BackendVideo(
-                                id = nextId,
-                                title = "YouTube video",
-                                channel = "YouTube",
-                                duration = "Unknown duration",
-                                thumbnail = "https://i.ytimg.com/vi/$nextId/hqdefault.jpg",
-                                sourceUrl = YouTubeUrls.watchUrl(nextId).orEmpty(),
-                            ),
-                        )
-                        return true
-                    }
-                }
+                webViewClient = WebViewClient()
                 loadDataWithBaseURL(
                     "https://www.youtube.com/",
                     playerDocument,
@@ -508,10 +516,26 @@ private fun playerHtml(embedUrl: String) = """
       </head>
       <body>
         <iframe
+          id="player"
           src="$embedUrl"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowfullscreen>
         </iframe>
+        <script src="https://www.youtube.com/iframe_api"></script>
+        <script>
+          var player;
+          function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+              events: {
+                onStateChange: function(event) {
+                  if (event.data === 0) {
+                    document.body.innerHTML = '<div style="height:100%;display:grid;place-items:center;color:#fff;background:#000;font:16px sans-serif">Video ended</div>';
+                  }
+                }
+              }
+            });
+          }
+        </script>
       </body>
     </html>
 """.trimIndent()
