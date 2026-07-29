@@ -20,7 +20,7 @@ from google.oauth2 import id_token
 from .forms import DownloadForm
 from .models import SearchHistory
 from .jobs import get_job, start_download_job
-from .services import DownloadError, get_video_info, search_youtube_videos
+from .services import DownloadError, get_video_info, search_youtube_playlists, search_youtube_videos
 
 
 INVALID_URL_ERROR = 'Enter a valid video URL.'
@@ -210,10 +210,11 @@ def youtube_search(request):
 
     try:
         videos = search_youtube_videos(query)
+        playlists = search_youtube_playlists(query)
     except DownloadError as exc:
         return JsonResponse({'ok': False, 'error': str(exc)}, status=400)
 
-    return JsonResponse({'ok': True, 'videos': videos})
+    return JsonResponse({'ok': True, 'videos': videos, 'playlists': playlists})
 
 
 @csrf_exempt
