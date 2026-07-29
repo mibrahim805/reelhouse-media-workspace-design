@@ -5,6 +5,7 @@ import android.graphics.Color as AndroidColor
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -244,7 +245,10 @@ fun YouTubeWatchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (playing && videoId.isNotBlank()) {
-                        YouTubeEmbedPlayer(videoId)
+                        YouTubeEmbedPlayer(
+                            videoId = videoId,
+                            onVideoSelected = onNext,
+                        )
                     } else {
                         AsyncImage(
                             model = video.thumbnail,
@@ -406,7 +410,10 @@ fun YouTubeWatchScreen(
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-private fun YouTubeEmbedPlayer(videoId: String) {
+private fun YouTubeEmbedPlayer(
+    videoId: String,
+    onVideoSelected: (BackendVideo) -> Unit,
+) {
     val embedUrl = remember(videoId) { YouTubeUrls.embedUrl(videoId).orEmpty() }
     val playerDocument = remember(embedUrl) { playerHtml(embedUrl) }
     var webView by remember { mutableStateOf<WebView?>(null) }
@@ -441,7 +448,28 @@ private fun YouTubeEmbedPlayer(videoId: String) {
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
-                webViewClient = WebViewClient()
+                webViewClient = object : WebViewClient() {
+                    override fun shouldOverrideUrlLoading(
+                        view: WebView,
+                        request: WebResourceRequest,
+                    ): Boolean {
+                        val nextId = YouTubeUrls.videoId(request.url.toString())
+                            ?: return false
+                        if (nextId == videoId) return true
+
+                        onVideoSelected(
+                            BackendVideo(
+                                id = nextId,
+                                title = "YouTube video",
+                                channel = "YouTube",
+                                duration = "Unknown duration",
+                                thumbnail = "https://i.ytimg.com/vi/$nextId/hqdefault.jpg",
+                                sourceUrl = YouTubeUrls.watchUrl(nextId).orEmpty(),
+                            ),
+                        )
+                        return true
+                    }
+                }
                 loadDataWithBaseURL(
                     "https://www.youtube.com/",
                     playerDocument,
