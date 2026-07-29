@@ -2,14 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Clock, History, Loader2, Search, SearchX } from 'lucide-react'
+import { AlertCircle, Clock, History, ListVideo, Loader2, Search, SearchX } from 'lucide-react'
 import { SearchBar } from '@/components/youtube/search-bar'
 import { useSearch } from '@/components/youtube/search-store'
 import {
   fetchYouTubeTopic,
-  searchYouTube,
+  searchYouTubeResults,
   saveAccountSearch,
   YOUTUBE_TOPICS,
+  type MediaPlaylist,
   type MediaVideo,
 } from '@/lib/backend-api'
 import { cn } from '@/lib/utils'
@@ -125,12 +126,53 @@ function ResultRow({ video }: { video: MediaVideo }) {
   )
 }
 
+function PlaylistRow({ playlist }: { playlist: MediaPlaylist }) {
+  return (
+    <a
+      href={playlist.sourceUrl}
+      target="_blank"
+      rel="noreferrer"
+      className="group flex flex-col gap-3 rounded-xl p-2 transition-colors hover:bg-card sm:flex-row"
+    >
+      <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-xl bg-muted sm:w-72 lg:w-80">
+        <img
+          src={playlist.thumbnail || '/placeholder.svg'}
+          alt={playlist.title}
+          loading="lazy"
+          decoding="async"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+        />
+        <span className="absolute bottom-2 right-2 flex items-center gap-1 rounded bg-background/85 px-1.5 py-0.5 text-[11px] font-medium text-foreground">
+          <ListVideo className="size-3" />
+          {playlist.videoCount || 'Playlist'}
+        </span>
+      </div>
+      <div className="min-w-0 flex-1">
+        <h3 className="line-clamp-2 text-base font-medium leading-snug text-foreground group-hover:text-primary">
+          {playlist.title}
+        </h3>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="flex size-6 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-foreground">
+            {playlist.channelInitials}
+          </span>
+          <span className="text-xs text-muted-foreground">{playlist.channel}</span>
+        </div>
+        <span className="mt-2 inline-block rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+          Playlist
+        </span>
+      </div>
+    </a>
+  )
+}
+
 export function WorkspaceView() {
   const { recent, addRecent } = useSearch()
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState('')
   const [topic, setTopic] = useState('All')
   const [results, setResults] = useState<MediaVideo[]>([])
+  const [playlists, setPlaylists] = useState<MediaPlaylist[]>([])
+  const [searchFilter, setSearchFilter] = useState<'all' | 'playlists'>('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -142,6 +184,8 @@ export function WorkspaceView() {
     setError('')
     setSubmitted('')
     setTopic(nextTopic)
+    setSearchFilter('all')
+    setPlaylists([])
 
     try {
       const payload = await fetchYouTubeTopic(nextTopic)
@@ -169,17 +213,20 @@ export function WorkspaceView() {
     setError('')
     setSubmitted(t)
     setTopic('All')
+    setSearchFilter('all')
     if (t) {
       addRecent(t)
       void saveAccountSearch(t).catch(() => undefined)
     }
 
     try {
-      const videos = await searchYouTube(t)
-      setResults(videos)
-      writeCachedResults(cacheKey, videos)
+      const searchResults = await searchYouTubeResults(t)
+      setResults(searchResults.videos)
+      setPlaylists(searchResults.playlists)
+      writeCachedResults(cacheKey, searchResults.videos)
     } catch (err) {
       setResults([])
+      setPlaylists([])
       setError(err instanceof Error ? err.message : 'Search failed.')
     } finally {
       setLoading(false)
@@ -199,7 +246,8 @@ export function WorkspaceView() {
       try {
         const payload = await fetchYouTubeTopic('All')
         if (!cancelled) {
-          setResults(payload.videos)
+        setResults(payload.videos)
+        setPlaylists([])
           writeCachedResults(cacheKey, payload.videos)
         }
       } catch (err) {
@@ -239,6 +287,24 @@ export function WorkspaceView() {
             </button>
           )}
         </div>
+        {isSearching && (
+          <div className="flex items-center gap-1 pb-2">
+            {(['all', 'playlists'] as const).map((value) => (
+              <button
+                key={value}
+                onClick={() => setSearchFilter(value)}
+                className={cn(
+                  'rounded-md px-2.5 py-1 text-xs font-medium transition-colors',
+                  searchFilter === value
+                    ? 'bg-foreground text-background'
+                    : 'bg-card text-muted-foreground hover:bg-muted hover:text-foreground',
+                )}
+              >
+                {value === 'all' ? 'All' : 'Playlists'}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto pb-0.5">
           {YOUTUBE_TOPICS.map((c) => (
             <button
@@ -275,7 +341,12 @@ export function WorkspaceView() {
           </p>
         </div>
       ) : isSearching ? (
-        <SearchResults query={submitted} results={results} />
+        <SearchResults
+          query={submitted}
+          results={results}
+          playlists={playlists}
+          filter={searchFilter}
+        />
       ) : (
         <FeedState recent={recent} onPick={runSearch} results={results} />
       )}
@@ -338,11 +409,19 @@ function FeedState({
 function SearchResults({
   query,
   results,
+  playlists,
+  filter,
 }: {
   query: string
   results: MediaVideo[]
+  playlists: MediaPlaylist[]
+  filter: 'all' | 'playlists'
 }) {
-  if (results.length === 0) {
+  const visibleVideos = filter === 'playlists' ? [] : results
+  const visiblePlaylists = filter === 'all' || filter === 'playlists' ? playlists : []
+  const total = visibleVideos.length + visiblePlaylists.length
+
+  if (total === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24 text-center">
         <div className="flex size-12 items-center justify-center rounded-full bg-muted">
@@ -364,11 +443,14 @@ function SearchResults({
         <span>
           Results for{' '}
           <span className="font-medium text-foreground">“{query}”</span> ·{' '}
-          {results.length} videos
+          {total} {filter === 'playlists' ? 'playlists' : 'results'}
         </span>
       </div>
       <div className="flex flex-col gap-1">
-        {results.map((v) => (
+        {visiblePlaylists.map((playlist) => (
+          <PlaylistRow key={`playlist-${playlist.id}`} playlist={playlist} />
+        ))}
+        {visibleVideos.map((v) => (
           <ResultRow key={v.id || v.sourceUrl} video={v} />
         ))}
       </div>
