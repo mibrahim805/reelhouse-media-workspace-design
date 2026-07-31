@@ -77,7 +77,8 @@ class MediaExtractor(private val context: Context) {
                 addOption("--skip-download")
                 addOption("--no-warnings")
                 addOption("--no-config")
-                addOption("--socket-timeout", "30")
+                addOption("--retries", "1")
+                addOption("--socket-timeout", "15")
             }
             val response = executeWithEngineRecovery {
                 YoutubeDL.getInstance().execute(request)

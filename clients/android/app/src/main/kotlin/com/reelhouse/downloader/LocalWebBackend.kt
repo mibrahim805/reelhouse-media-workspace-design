@@ -13,6 +13,8 @@ import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -28,10 +30,13 @@ import kotlinx.serialization.json.put
  * every operation through the Android device's embedded yt-dlp/FFmpeg engine.
  */
 class LocalWebBackend(private val app: ReelhouseApp) {
+    private data class CachedResponse(val createdAt: Long, val body: String)
+
     private val json = Json { ignoreUnknownKeys = true }
     private val extractor = MediaExtractor(app)
     private val dao = app.database.downloadDao()
     private val infoCache = ConcurrentHashMap<String, MediaInfo>()
+    private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun handle(rawRequest: String): String {
@@ -40,6 +45,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }.getOrDefault("")
 
         return try {
+            evictCaches()
             val request = json.parseToJsonElement(rawRequest).jsonObject
             val path = request.string("path")
                 .substringAfter("/api/backend/", "")
@@ -47,6 +53,18 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val body = request.string("body").takeIf(String::isNotBlank)?.let {
                 json.parseToJsonElement(it).jsonObject
             } ?: JsonObject(emptyMap())
+
+            val cacheKey = when (path) {
+                "youtube-search" -> "search:${body.string("query").trim().lowercase()}"
+                "youtube-topic" -> "topic:${body.string("topic").ifBlank { "All" }.lowercase()}"
+                else -> null
+            }
+            if (cacheKey != null) {
+                val cached = feedCache[cacheKey]
+                if (cached != null && System.currentTimeMillis() - cached.createdAt < FEED_CACHE_TTL_MS) {
+                    return bridgeResponse(requestId, 200, cached.body)
+                }
+            }
 
             val (status, envelope) = when {
                 path == "fetch-info" -> fetchInfo(body)
@@ -56,7 +74,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 path.startsWith("progress/") -> progress(path.substringAfter("progress/"))
                 else -> 404 to errorEnvelope("Unknown local backend endpoint.")
             }
-            bridgeResponse(requestId, status, envelope.toString())
+            val envelopeBody = envelope.toString()
+            if (cacheKey != null && status == 200) {
+                feedCache[cacheKey] = CachedResponse(System.currentTimeMillis(), envelopeBody)
+            }
+            bridgeResponse(requestId, status, envelopeBody)
         } catch (error: Exception) {
             bridgeResponse(
                 requestId,
@@ -75,10 +97,20 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         return message.ifBlank { "The local Android backend failed." }
     }
 
+    private fun evictCaches() {
+        val now = System.currentTimeMillis()
+        feedCache.entries.removeIf { now - it.value.createdAt >= FEED_CACHE_TTL_MS }
+        while (feedCache.size > MAX_FEED_CACHE_ENTRIES) {
+            feedCache.entries.minByOrNull { it.value.createdAt }?.let { feedCache.remove(it.key) } ?: break
+        }
+        if (infoCache.size > MAX_INFO_CACHE_ENTRIES) infoCache.clear()
+    }
+
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
-        val media = extractor.extractInfo(url)
-        infoCache[url] = media
+        val media = infoCache[url] ?: withContext(Dispatchers.IO) { extractor.extractInfo(url) }.also {
+            infoCache[url] = it
+        }
         return 200 to buildJsonObject {
             put("ok", true)
             put("video", mediaJson(media, url, includeQualities = true))
@@ -88,7 +120,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun search(body: JsonObject): Pair<Int, JsonObject> {
         val query = body.string("query").trim()
         require(query.isNotBlank()) { "Enter a search term." }
-        val videos = extractor.searchYouTube(query, limit = 8)
+        val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
         return 200 to buildJsonObject {
             put("ok", true)
             put("videos", mediaArray(videos))
@@ -98,7 +130,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun topic(body: JsonObject): Pair<Int, JsonObject> {
         val topic = body.string("topic").ifBlank { "All" }
         val query = topicQuery(topic)
-        val videos = extractor.searchYouTube(query, limit = 8)
+        val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
         return 200 to buildJsonObject {
             put("ok", true)
             put("topic", topic)
@@ -290,7 +322,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private fun JsonObject.string(name: String): String =
         this[name]?.jsonPrimitive?.contentOrNull.orEmpty()
 
-    companion object {
+    private companion object {
+        const val FEED_CACHE_TTL_MS = 5 * 60 * 1000L
+        const val MAX_FEED_CACHE_ENTRIES = 24
+        const val MAX_INFO_CACHE_ENTRIES = 32
         private val YOUTUBE_ID = Regex("""^[A-Za-z0-9_-]{11}$""")
     }
 }

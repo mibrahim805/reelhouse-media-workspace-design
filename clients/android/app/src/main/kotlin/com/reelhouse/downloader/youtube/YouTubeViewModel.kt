@@ -9,7 +9,10 @@ import com.reelhouse.downloader.ReelhouseApp
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -75,6 +78,8 @@ class YouTubeViewModel(
     private var browseJob: Job? = null
     private var watchJob: Job? = null
     private val resultCache = mutableMapOf<String, Pair<Long, List<BackendVideo>>>()
+    private val cacheTtlMs = 10 * 60_000L
+    private val maxCachedResults = 12
 
     init {
         loadTopic("All")
@@ -84,15 +89,17 @@ class YouTubeViewModel(
         if (topic !in youtubeTopics) return
         browseJob?.cancel()
         browseJob = viewModelScope.launch {
+            delay(250)
             _state.update {
                 it.copy(topic = topic, query = "", loading = true, error = null)
             }
             try {
                 val cacheKey = "topic:${topic.lowercase()}"
+                evictExpiredResults()
                 val cached = resultCache[cacheKey]
-                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < 600_000L }
+                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < cacheTtlMs }
                     ?.second
-                val videos = cached ?: extractor.searchYouTube(topicQuery(topic), limit = 8)
+                val videos = cached ?: withContext(Dispatchers.IO) { extractor.searchYouTube(topicQuery(topic), limit = 8) }
                     .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
                 _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
@@ -116,15 +123,17 @@ class YouTubeViewModel(
         }
         browseJob?.cancel()
         browseJob = viewModelScope.launch {
+            delay(350)
             _state.update {
                 it.copy(query = cleaned, loading = true, error = null)
             }
             try {
                 val cacheKey = "search:${cleaned.lowercase()}"
+                evictExpiredResults()
                 val cached = resultCache[cacheKey]
-                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < 600_000L }
+                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < cacheTtlMs }
                     ?.second
-                val videos = cached ?: extractor.searchYouTube(cleaned, limit = 8)
+                val videos = cached ?: withContext(Dispatchers.IO) { extractor.searchYouTube(cleaned, limit = 8) }
                     .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
                 _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
@@ -137,6 +146,14 @@ class YouTubeViewModel(
                     )
                 }
             }
+        }
+    }
+
+    private fun evictExpiredResults() {
+        val now = SystemClock.elapsedRealtime()
+        resultCache.entries.removeIf { now - it.value.first >= cacheTtlMs }
+        while (resultCache.size > maxCachedResults) {
+            resultCache.entries.minByOrNull { it.value.first }?.let { resultCache.remove(it.key) } ?: break
         }
     }
 
