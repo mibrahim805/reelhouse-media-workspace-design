@@ -8,7 +8,6 @@ import androidx.lifecycle.viewModelScope
 import com.reelhouse.downloader.ReelhouseApp
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
-import com.reelhouse.downloader.media.PlaylistInfo
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -56,8 +55,6 @@ data class YouTubeState(
     val topic: String = "All",
     val query: String = "",
     val videos: List<BackendVideo> = emptyList(),
-    val playlists: List<BackendPlaylist> = emptyList(),
-    val resultFilter: YouTubeResultFilter = YouTubeResultFilter.ALL,
     val loading: Boolean = true,
     val error: String? = null,
     val selectedVideo: BackendVideo? = null,
@@ -66,17 +63,6 @@ data class YouTubeState(
     val watchError: String? = null,
     val download: BackendDownloadState = BackendDownloadState(),
     val localFallback: LocalDownloadFallback? = null,
-)
-
-enum class YouTubeResultFilter { ALL, PLAYLISTS }
-
-data class BackendPlaylist(
-    val id: String,
-    val title: String,
-    val channel: String,
-    val thumbnail: String,
-    val videoCount: Int,
-    val sourceUrl: String,
 )
 
 class YouTubeViewModel(
@@ -89,7 +75,6 @@ class YouTubeViewModel(
     private var browseJob: Job? = null
     private var watchJob: Job? = null
     private val resultCache = mutableMapOf<String, Pair<Long, List<BackendVideo>>>()
-    private val playlistCache = mutableMapOf<String, Pair<Long, List<BackendPlaylist>>>()
 
     init {
         loadTopic("All")
@@ -109,7 +94,7 @@ class YouTubeViewModel(
                     ?.second
                 val videos = cached ?: extractor.searchYouTube(topicQuery(topic), limit = 8)
                     .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
-                _state.update { it.copy(videos = videos, playlists = emptyList(), resultFilter = YouTubeResultFilter.ALL, loading = false) }
+                _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 _state.update {
@@ -141,20 +126,12 @@ class YouTubeViewModel(
                     ?.second
                 val videos = cached ?: extractor.searchYouTube(cleaned, limit = 8)
                     .map(::localVideo).also { resultCache[cacheKey] = SystemClock.elapsedRealtime() to it }
-                val playlistCacheKey = "search:${cleaned.lowercase()}"
-                val cachedPlaylists = playlistCache[playlistCacheKey]
-                    ?.takeIf { SystemClock.elapsedRealtime() - it.first < 600_000L }
-                    ?.second
-                val playlists = cachedPlaylists ?: extractor.searchYouTubePlaylists(cleaned, limit = 8)
-                    .map(::localPlaylist)
-                    .also { playlistCache[playlistCacheKey] = SystemClock.elapsedRealtime() to it }
-                _state.update { it.copy(videos = videos, playlists = playlists, resultFilter = YouTubeResultFilter.ALL, loading = false) }
+                _state.update { it.copy(videos = videos, loading = false) }
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
                 _state.update {
                     it.copy(
                         videos = emptyList(),
-                        playlists = emptyList(),
                         loading = false,
                         error = error.message ?: "Search failed.",
                     )
@@ -293,18 +270,6 @@ class YouTubeViewModel(
         )
     }
 
-    private fun localPlaylist(media: PlaylistInfo): BackendPlaylist = BackendPlaylist(
-        id = media.id,
-        title = media.title,
-        channel = media.displayUploader,
-        thumbnail = media.thumbnail,
-        videoCount = media.videoCount,
-        sourceUrl = media.webpageUrl,
-    )
-
-    fun setResultFilter(filter: YouTubeResultFilter) {
-        _state.update { it.copy(resultFilter = filter) }
-    }
 
     class Factory(private val app: ReelhouseApp) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")

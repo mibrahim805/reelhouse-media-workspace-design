@@ -128,9 +128,8 @@ class DownloadPageTests(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a valid video URL.'})
 
-    @patch('downloader.views.search_youtube_playlists')
     @patch('downloader.views.search_youtube_videos')
-    def test_youtube_search_returns_results(self, mocked_search, mocked_playlists):
+    def test_youtube_search_returns_results(self, mocked_search):
         mocked_search.return_value = [
             {
                 'id': 'abc123',
@@ -141,22 +140,11 @@ class DownloadPageTests(SimpleTestCase):
                 'source_url': 'https://www.youtube.com/watch?v=abc123',
             }
         ]
-        mocked_playlists.return_value = [
-            {
-                'id': 'playlist123',
-                'title': 'Demo playlist',
-                'channel': 'Demo channel',
-                'thumbnail': 'https://example.com/playlist.jpg',
-                'video_count': 3,
-                'source_url': 'https://www.youtube.com/playlist?list=playlist123',
-            }
-        ]
 
         response = self.client.post(reverse('youtube_search'), {'query': 'demo'})
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['videos'][0]['title'], 'Demo video')
-        self.assertEqual(response.json()['playlists'][0]['title'], 'Demo playlist')
 
     def test_youtube_search_rejects_empty_query(self):
         response = self.client.post(reverse('youtube_search'), {'query': ''})

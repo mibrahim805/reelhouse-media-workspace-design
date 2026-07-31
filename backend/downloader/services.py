@@ -1,6 +1,6 @@
 from hashlib import sha256
 from pathlib import Path
-from urllib.parse import parse_qs, quote_plus, urlparse
+from urllib.parse import parse_qs, urlparse
 
 import yt_dlp
 from django.conf import settings
@@ -274,50 +274,6 @@ def search_youtube_videos(query, limit=12):
             'duration': _duration_label(item.get('duration')),
             'thumbnail': thumbnail,
             'source_url': normalize_youtube_url(url),
-        })
-
-    return results
-
-
-def search_youtube_playlists(query, limit=8):
-    """Search YouTube's playlist-filtered results page."""
-    clean_query = query.strip()
-    if not clean_query:
-        raise DownloadError('Enter a search term.')
-
-    search_limit = max(1, min(int(limit), 20))
-    options = {
-        **_base_ydl_options(),
-        'extract_flat': True,
-        'skip_download': True,
-    }
-    search_url = (
-        'https://www.youtube.com/results?search_query='
-        f'{quote_plus(clean_query)}&sp=EgIQAw%253D%253D'
-    )
-
-    try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(search_url, download=False)
-    except Exception as exc:
-        raise DownloadError(_download_error_message(exc)) from exc
-
-    results = []
-    for item in (info.get('entries') or [])[:search_limit]:
-        playlist_id = item.get('id') or ''
-        url = item.get('webpage_url') or item.get('url') or ''
-        if playlist_id and 'list=' not in url:
-            url = f'https://www.youtube.com/playlist?list={playlist_id}'
-        if not url or not playlist_id:
-            continue
-
-        results.append({
-            'id': playlist_id,
-            'title': item.get('title') or 'Untitled playlist',
-            'channel': item.get('uploader') or item.get('channel') or 'Unknown channel',
-            'thumbnail': item.get('thumbnail') or '',
-            'video_count': item.get('playlist_count') or item.get('n_entries') or 0,
-            'source_url': url,
         })
 
     return results

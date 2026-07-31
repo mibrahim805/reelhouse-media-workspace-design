@@ -15,8 +15,6 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
 import kotlinx.serialization.json.longOrNull
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
 
 /**
  * Wraps youtubedl-android to extract media information and download files.
@@ -93,38 +91,6 @@ class MediaExtractor(private val context: Context) {
             }.orEmpty()
         }
 
-    suspend fun searchYouTubePlaylists(query: String, limit: Int = 8): List<PlaylistInfo> =
-        withContext(Dispatchers.IO) {
-            val cleanedQuery = query.trim().replace(Regex("""[\\r\\n]+"""), " ").take(120)
-            require(cleanedQuery.isNotBlank()) { "Enter a search term." }
-            val safeLimit = limit.coerceIn(1, 20)
-            val encodedQuery = URLEncoder.encode(cleanedQuery, StandardCharsets.UTF_8.name())
-
-            awaitEngine()
-            val request = YoutubeDLRequest(
-                "https://www.youtube.com/results?search_query=$encodedQuery&sp=EgIQAw%253D%253D",
-            ).apply {
-                addOption("--dump-single-json")
-                addOption("--flat-playlist")
-                addOption("--skip-download")
-                addOption("--no-warnings")
-                addOption("--no-config")
-                addOption("--socket-timeout", "30")
-            }
-            val response = executeWithEngineRecovery {
-                YoutubeDL.getInstance().execute(request)
-            }
-            val output = response.out
-            if (output.isNullOrBlank()) return@withContext emptyList()
-
-            val root = json.parseToJsonElement(output).jsonObject
-            root["entries"]?.jsonArray
-                ?.mapNotNull { element -> runCatching { parsePlaylistResult(element.jsonObject) }.getOrNull() }
-                ?.filter { it.id.isNotBlank() && it.webpageUrl.isNotBlank() }
-                ?.distinctBy { it.id }
-                ?.take(safeLimit)
-                .orEmpty()
-        }
 
     /**
      * Downloads media to the specified output path.
@@ -280,25 +246,6 @@ class MediaExtractor(private val context: Context) {
         )
     }
 
-    private fun parsePlaylistResult(obj: JsonObject): PlaylistInfo {
-        val id = obj.str("id")
-        val rawUrl = obj.str("webpage_url").ifBlank { obj.str("url") }
-        val webpageUrl = when {
-            rawUrl.startsWith("https://") && rawUrl.contains("list=") -> rawUrl
-            id.isNotBlank() -> "https://www.youtube.com/playlist?list=$id"
-            else -> ""
-        }
-        return PlaylistInfo(
-            id = id,
-            title = obj.str("title", "Untitled playlist"),
-            uploader = obj.str("uploader"),
-            channel = obj.str("channel"),
-            thumbnail = obj.str("thumbnail"),
-            videoCount = obj.intOrZero("playlist_count").takeIf { it > 0 }
-                ?: obj.intOrZero("n_entries"),
-            webpageUrl = webpageUrl,
-        )
-    }
 
     // JSON helper extensions
     private fun JsonObject.str(key: String, default: String = ""): String =

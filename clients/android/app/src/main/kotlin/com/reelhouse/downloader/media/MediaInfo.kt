@@ -32,16 +32,3 @@ data class MediaInfo(
             }
         }
     }
-
-data class PlaylistInfo(
-    val id: String = "",
-    val title: String = "Untitled playlist",
-    val uploader: String = "",
-    val channel: String = "",
-    val thumbnail: String = "",
-    val videoCount: Int = 0,
-    val webpageUrl: String = "",
-) {
-    val displayUploader: String
-        get() = uploader.ifBlank { channel.ifBlank { "Unknown" } }
-}

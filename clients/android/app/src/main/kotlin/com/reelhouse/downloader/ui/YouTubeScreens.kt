@@ -1,9 +1,7 @@
 package com.reelhouse.downloader.ui
 
 import android.annotation.SuppressLint
-import android.content.Intent
 import android.graphics.Color as AndroidColor
-import android.net.Uri
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
@@ -64,9 +62,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.reelhouse.downloader.youtube.BackendDownloadPhase
 import com.reelhouse.downloader.youtube.BackendVideo
-import com.reelhouse.downloader.youtube.BackendPlaylist
 import com.reelhouse.downloader.youtube.YouTubeState
-import com.reelhouse.downloader.youtube.YouTubeResultFilter
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import com.reelhouse.downloader.youtube.youtubeTopics
 
@@ -76,11 +72,9 @@ fun YouTubeWorkspaceScreen(
     state: YouTubeState,
     onTopic: (String) -> Unit,
     onSearch: (String) -> Unit,
-    onResultFilter: (YouTubeResultFilter) -> Unit,
     onVideo: (BackendVideo) -> Unit,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
-    val context = androidx.compose.ui.platform.LocalContext.current
 
     Scaffold(topBar = { TopAppBar(title = { Text("Reelhouse YouTube") }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -114,28 +108,6 @@ fun YouTubeWorkspaceScreen(
                         },
                         label = { Text(topic) },
                     )
-                }
-            }
-
-            if (state.query.isNotBlank()) {
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    item {
-                        FilterChip(
-                            selected = state.resultFilter == YouTubeResultFilter.ALL,
-                            onClick = { onResultFilter(YouTubeResultFilter.ALL) },
-                            label = { Text("All") },
-                        )
-                    }
-                    item {
-                        FilterChip(
-                            selected = state.resultFilter == YouTubeResultFilter.PLAYLISTS,
-                            onClick = { onResultFilter(YouTubeResultFilter.PLAYLISTS) },
-                            label = { Text("Playlists") },
-                        )
-                    }
                 }
             }
 
@@ -175,8 +147,8 @@ fun YouTubeWorkspaceScreen(
                     }
                 }
 
-                (state.resultFilter == YouTubeResultFilter.PLAYLISTS && state.playlists.isEmpty()) || (state.resultFilter == YouTubeResultFilter.ALL && state.videos.isEmpty() && state.playlists.isEmpty()) -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(if (state.resultFilter == YouTubeResultFilter.PLAYLISTS) "No playlists found." else "No results found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                state.videos.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("No videos found.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
 
                 else -> LazyColumn(
@@ -185,56 +157,16 @@ fun YouTubeWorkspaceScreen(
                 ) {
                     item {
                         Text(
-                            if (state.query.isBlank()) "Recommended" else if (state.resultFilter == YouTubeResultFilter.PLAYLISTS) "Playlists for “${state.query}”" else "Results for “${state.query}”",
+                            if (state.query.isBlank()) "Recommended" else "Results for “${state.query}”",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                         )
                     }
-                    if (state.resultFilter == YouTubeResultFilter.ALL) {
-                        items(state.videos, key = { it.id.ifBlank { it.sourceUrl } }) { video ->
-                            VideoFeedCard(video = video, onClick = { onVideo(video) })
-                        }
-                    }
-                    if (state.playlists.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Playlists",
-                                modifier = Modifier.padding(top = 4.dp),
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                            )
-                        }
-                        items(state.playlists, key = { "playlist-${it.id}" }) { playlist ->
-                            PlaylistCard(
-                                playlist = playlist,
-                                onClick = {
-                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(playlist.sourceUrl)))
-                                },
-                            )
-                        }
+                    items(state.videos, key = { it.id.ifBlank { it.sourceUrl } }) { video ->
+                        VideoFeedCard(video = video, onClick = { onVideo(video) })
                     }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun PlaylistCard(playlist: BackendPlaylist, onClick: () -> Unit) {
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
-        AsyncImage(
-            model = playlist.thumbnail,
-            contentDescription = playlist.title,
-            modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-        )
-        Column(Modifier.padding(12.dp)) {
-            Text(playlist.title, maxLines = 2, overflow = TextOverflow.Ellipsis, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "${playlist.channel} · ${playlist.videoCount.takeIf { it > 0 } ?: "Playlist"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
         }
     }
 }
