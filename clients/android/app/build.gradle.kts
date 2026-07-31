@@ -25,8 +25,8 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 22
-        versionName = "1.6.3"
+        versionCode = 23
+        versionName = "1.6.4"
 
         buildConfigField(
             "String",
