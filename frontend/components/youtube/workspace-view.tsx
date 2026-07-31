@@ -160,6 +160,7 @@ export function WorkspaceView() {
       const payload = await fetchYouTubeTopic(nextTopic)
       setResults(payload.videos)
       writeCachedResults(cacheKey, payload.videos)
+      writeActiveSearchResults(payload.videos)
     } catch (err) {
       setResults([])
       setError(err instanceof Error ? err.message : 'Could not load videos.')
@@ -235,7 +236,7 @@ export function WorkspaceView() {
         if (!cancelled) {
           setResults(videos)
           writeCachedResults(cacheKey, videos)
-          if (activeQuery) writeActiveSearchResults(videos)
+          writeActiveSearchResults(videos)
         }
       } catch (err) {
         if (!cancelled) {
