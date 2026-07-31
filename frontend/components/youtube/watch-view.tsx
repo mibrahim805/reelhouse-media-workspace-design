@@ -57,7 +57,7 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [playerControlsVisible, setPlayerControlsVisible] = useState(false)
+  const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
   const searchResults = (() => {
     try {
       const saved = window.sessionStorage.getItem('reelhouse.active-results')
@@ -136,6 +136,7 @@ export function WatchView({ videoId }: { videoId: string }) {
       setLoading(true)
       setError('')
       setPlaying(false)
+      setPlayerControlsVisible(true)
       setSuccess('')
 
       const fallback = browserPlaybackVideo(videoId)
@@ -278,16 +279,18 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            <button
-              type="button"
-              onClick={toggleFullscreen}
-              aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-              className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-lg bg-black/65 text-white transition-colors hover:bg-black/85"
-            >
-              <Maximize2 className="size-4" />
-            </button>
+            {(!playing || playerControlsVisible) && (
+              <button
+                type="button"
+                onClick={toggleFullscreen}
+                aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-lg bg-black/65 text-white transition-colors hover:bg-black/85"
+              >
+                <Maximize2 className="size-4" />
+              </button>
+            )}
 
-            {searchResults.length > 0 && currentIndex >= 0 && playerControlsVisible && (
+            {searchResults.length > 0 && currentIndex >= 0 && (!playing || playerControlsVisible) && (
               <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
                 <button
                   type="button"
