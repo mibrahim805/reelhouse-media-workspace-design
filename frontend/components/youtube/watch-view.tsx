@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   ArrowLeft,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
   Maximize2,
@@ -45,6 +48,7 @@ function browserPlaybackVideo(value: string): MediaVideo | null {
 }
 
 export function WatchView({ videoId }: { videoId: string }) {
+  const router = useRouter()
   const { startDownload } = useDownloads()
   const [video, setVideo] = useState<MediaVideo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -53,6 +57,14 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const searchResults = (() => {
+    try {
+      const saved = window.sessionStorage.getItem('reelhouse.active-results')
+      return saved ? (JSON.parse(saved) as MediaVideo[]) : []
+    } catch {
+      return []
+    }
+  })()
   const playerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
 
@@ -181,6 +193,16 @@ export function WatchView({ videoId }: { videoId: string }) {
   }
 
   const embedUrl = youtubeEmbedUrl(video)
+  const currentIndex = searchResults.findIndex((item) => item.id === video.id)
+  const previousVideo = currentIndex > 0 ? searchResults[currentIndex - 1] : null
+  const nextVideo = currentIndex >= 0 && currentIndex < searchResults.length - 1
+    ? searchResults[currentIndex + 1]
+    : null
+
+  function openSearchVideo(target: MediaVideo | null) {
+    if (!target?.id) return
+    router.push(`/youtube/watch/${encodeURIComponent(target.id)}`)
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
@@ -224,6 +246,32 @@ export function WatchView({ videoId }: { videoId: string }) {
               <Maximize2 className="size-4" />
             </button>
           </div>
+
+          {searchResults.length > 0 && currentIndex >= 0 && (
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => openSearchVideo(previousVideo)}
+                disabled={!previousVideo}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="size-4" />
+                Previous
+              </button>
+              <span className="text-xs text-muted-foreground">
+                {currentIndex + 1} of {searchResults.length}
+              </span>
+              <button
+                type="button"
+                onClick={() => openSearchVideo(nextVideo)}
+                disabled={!nextVideo}
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+                <ChevronRight className="size-4" />
+              </button>
+            </div>
+          )}
 
           <h1 className="mt-4 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}

@@ -46,6 +46,14 @@ function writeCachedResults(key: string, videos: MediaVideo[]) {
   }
 }
 
+function writeActiveSearchResults(videos: MediaVideo[]) {
+  try {
+    window.sessionStorage.setItem('reelhouse.active-results', JSON.stringify(videos))
+  } catch {
+    // Session storage is optional.
+  }
+}
+
 function FeedCard({ video }: { video: MediaVideo }) {
   return (
     <Link href={watchHref(video)} className="group flex flex-col">
@@ -188,6 +196,7 @@ export function WorkspaceView() {
       const videos = await searchYouTube(t)
       setResults(videos)
       writeCachedResults(cacheKey, videos)
+      writeActiveSearchResults(videos)
     } catch (err) {
       setResults([])
       setError(err instanceof Error ? err.message : 'Search failed.')
@@ -226,6 +235,7 @@ export function WorkspaceView() {
         if (!cancelled) {
           setResults(videos)
           writeCachedResults(cacheKey, videos)
+          if (activeQuery) writeActiveSearchResults(videos)
         }
       } catch (err) {
         if (!cancelled) {
