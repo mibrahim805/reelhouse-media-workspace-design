@@ -31,4 +31,4 @@ data class MediaInfo(
                 "%d:%02d".format(minutes, seconds)
             }
         }
-}
+    }

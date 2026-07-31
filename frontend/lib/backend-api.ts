@@ -46,16 +46,6 @@ export type MediaVideo = {
   canEmbed?: boolean
 }
 
-export type MediaPlaylist = {
-  id: string
-  title: string
-  channel: string
-  channelInitials: string
-  thumbnail: string
-  videoCount: number
-  sourceUrl: string
-}
-
 export type DownloadResult = {
   title: string
   filename: string
@@ -104,15 +94,6 @@ type RawVideo = {
   qualities?: RawQuality[]
   embed_url?: string
   can_embed?: boolean
-}
-
-type RawPlaylist = {
-  id?: string
-  title?: string
-  channel?: string
-  thumbnail?: string
-  video_count?: number
-  source_url?: string
 }
 
 type RawDownloadResult = {
@@ -184,7 +165,9 @@ export function videoIdFromUrl(url: string) {
 
 export function youtubeEmbedUrl(video: Pick<MediaVideo, 'id' | 'sourceUrl'>) {
   const id = video.id || videoIdFromUrl(video.sourceUrl)
-  return id ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0` : ''
+  return id
+    ? `https://www.youtube.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&iv_load_policy=3`
+    : ''
 }
 
 function absoluteBackendUrl(path: string) {
@@ -322,32 +305,6 @@ export async function searchYouTube(query: string) {
     query,
   })
   return payload.videos.map((video) => normalizeVideo(video, 'Search'))
-}
-
-function normalizePlaylist(raw: RawPlaylist): MediaPlaylist {
-  const sourceUrl = raw.source_url || (raw.id ? `https://www.youtube.com/playlist?list=${raw.id}` : '')
-  const channel = raw.channel || 'Unknown channel'
-  return {
-    id: raw.id || sourceUrl,
-    title: raw.title || 'Untitled playlist',
-    channel,
-    channelInitials: initials(channel),
-    thumbnail: raw.thumbnail || '',
-    videoCount: raw.video_count || 0,
-    sourceUrl,
-  }
-}
-
-export async function searchYouTubeResults(query: string) {
-  const payload = await apiPost<{
-    videos: RawVideo[]
-    playlists?: RawPlaylist[]
-  }>('youtube-search', { query })
-
-  return {
-    videos: payload.videos.map((video) => normalizeVideo(video, 'Search')),
-    playlists: (payload.playlists || []).map(normalizePlaylist),
-  }
 }
 
 export async function fetchYouTubeTopic(topic: string) {

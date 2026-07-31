@@ -226,7 +226,6 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     onBack = { navController.popBackStack() },
                     onQuality = youtubeViewModel::setQuality,
                     onDownload = youtubeViewModel::startLocalDownload,
-                    onNext = youtubeViewModel::selectVideo,
                     onDismissDownload = youtubeViewModel::clearDownloadStatus,
                 )
             }

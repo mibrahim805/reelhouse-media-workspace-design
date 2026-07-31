@@ -5,7 +5,6 @@ import android.graphics.Color as AndroidColor
 import android.view.View
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
-import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -204,7 +203,6 @@ fun YouTubeWatchScreen(
     onBack: () -> Unit,
     onQuality: (String) -> Unit,
     onDownload: () -> Unit,
-    onNext: (BackendVideo) -> Unit,
     onDismissDownload: () -> Unit,
 ) {
     val video = state.selectedVideo
@@ -245,10 +243,7 @@ fun YouTubeWatchScreen(
                     contentAlignment = Alignment.Center,
                 ) {
                     if (playing && videoId.isNotBlank()) {
-                        YouTubeEmbedPlayer(
-                            videoId = videoId,
-                            onVideoSelected = onNext,
-                        )
+                        YouTubeEmbedPlayer(videoId = videoId)
                     } else {
                         AsyncImage(
                             model = video.thumbnail,
@@ -371,39 +366,6 @@ fun YouTubeWatchScreen(
                 }
             }
 
-            val upNext = state.videos.filter { it.id != video.id }.take(8)
-            if (upNext.isNotEmpty()) {
-                item {
-                    Text(
-                        "Up next",
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                items(upNext, key = { it.id.ifBlank { it.sourceUrl } }) { item ->
-                    Card(
-                        onClick = { onNext(item) },
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
-                    ) {
-                        Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            AsyncImage(
-                                model = item.thumbnail,
-                                contentDescription = item.title,
-                                modifier = Modifier.size(width = 128.dp, height = 72.dp),
-                            )
-                            Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                                Text(item.title, maxLines = 2, overflow = TextOverflow.Ellipsis)
-                                Text(
-                                    item.channel,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -412,7 +374,6 @@ fun YouTubeWatchScreen(
 @Composable
 private fun YouTubeEmbedPlayer(
     videoId: String,
-    onVideoSelected: (BackendVideo) -> Unit,
 ) {
     val embedUrl = remember(videoId) { YouTubeUrls.embedUrl(videoId).orEmpty() }
     val playerDocument = remember(embedUrl) { playerHtml(embedUrl) }
@@ -448,28 +409,7 @@ private fun YouTubeEmbedPlayer(
                 CookieManager.getInstance().setAcceptCookie(true)
                 CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                 webChromeClient = WebChromeClient()
-                webViewClient = object : WebViewClient() {
-                    override fun shouldOverrideUrlLoading(
-                        view: WebView,
-                        request: WebResourceRequest,
-                    ): Boolean {
-                        val nextId = YouTubeUrls.videoId(request.url.toString())
-                            ?: return false
-                        if (nextId == videoId) return true
-
-                        onVideoSelected(
-                            BackendVideo(
-                                id = nextId,
-                                title = "YouTube video",
-                                channel = "YouTube",
-                                duration = "Unknown duration",
-                                thumbnail = "https://i.ytimg.com/vi/$nextId/hqdefault.jpg",
-                                sourceUrl = YouTubeUrls.watchUrl(nextId).orEmpty(),
-                            ),
-                        )
-                        return true
-                    }
-                }
+                webViewClient = WebViewClient()
                 loadDataWithBaseURL(
                     "https://www.youtube.com/",
                     playerDocument,
@@ -508,10 +448,26 @@ private fun playerHtml(embedUrl: String) = """
       </head>
       <body>
         <iframe
+          id="player"
           src="$embedUrl"
           allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
           allowfullscreen>
         </iframe>
+        <script src="https://www.youtube.com/iframe_api"></script>
+        <script>
+          var player;
+          function onYouTubeIframeAPIReady() {
+            player = new YT.Player('player', {
+              events: {
+                onStateChange: function(event) {
+                  if (event.data === 0) {
+                    document.body.innerHTML = '<div style="height:100%;display:grid;place-items:center;color:#fff;background:#000;font:16px sans-serif">Video ended</div>';
+                  }
+                }
+              }
+            });
+          }
+        </script>
       </body>
     </html>
 """.trimIndent()
