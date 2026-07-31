@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import {
@@ -57,6 +57,7 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [playerControlsVisible, setPlayerControlsVisible] = useState(false)
   const searchResults = (() => {
     try {
       const saved = window.sessionStorage.getItem('reelhouse.active-results')
@@ -67,6 +68,17 @@ export function WatchView({ videoId }: { videoId: string }) {
   })()
   const playerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const showPlayerControls = useCallback(() => {
+    setPlayerControlsVisible(true)
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+    if (playing) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setPlayerControlsVisible(false)
+      }, 2600)
+    }
+  }, [playing])
 
   async function toggleFullscreen(event?: React.MouseEvent<HTMLButtonElement>) {
     event?.preventDefault()
@@ -89,6 +101,28 @@ export function WatchView({ videoId }: { videoId: string }) {
     document.addEventListener('fullscreenchange', onFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
   }, [])
+
+  useEffect(() => {
+    function onPointerMove(event: MouseEvent) {
+      const player = playerRef.current
+      if (!player) return
+      const bounds = player.getBoundingClientRect()
+      if (
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom
+      ) {
+        showPlayerControls()
+      }
+    }
+
+    window.addEventListener('mousemove', onPointerMove)
+    return () => {
+      window.removeEventListener('mousemove', onPointerMove)
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+    }
+  }, [playing, showPlayerControls])
 
   const qualities = video?.qualities ?? []
   const downloadQualities: QualityOption[] = qualities.length > 0
@@ -207,7 +241,11 @@ export function WatchView({ videoId }: { videoId: string }) {
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
         <div className="min-w-0">
-          <div ref={playerRef} className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-full [&:fullscreen]:rounded-none">
+          <div
+            ref={playerRef}
+            onTouchStart={showPlayerControls}
+            className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-full [&:fullscreen]:rounded-none"
+          >
             {playing && embedUrl ? (
               <iframe
                 src={embedUrl}
@@ -227,7 +265,10 @@ export function WatchView({ videoId }: { videoId: string }) {
                 />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <button
-                    onClick={() => setPlaying(true)}
+                    onClick={() => {
+                      setPlaying(true)
+                      showPlayerControls()
+                    }}
                     aria-label="Play"
                     className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform hover:scale-105"
                   >
@@ -245,33 +286,30 @@ export function WatchView({ videoId }: { videoId: string }) {
             >
               <Maximize2 className="size-4" />
             </button>
-          </div>
 
-          {searchResults.length > 0 && currentIndex >= 0 && (
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <button
-                type="button"
-                onClick={() => openSearchVideo(previousVideo)}
-                disabled={!previousVideo}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                <ChevronLeft className="size-4" />
-                Previous
-              </button>
-              <span className="text-xs text-muted-foreground">
-                {currentIndex + 1} of {searchResults.length}
-              </span>
-              <button
-                type="button"
-                onClick={() => openSearchVideo(nextVideo)}
-                disabled={!nextVideo}
-                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium text-foreground transition-colors hover:bg-card disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next
-                <ChevronRight className="size-4" />
-              </button>
-            </div>
-          )}
+            {searchResults.length > 0 && currentIndex >= 0 && playerControlsVisible && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
+                <button
+                  type="button"
+                  onClick={() => openSearchVideo(previousVideo)}
+                  disabled={!previousVideo}
+                  aria-label="Previous video"
+                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <ChevronLeft className="size-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSearchVideo(nextVideo)}
+                  disabled={!nextVideo}
+                  aria-label="Next video"
+                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <ChevronRight className="size-6" />
+                </button>
+              </div>
+            )}
+          </div>
 
           <h1 className="mt-4 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
