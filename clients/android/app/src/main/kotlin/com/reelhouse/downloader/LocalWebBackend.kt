@@ -15,6 +15,7 @@ import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import android.os.SystemClock
 import android.util.Log
+import android.net.Uri
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -351,7 +352,21 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
     private fun stableInfoKey(url: String): String {
         val videoId = YouTubeUrls.videoId(url)
-        return if (!videoId.isNullOrBlank()) "youtube:$videoId" else "url:${url.trim().lowercase()}"
+        if (!videoId.isNullOrBlank()) return "youtube:$videoId"
+
+        // URL paths and query values may be case-sensitive. Normalize only the
+        // components whose casing is case-insensitive, preserving the rest.
+        val parsed = Uri.parse(url.trim())
+        val scheme = parsed.scheme?.lowercase().orEmpty()
+        val host = parsed.host?.lowercase().orEmpty()
+        val authority = buildString {
+            if (parsed.userInfo != null) append(parsed.userInfo).append('@')
+            append(host)
+            if (parsed.port >= 0) append(':').append(parsed.port)
+        }
+        val path = parsed.encodedPath.orEmpty()
+        val query = parsed.encodedQuery?.let { "?$it" }.orEmpty()
+        return "url:$scheme://$authority$path$query"
     }
 
     private fun elapsed(started: Long): Long = SystemClock.elapsedRealtime() - started
