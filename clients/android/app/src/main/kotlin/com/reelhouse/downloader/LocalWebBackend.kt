@@ -45,6 +45,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val dao = app.database.downloadDao()
     private val infoCache = ConcurrentHashMap<String, CachedInfo>()
     private val inFlightInfo = ConcurrentHashMap<String, CompletableDeferred<MediaInfo>>()
+    private val inFlightSearch = ConcurrentHashMap<String, CompletableDeferred<List<MediaInfo>>>()
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
@@ -144,12 +145,35 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val started = SystemClock.elapsedRealtime()
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start query=${query.take(120)}")
-        val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
+        val videos = loadSearch(query, 8, operationId)
         Log.d(TAG, "operation=$operationId phase=search_finish results=${videos.size} durationMs=${elapsed(started)}")
         return 200 to buildJsonObject {
             put("ok", true)
             put("videos", mediaArray(videos))
         }
+    }
+
+    private suspend fun loadSearch(query: String, limit: Int, operationId: String): List<MediaInfo> {
+        val key = "search:${query.trim().replace(Regex("\\s+"), " ").lowercase()}:limit:$limit"
+        val deferred = synchronized(inFlightSearch) {
+            inFlightSearch[key] ?: CompletableDeferred<List<MediaInfo>>().also { created ->
+                inFlightSearch[key] = created
+                extractionScope.launch {
+                    try {
+                        val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit) }
+                        created.complete(videos)
+                    } catch (error: Throwable) {
+                        created.completeExceptionally(error)
+                    } finally {
+                        inFlightSearch.remove(key, created)
+                    }
+                }
+            }
+        }
+        if (deferred !== inFlightSearch[key]) {
+            Log.d(TAG, "backend=$backendInstanceId operation=$operationId SEARCH_SINGLE_FLIGHT_JOIN key=$key")
+        }
+        return deferred.await()
     }
 
     private suspend fun topic(body: JsonObject): Pair<Int, JsonObject> {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Clock, History, Loader2, Search, SearchX } from 'lucide-react'
 import { SearchBar } from '@/components/youtube/search-bar'
@@ -141,6 +141,7 @@ export function WorkspaceView() {
   const [results, setResults] = useState<MediaVideo[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const initialRecentQuery = useRef(recent[0]?.trim() || '')
 
   async function loadTopic(nextTopic: string) {
     try {
@@ -216,7 +217,7 @@ export function WorkspaceView() {
       } catch {
         // Session storage is optional.
       }
-      const recentQuery = activeQuery || recent[0]?.trim() || ''
+      const recentQuery = activeQuery || initialRecentQuery.current
       if (activeQuery) {
         setQuery(activeQuery)
         setSubmitted(activeQuery)
@@ -252,7 +253,7 @@ export function WorkspaceView() {
     return () => {
       cancelled = true
     }
-  }, [recent])
+  }, [])
 
   const isSearching = submitted.length > 0
 
