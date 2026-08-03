@@ -182,6 +182,12 @@ class YoutubeUrlTests(SimpleTestCase):
 
         self.assertEqual(url, 'https://www.youtube.com/watch?v=abc123')
 
+    def test_normalizes_shorts_and_embed_urls_to_same_video(self):
+        expected = 'https://www.youtube.com/watch?v=abc123'
+
+        self.assertEqual(normalize_youtube_url('https://youtube.com/shorts/abc123?feature=share'), expected)
+        self.assertEqual(normalize_youtube_url('https://www.youtube.com/embed/abc123'), expected)
+
     def test_builds_embed_url(self):
         url = youtube_embed_url('https://youtu.be/abc123?t=44')
 

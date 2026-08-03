@@ -1,6 +1,6 @@
 from hashlib import sha256
 import logging
-from time import perf_counter
+from time import perf_counter, sleep
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -18,11 +18,22 @@ class DownloadError(Exception):
 
 _info_cache_timeout = 10 * 60
 _search_cache_timeout = 5 * 60
+_info_lock_timeout = 90
 
 
 def _info_cache_key(url):
     digest = sha256(url.encode('utf-8')).hexdigest()
     return f'video-info:{digest}'
+
+
+def _info_payload_cache_key(url):
+    digest = sha256(url.encode('utf-8')).hexdigest()
+    return f'video-info-payload:v2:{digest}'
+
+
+def _info_lock_key(url):
+    digest = sha256(url.encode('utf-8')).hexdigest()
+    return f'video-info-lock:v2:{digest}'
 
 
 def _cache_video_info(url, info):
@@ -115,6 +126,10 @@ def normalize_youtube_url(url):
     if parsed.netloc in {'youtube.com', 'www.youtube.com', 'm.youtube.com'}:
         query = parse_qs(parsed.query)
         video_id = query.get('v', [''])[0]
+        if not video_id:
+            parts = [part for part in parsed.path.split('/') if part]
+            if len(parts) >= 2 and parts[0] in {'shorts', 'embed', 'live'}:
+                video_id = parts[1]
         if video_id:
             return f'https://www.youtube.com/watch?v={video_id}'
 
@@ -209,30 +224,64 @@ def _quality_options(info):
 def get_video_info(url):
     cleaned_url = normalize_video_url(url)
     started = perf_counter()
+    payload_key = _info_payload_cache_key(cleaned_url)
+    payload = cache.get(payload_key)
+    if payload is not None:
+        logger.info('video_info payload_cache=hit url=%s duration_ms=%.1f', cleaned_url, (perf_counter() - started) * 1000)
+        return payload
+
     cached = _cached_video_info(cleaned_url)
     if cached:
         logger.info('video_info cache=hit url=%s duration_ms=%.1f', cleaned_url, (perf_counter() - started) * 1000)
-        return _video_payload(cached, cleaned_url)
+        payload = _video_payload(cached, cleaned_url)
+        cache.set(payload_key, payload, timeout=_info_cache_timeout)
+        return payload
     logger.info('video_info cache=miss url=%s', cleaned_url)
+
+    lock_key = _info_lock_key(cleaned_url)
+    acquired = cache.add(lock_key, 'locked', timeout=_info_lock_timeout)
+    if not acquired:
+        wait_started = perf_counter()
+        while perf_counter() - wait_started < _info_lock_timeout:
+            payload = cache.get(payload_key)
+            if payload is not None:
+                logger.info('video_info single_flight=joined url=%s wait_ms=%.1f', cleaned_url, (perf_counter() - wait_started) * 1000)
+                return payload
+            if cache.get(lock_key) is None:
+                return get_video_info(cleaned_url)
+            sleep(0.1)
+        raise DownloadError('Video information is still being prepared. Please try again.')
+
     options = {
         **_base_ydl_options(),
         'noplaylist': True,
         'skip_download': True,
+        'retries': 1,
+        'extractor_retries': 1,
+        'fragment_retries': 1,
+        'socket_timeout': 15,
     }
 
     try:
+        extraction_started = perf_counter()
         with yt_dlp.YoutubeDL(options) as ydl:
             info = ydl.extract_info(cleaned_url, download=False)
             _cache_video_info(cleaned_url, ydl.sanitize_info(info))
+        normalization_started = perf_counter()
+        payload = _video_payload(info, cleaned_url)
+        cache.set(payload_key, payload, timeout=_info_cache_timeout)
     except Exception as exc:
         raise DownloadError(_download_error_message(exc)) from exc
+    finally:
+        cache.delete(lock_key)
 
-    qualities = _quality_options(info)
-    if not qualities:
-        qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
-
-    payload = _video_payload(info, cleaned_url)
-    logger.info('video_info extracted url=%s duration_ms=%.1f', cleaned_url, (perf_counter() - started) * 1000)
+    logger.info(
+        'video_info extracted url=%s extraction_ms=%.1f normalization_ms=%.1f total_ms=%.1f',
+        cleaned_url,
+        (normalization_started - extraction_started) * 1000,
+        (perf_counter() - normalization_started) * 1000,
+        (perf_counter() - started) * 1000,
+    )
     return payload
 
 
@@ -256,7 +305,7 @@ def _video_payload(info, cleaned_url):
 
 
 def search_youtube_videos(query, limit=12):
-    clean_query = query.strip()
+    clean_query = ' '.join(query.split())
     if not clean_query:
         raise DownloadError('Enter a search term.')
 
