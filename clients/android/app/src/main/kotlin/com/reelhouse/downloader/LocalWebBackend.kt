@@ -53,7 +53,6 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
-    private val remoteJobs = ConcurrentHashMap.newKeySet<String>()
     private val backendInstanceId = UUID.randomUUID().toString().take(12)
 
     init {
@@ -257,18 +256,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             }
         }
 
-        val remoteJob = runCatching { remoteBackend.startDownload(url, quality) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId download_source=railway job=$it") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId download_source=railway failed=${it.message}") }
-            .getOrNull()
-        if (!remoteJob.isNullOrBlank()) {
-            val jobId = "remote:$remoteJob"
-            remoteJobs += jobId
-            return 200 to buildJsonObject {
-                put("ok", true)
-                put("job_id", jobId)
-            }
-        }
+        Log.d(TAG, "backend=$backendInstanceId download_source=android_local")
 
         val media = loadInfo(url, UUID.randomUUID().toString().take(8))
         val height = quality.toIntOrNull()
@@ -301,26 +289,6 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun progress(jobId: String): Pair<Int, JsonObject> {
-        if (jobId.startsWith("remote:") && jobId in remoteJobs) {
-            val remoteJob = remoteBackend.progress(jobId.removePrefix("remote:"))
-            return 200 to buildJsonObject {
-                put("ok", true)
-                put("job", buildJsonObject {
-                    put("status", remoteJob.status)
-                    put("percent", remoteJob.percent)
-                    remoteJob.error?.let { put("error", it) }
-                    remoteJob.result?.let { result ->
-                        put("result", buildJsonObject {
-                            put("title", result.title)
-                            put("filename", result.filename)
-                            put("file_url", result.fileUrl)
-                            put("filesize_mb", result.sizeMb)
-                            put("source_url", "")
-                        })
-                    }
-                })
-            }
-        }
         val item = dao.getById(jobId)
         if (item == null) {
             return if (jobId in knownJobs) {
