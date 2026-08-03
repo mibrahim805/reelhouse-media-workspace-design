@@ -50,18 +50,27 @@ class MediaExtractor(private val context: Context) {
         val started = SystemClock.elapsedRealtime()
         Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_STARTED number=$call type=info thread=${Thread.currentThread().name} url=${url.take(180)}")
         awaitEngine()
+        val engineReadyAt = SystemClock.elapsedRealtime()
         val request = YoutubeDLRequest(url).apply {
             addOption("--dump-single-json")
             addOption("--no-download")
             addOption("--no-playlist")
             addOption("--no-warnings")
             addOption("--no-config")
+            // Metadata extraction should fail fast instead of spending the
+            // default retry budget on a blocked or unavailable extractor.
+            addOption("--retries", "1")
+            addOption("--extractor-retries", "1")
+            addOption("--fragment-retries", "1")
             addOption("--socket-timeout", "30")
         }
 
+        Log.d(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_INFO_ENGINE_READY number=$call waitMs=${engineReadyAt - started}")
+        val processStarted = SystemClock.elapsedRealtime()
         val response = executeWithEngineRecovery {
             YoutubeDL.getInstance().execute(request)
         }
+        Log.d(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_INFO_PROCESS_FINISHED number=$call processMs=${SystemClock.elapsedRealtime() - processStarted}")
         val jsonStr = response.out
 
         if (jsonStr.isNullOrBlank()) {
