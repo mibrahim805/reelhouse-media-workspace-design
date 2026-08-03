@@ -12,6 +12,7 @@ import com.reelhouse.downloader.media.MediaInfo
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import com.reelhouse.downloader.youtube.BackendVideo
+import com.reelhouse.downloader.youtube.BackendRequestException
 import com.reelhouse.downloader.youtube.ReelhouseBackend
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -53,6 +54,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
+    private val remoteJobs = ConcurrentHashMap<String, Pair<String, String>>()
+    private val fallbackJobs = ConcurrentHashMap<String, String>()
     private val backendInstanceId = UUID.randomUUID().toString().take(12)
 
     init {
@@ -141,11 +144,17 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway failed=${it.message}") }
             .getOrNull()
         if (remote != null && remote.qualities.isNotEmpty()) {
+            Log.i(TAG, "backend=$backendInstanceId formats_source=backend key=${YouTubeUrls.videoId(url).orEmpty()}")
             return 200 to buildJsonObject {
                 put("ok", true)
                 put("video", backendVideoInfoJson(remote, url))
             }
         }
+        if (!BuildConfig.USE_LOCAL_FORMAT_EXTRACTION) {
+            Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
+            throw BackendRequestException("The backend could not provide download qualities for this video.")
+        }
+        Log.w(TAG, "backend=$backendInstanceId formats_source=local_fallback url=$url")
         val media = loadInfo(url, requestId)
         return 200 to buildJsonObject {
             put("ok", true)
@@ -256,7 +265,26 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             }
         }
 
-        Log.d(TAG, "backend=$backendInstanceId download_source=android_local")
+        val remoteJob = runCatching { remoteBackend.startDownload(url, quality) }
+            .onSuccess {
+                Log.i(TAG, "backend=$backendInstanceId download_source=backend job=$it")
+            }
+            .onFailure {
+                Log.w(TAG, "backend=$backendInstanceId download_source=backend failed=${it.message}")
+            }
+            .getOrNull()
+        if (!remoteJob.isNullOrBlank()) {
+            val jobId = "remote:$remoteJob"
+            remoteJobs[jobId] = url to quality
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("job_id", jobId)
+            }
+        }
+        if (!BuildConfig.USE_LOCAL_DOWNLOAD_FALLBACK) {
+            throw BackendRequestException("The backend could not start this download.")
+        }
+        Log.w(TAG, "backend=$backendInstanceId download_source=local_fallback url=$url quality=$quality")
 
         val media = loadInfo(url, UUID.randomUUID().toString().take(8))
         val height = quality.toIntOrNull()
@@ -289,6 +317,35 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun progress(jobId: String): Pair<Int, JsonObject> {
+        fallbackJobs[jobId]?.let { return progress(it) }
+        remoteJobs[jobId]?.let { (url, quality) ->
+            val remoteJob = remoteBackend.progress(jobId.removePrefix("remote:"))
+            if (remoteJob.status == "error") {
+                remoteJobs.remove(jobId)
+                if (!BuildConfig.USE_LOCAL_DOWNLOAD_FALLBACK) {
+                    return 200 to buildJsonObject {
+                        put("ok", true)
+                        put("job", buildJsonObject {
+                            put("status", "error")
+                            put("percent", remoteJob.percent)
+                            put("error", remoteJob.error ?: "The backend download failed.")
+                        })
+                    }
+                }
+                Log.w(TAG, "backend=$backendInstanceId download_source=local_fallback remote_job=$jobId reason=${remoteJob.error}")
+                val localJob = startLocalDownload(validatedUrl(url), quality)
+                fallbackJobs[jobId] = localJob
+                return 200 to buildJsonObject {
+                    put("ok", true)
+                    put("job", buildJsonObject {
+                        put("status", "queued")
+                        put("percent", 0)
+                        put("fallback_job_id", localJob)
+                    })
+                }
+            }
+            return remoteJobJson(remoteJob)
+        }
         val item = dao.getById(jobId)
         if (item == null) {
             return if (jobId in knownJobs) {
@@ -309,6 +366,48 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             put("job", downloadJobJson(item))
         }
     }
+
+    private suspend fun startLocalDownload(url: String, quality: String): String {
+        val media = loadInfo(url, UUID.randomUUID().toString().take(8))
+        val height = quality.toIntOrNull()
+        val selectedFormat = media.formats
+            .filter { it.hasVideo && (height == null || it.height <= height) }
+            .maxByOrNull { it.height }
+        val jobId = UUID.randomUUID().toString()
+        val request = DownloadRequest(
+            id = jobId,
+            url = url,
+            mediaInfo = media,
+            formatSelector = FormatSelector.build(false, height, videoContainer = "mp4"),
+            isAudioOnly = false,
+            mergeFormat = "mp4",
+            qualityLabel = height?.let { "${it}p" } ?: "Best available",
+            destination = "downloads",
+            expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
+        )
+        knownJobs += jobId
+        ContextCompat.startForegroundService(app, DownloadService.createStartIntent(app, request))
+        return jobId
+    }
+
+    private fun remoteJobJson(job: com.reelhouse.downloader.youtube.BackendJob): Pair<Int, JsonObject> =
+        200 to buildJsonObject {
+            put("ok", true)
+            put("job", buildJsonObject {
+                put("status", job.status)
+                put("percent", job.percent)
+                job.error?.let { put("error", it) }
+                job.result?.let { result ->
+                    put("result", buildJsonObject {
+                        put("title", result.title)
+                        put("filename", result.filename)
+                        put("file_url", result.fileUrl)
+                        put("filesize_mb", result.sizeMb)
+                        put("source_url", "")
+                    })
+                }
+            })
+        }
 
     private fun mediaArray(videos: List<MediaInfo>): JsonArray = buildJsonArray {
         videos.forEach { media ->
