@@ -83,6 +83,35 @@ class MediaExtractor(private val context: Context) {
     }
 
     /**
+     * Fast format-manifest attempt. Some YouTube clients return the player
+     * formats with less negotiation than the default extractor. Callers must
+     * validate the returned formats and fall back to extractInfo when empty.
+     */
+    suspend fun extractInfoFast(url: String): MediaInfo = withContext(Dispatchers.IO) {
+        val call = nextCall()
+        val started = SystemClock.elapsedRealtime()
+        Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_STARTED number=$call type=fast-info thread=${Thread.currentThread().name}")
+        awaitEngine()
+        val request = YoutubeDLRequest(url).apply {
+            addOption("--dump-single-json")
+            addOption("--no-download")
+            addOption("--no-playlist")
+            addOption("--no-warnings")
+            addOption("--no-config")
+            addOption("--retries", "1")
+            addOption("--extractor-retries", "1")
+            addOption("--socket-timeout", "15")
+            addOption("--extractor-args", "youtube:player_client=android")
+        }
+        val response = YoutubeDL.getInstance().execute(request)
+        val output = response.out
+        if (output.isNullOrBlank()) error("No information could be extracted")
+        parseMediaInfo(output).also {
+            Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_FINISHED number=$call type=fast-info formats=${it.formats.size} durationMs=${SystemClock.elapsedRealtime() - started}")
+        }
+    }
+
+    /**
      * Searches YouTube through the embedded yt-dlp runtime. The request and
      * response stay on this Android device; the Reelhouse host is not used.
      */

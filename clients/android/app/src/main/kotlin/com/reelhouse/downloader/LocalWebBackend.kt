@@ -455,7 +455,12 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     val extractionStarted = SystemClock.elapsedRealtime()
                     Log.d(TAG, "operation=$operationId key=$key extraction=start")
                     try {
-                        val media = withContext(Dispatchers.IO) { extractor.extractInfo(url) }
+                        val media = withContext(Dispatchers.IO) {
+                            runCatching { extractor.extractInfoFast(url) }
+                                .getOrNull()
+                                ?.takeIf { it.formats.any { format -> format.hasVideo && format.height > 0 } }
+                                ?: extractor.extractInfo(url)
+                        }
                         infoCache[key] = CachedInfo(System.currentTimeMillis(), media)
                         Log.d(TAG, "backend=$backendInstanceId operation=$operationId INFO_CACHE_STORE key=$key expiresInMs=$INFO_CACHE_TTL_MS")
                         created.complete(media)
