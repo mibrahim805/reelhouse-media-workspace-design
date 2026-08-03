@@ -52,6 +52,8 @@ export function WatchView({ videoId }: { videoId: string }) {
   const { startDownload } = useDownloads()
   const [video, setVideo] = useState<MediaVideo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [detailsLoaded, setDetailsLoaded] = useState(false)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -151,29 +153,7 @@ export function WatchView({ videoId }: { videoId: string }) {
       // yt-dlp being accepted from the hosted backend's IP address.
       setVideo(fallback)
 
-      try {
-        const loaded = await fetchVideoInfo(fallback.sourceUrl)
-        if (cancelled) return
-        setVideo({
-          ...loaded,
-          id: fallback.id,
-          sourceUrl: fallback.sourceUrl,
-          embedUrl: fallback.embedUrl,
-          canEmbed: true,
-        })
-      } catch (err) {
-        if (!cancelled) {
-          const reason =
-            err instanceof Error
-              ? err.message
-              : 'The download server could not load this video.'
-          setError(
-            `Browser playback is still available. Download options are unavailable: ${reason}`,
-          )
-        }
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
+      setLoading(false)
     }
 
     void loadVideo()
@@ -182,6 +162,36 @@ export function WatchView({ videoId }: { videoId: string }) {
       cancelled = true
     }
   }, [videoId])
+
+  async function openDownloadDialog() {
+    if (!video || detailsLoading) return
+    if (detailsLoaded && video.qualities?.length) {
+      setDialogOpen(true)
+      return
+    }
+
+    setDetailsLoading(true)
+    setError('')
+    try {
+      const loaded = await fetchVideoInfo(video.sourceUrl)
+      setVideo({
+        ...loaded,
+        id: video.id,
+        sourceUrl: video.sourceUrl,
+        embedUrl: video.embedUrl,
+        canEmbed: true,
+      })
+      setDetailsLoaded(true)
+      setDialogOpen(true)
+    } catch (err) {
+      const reason = err instanceof Error
+        ? err.message
+        : 'The download server could not load this video.'
+      setError(`Download options are unavailable: ${reason}`)
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
 
   function confirmDownload(q: QualityOption) {
     if (!video) return
@@ -318,12 +328,12 @@ export function WatchView({ videoId }: { videoId: string }) {
             {video.title}
           </h1>
           <button
-            onClick={() => setDialogOpen(true)}
-            disabled={loading}
+            onClick={() => void openDownloadDialog()}
+            disabled={loading || detailsLoading}
             className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
           >
-            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-            {loading ? 'Loading…' : 'Download'}
+            {loading || detailsLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {loading || detailsLoading ? 'Loading…' : 'Download'}
           </button>
           {success && (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-success">
