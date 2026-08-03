@@ -53,6 +53,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
+    private val remoteJobs = ConcurrentHashMap.newKeySet<String>()
     private val backendInstanceId = UUID.randomUUID().toString().take(12)
 
     init {
@@ -136,6 +137,16 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
         val requestId = UUID.randomUUID().toString().take(8)
+        val remote = runCatching { remoteBackend.info(url) }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway qualities=${it.qualities.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway failed=${it.message}") }
+            .getOrNull()
+        if (remote != null && remote.qualities.isNotEmpty()) {
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("video", backendVideoInfoJson(remote, url))
+            }
+        }
         val media = loadInfo(url, requestId)
         return 200 to buildJsonObject {
             put("ok", true)
@@ -246,6 +257,19 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             }
         }
 
+        val remoteJob = runCatching { remoteBackend.startDownload(url, quality) }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId download_source=railway job=$it") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId download_source=railway failed=${it.message}") }
+            .getOrNull()
+        if (!remoteJob.isNullOrBlank()) {
+            val jobId = "remote:$remoteJob"
+            remoteJobs += jobId
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("job_id", jobId)
+            }
+        }
+
         val media = loadInfo(url, UUID.randomUUID().toString().take(8))
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
@@ -277,6 +301,26 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun progress(jobId: String): Pair<Int, JsonObject> {
+        if (jobId.startsWith("remote:") && jobId in remoteJobs) {
+            val remoteJob = remoteBackend.progress(jobId.removePrefix("remote:"))
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("job", buildJsonObject {
+                    put("status", remoteJob.status)
+                    put("percent", remoteJob.percent)
+                    remoteJob.error?.let { put("error", it) }
+                    remoteJob.result?.let { result ->
+                        put("result", buildJsonObject {
+                            put("title", result.title)
+                            put("filename", result.filename)
+                            put("file_url", result.fileUrl)
+                            put("filesize_mb", result.sizeMb)
+                            put("source_url", "")
+                        })
+                    }
+                })
+            }
+        }
         val item = dao.getById(jobId)
         if (item == null) {
             return if (jobId in knownJobs) {
@@ -322,6 +366,29 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 put("platform", video.platform)
             })
         }
+    }
+
+    private fun backendVideoInfoJson(video: BackendVideo, sourceUrl: String): JsonObject = buildJsonObject {
+        put("id", video.id)
+        put("title", video.title)
+        put("channel", video.channel)
+        put("duration", video.duration)
+        put("thumbnail", video.thumbnail)
+        put("source_url", sourceUrl)
+        put("webpage_url", sourceUrl)
+        put("platform", video.platform)
+        put("embed_url", YouTubeUrls.embedUrl(video.id).orEmpty())
+        put("can_embed", video.id.isNotBlank())
+        put("qualities", buildJsonArray {
+            video.qualities.forEach { quality ->
+                add(buildJsonObject {
+                    put("value", quality.value)
+                    put("label", quality.label)
+                    put("extension", quality.extension)
+                    put("filesize_label", quality.sizeLabel)
+                })
+            }
+        })
     }
 
     private fun mediaJson(
