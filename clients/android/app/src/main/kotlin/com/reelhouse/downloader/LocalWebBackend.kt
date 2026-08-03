@@ -372,7 +372,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun startLocalDownload(jobId: String, url: String, quality: String) {
-        val media = loadInfo(url, UUID.randomUUID().toString().take(8))
+        // Downloads use the original full Android extraction path. Railway is
+        // used for search/metadata when available, never for the file itself.
+        val media = extractor.extractInfo(url)
         val audioOnly = quality.equals("audio", ignoreCase = true)
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
