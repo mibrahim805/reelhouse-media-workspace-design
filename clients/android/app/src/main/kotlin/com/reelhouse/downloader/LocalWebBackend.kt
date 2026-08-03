@@ -13,7 +13,13 @@ import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import android.os.SystemClock
+import android.util.Log
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -31,15 +37,19 @@ import kotlinx.serialization.json.put
  */
 class LocalWebBackend(private val app: ReelhouseApp) {
     private data class CachedResponse(val createdAt: Long, val body: String)
+    private data class CachedInfo(val createdAt: Long, val media: MediaInfo)
 
     private val json = Json { ignoreUnknownKeys = true }
     private val extractor = MediaExtractor(app)
     private val dao = app.database.downloadDao()
-    private val infoCache = ConcurrentHashMap<String, MediaInfo>()
+    private val infoCache = ConcurrentHashMap<String, CachedInfo>()
+    private val inFlightInfo = ConcurrentHashMap<String, CompletableDeferred<MediaInfo>>()
+    private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
 
     suspend fun handle(rawRequest: String): String {
+        val requestStarted = SystemClock.elapsedRealtime()
         val requestId = runCatching {
             json.parseToJsonElement(rawRequest).jsonObject.string("id")
         }.getOrDefault("")
@@ -53,6 +63,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val body = request.string("body").takeIf(String::isNotBlank)?.let {
                 json.parseToJsonElement(it).jsonObject
             } ?: JsonObject(emptyMap())
+            logTiming("request=$requestId path=$path phase=received", requestStarted)
 
             val cacheKey = when (path) {
                 "youtube-search" -> "search:${body.string("query").trim().lowercase()}"
@@ -62,6 +73,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             if (cacheKey != null) {
                 val cached = feedCache[cacheKey]
                 if (cached != null && System.currentTimeMillis() - cached.createdAt < FEED_CACHE_TTL_MS) {
+                    Log.d(TAG, "request=$requestId path=$path cache=hit durationMs=${elapsed(requestStarted)}")
                     return bridgeResponse(requestId, 200, cached.body)
                 }
             }
@@ -78,13 +90,15 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             if (cacheKey != null && status == 200) {
                 feedCache[cacheKey] = CachedResponse(System.currentTimeMillis(), envelopeBody)
             }
-            bridgeResponse(requestId, status, envelopeBody)
+            bridgeResponse(requestId, status, envelopeBody).also {
+                logTiming("request=$requestId path=$path phase=response_sent status=$status", requestStarted)
+            }
         } catch (error: Exception) {
             bridgeResponse(
                 requestId,
                 400,
                 errorEnvelope(userFacingError(error)).toString(),
-            )
+            ).also { logTiming("request=$requestId phase=error durationMs=${elapsed(requestStarted)}", requestStarted) }
         }
     }
 
@@ -108,9 +122,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
-        val media = infoCache[url] ?: withContext(Dispatchers.IO) { extractor.extractInfo(url) }.also {
-            infoCache[url] = it
-        }
+        val requestId = UUID.randomUUID().toString().take(8)
+        val media = loadInfo(url, requestId)
         return 200 to buildJsonObject {
             put("ok", true)
             put("video", mediaJson(media, url, includeQualities = true))
@@ -120,7 +133,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun search(body: JsonObject): Pair<Int, JsonObject> {
         val query = body.string("query").trim()
         require(query.isNotBlank()) { "Enter a search term." }
+        val started = SystemClock.elapsedRealtime()
+        val operationId = "search-${UUID.randomUUID().toString().take(8)}"
+        Log.d(TAG, "operation=$operationId phase=search_start query=${query.take(120)}")
         val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
+        Log.d(TAG, "operation=$operationId phase=search_finish results=${videos.size} durationMs=${elapsed(started)}")
         return 200 to buildJsonObject {
             put("ok", true)
             put("videos", mediaArray(videos))
@@ -130,7 +147,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun topic(body: JsonObject): Pair<Int, JsonObject> {
         val topic = body.string("topic").ifBlank { "All" }
         val query = topicQuery(topic)
+        val started = SystemClock.elapsedRealtime()
+        val operationId = "search-${UUID.randomUUID().toString().take(8)}"
+        Log.d(TAG, "operation=$operationId phase=search_start topic=$topic")
         val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
+        Log.d(TAG, "operation=$operationId phase=search_finish results=${videos.size} durationMs=${elapsed(started)}")
         return 200 to buildJsonObject {
             put("ok", true)
             put("topic", topic)
@@ -150,9 +171,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             }
         }
 
-        val media = infoCache[url] ?: extractor.extractInfo(url).also {
-            infoCache[url] = it
-        }
+        val media = loadInfo(url, UUID.randomUUID().toString().take(8))
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
             .filter { it.hasVideo && (height == null || it.height <= height) }
@@ -294,6 +313,53 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         return result.url
     }
 
+    private suspend fun loadInfo(url: String, operationId: String): MediaInfo {
+        val started = SystemClock.elapsedRealtime()
+        val key = stableInfoKey(url)
+        val cached = infoCache[key]
+        if (cached != null && System.currentTimeMillis() - cached.createdAt < INFO_CACHE_TTL_MS) {
+            Log.d(TAG, "operation=$operationId key=$key cache=hit lookupMs=${elapsed(started)}")
+            return cached.media
+        }
+        Log.d(TAG, "operation=$operationId key=$key cache=miss lookupMs=${elapsed(started)}")
+
+        val deferred = synchronized(inFlightInfo) {
+            inFlightInfo[key] ?: CompletableDeferred<MediaInfo>().also { created ->
+                inFlightInfo[key] = created
+                extractionScope.launch {
+                    val extractionStarted = SystemClock.elapsedRealtime()
+                    Log.d(TAG, "operation=$operationId key=$key extraction=start")
+                    try {
+                        val media = withContext(Dispatchers.IO) { extractor.extractInfo(url) }
+                        infoCache[key] = CachedInfo(System.currentTimeMillis(), media)
+                        created.complete(media)
+                        Log.d(TAG, "operation=$operationId key=$key extraction=finish durationMs=${elapsed(extractionStarted)}")
+                    } catch (error: Throwable) {
+                        created.completeExceptionally(error)
+                        Log.d(TAG, "operation=$operationId key=$key extraction=error durationMs=${elapsed(extractionStarted)}")
+                    } finally {
+                        inFlightInfo.remove(key, created)
+                    }
+                }
+            }
+        }
+        if (deferred !== inFlightInfo[key]) {
+            Log.d(TAG, "operation=$operationId key=$key duplicate=coalesced")
+        }
+        return deferred.await()
+    }
+
+    private fun stableInfoKey(url: String): String {
+        val videoId = YouTubeUrls.videoId(url)
+        return if (!videoId.isNullOrBlank()) "youtube:$videoId" else "url:${url.trim().lowercase()}"
+    }
+
+    private fun elapsed(started: Long): Long = SystemClock.elapsedRealtime() - started
+
+    private fun logTiming(message: String, started: Long) {
+        Log.d(TAG, "$message durationMs=${elapsed(started)}")
+    }
+
     private fun topicQuery(topic: String): String = when (topic) {
         "All" -> "popular videos Pakistan"
         "Music" -> "latest music videos"
@@ -326,6 +392,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         const val FEED_CACHE_TTL_MS = 5 * 60 * 1000L
         const val MAX_FEED_CACHE_ENTRIES = 24
         const val MAX_INFO_CACHE_ENTRIES = 32
+        const val INFO_CACHE_TTL_MS = 15 * 60 * 1000L
+        const val TAG = "ReelhousePerf"
         private val YOUTUBE_ID = Regex("""^[A-Za-z0-9_-]{11}$""")
     }
 }
