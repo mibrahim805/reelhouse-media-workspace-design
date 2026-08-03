@@ -154,6 +154,24 @@ class DownloadPageTests(SimpleTestCase):
 
 
 class YoutubeUrlTests(SimpleTestCase):
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_video_info_cache_hit_avoids_second_extraction(self, mocked_youtube_dl):
+        cache.clear()
+        ydl = mocked_youtube_dl.return_value.__enter__.return_value
+        info = {
+            'id': 'abc123',
+            'title': 'Demo video',
+            'duration': 90,
+            'formats': [{'height': 720, 'vcodec': 'avc1', 'filesize': 1000, 'ext': 'mp4'}],
+        }
+        ydl.extract_info.return_value = info
+        ydl.sanitize_info.return_value = info
+
+        get_video_info('https://youtu.be/abc123?t=4')
+        get_video_info('https://www.youtube.com/watch?v=abc123')
+
+        self.assertEqual(ydl.extract_info.call_count, 1)
+
     def test_normalizes_short_youtube_url(self):
         url = normalize_youtube_url('https://youtu.be/abc123?t=44')
 
@@ -310,6 +328,9 @@ class CachedVideoDownloadTests(SimpleTestCase):
 
 
 class YoutubeSearchTests(SimpleTestCase):
+    def setUp(self):
+        cache.clear()
+
     @patch('downloader.services.yt_dlp.YoutubeDL')
     def test_search_youtube_videos_formats_results(self, mocked_youtube_dl):
         ydl = mocked_youtube_dl.return_value.__enter__.return_value

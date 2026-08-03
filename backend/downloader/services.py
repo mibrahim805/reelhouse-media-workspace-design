@@ -1,4 +1,6 @@
 from hashlib import sha256
+import logging
+from time import perf_counter
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
@@ -7,11 +9,15 @@ from django.conf import settings
 from django.core.cache import cache
 
 
+logger = logging.getLogger(__name__)
+
+
 class DownloadError(Exception):
     pass
 
 
 _info_cache_timeout = 10 * 60
+_search_cache_timeout = 5 * 60
 
 
 def _info_cache_key(url):
@@ -202,6 +208,12 @@ def _quality_options(info):
 
 def get_video_info(url):
     cleaned_url = normalize_video_url(url)
+    started = perf_counter()
+    cached = _cached_video_info(cleaned_url)
+    if cached:
+        logger.info('video_info cache=hit url=%s duration_ms=%.1f', cleaned_url, (perf_counter() - started) * 1000)
+        return _video_payload(cached, cleaned_url)
+    logger.info('video_info cache=miss url=%s', cleaned_url)
     options = {
         **_base_ydl_options(),
         'noplaylist': True,
@@ -219,8 +231,16 @@ def get_video_info(url):
     if not qualities:
         qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
 
-    can_embed = is_youtube_url(cleaned_url)
+    payload = _video_payload(info, cleaned_url)
+    logger.info('video_info extracted url=%s duration_ms=%.1f', cleaned_url, (perf_counter() - started) * 1000)
+    return payload
 
+
+def _video_payload(info, cleaned_url):
+    can_embed = is_youtube_url(cleaned_url)
+    qualities = _quality_options(info)
+    if not qualities:
+        qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
     return {
         'source_url': cleaned_url,
         'title': info.get('title') or 'Untitled video',
@@ -241,6 +261,12 @@ def search_youtube_videos(query, limit=12):
         raise DownloadError('Enter a search term.')
 
     search_limit = max(1, min(int(limit), 20))
+    cache_key = f'video-search:{sha256(f"{clean_query.lower()}:{search_limit}".encode()).hexdigest()}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        logger.info('youtube_search cache=hit query=%s limit=%d', clean_query, search_limit)
+        return cached
+    logger.info('youtube_search cache=miss query=%s limit=%d', clean_query, search_limit)
     options = {
         **_base_ydl_options(),
         'extract_flat': True,
@@ -276,6 +302,7 @@ def search_youtube_videos(query, limit=12):
             'source_url': normalize_youtube_url(url),
         })
 
+    cache.set(cache_key, results, timeout=_search_cache_timeout)
     return results
 
 
