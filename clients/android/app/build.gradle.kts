@@ -29,7 +29,9 @@ android {
         versionName = "1.6.4"
 
         buildConfigField("String", "PERF_BUILD_ID", "\"cache-debug-v2\"")
-        buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION", "false")
+        buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "true")
+        buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
+        buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")
         buildConfigField("boolean", "USE_LOCAL_DOWNLOAD_FALLBACK", "true")
 
         buildConfigField(

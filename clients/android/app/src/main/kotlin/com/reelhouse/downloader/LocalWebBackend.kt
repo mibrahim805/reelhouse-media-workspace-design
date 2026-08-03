@@ -139,10 +139,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
         val requestId = UUID.randomUUID().toString().take(8)
-        val remote = runCatching { remoteBackend.info(url) }
+        val remote = if (BuildConfig.USE_BACKEND_FORMAT_EXTRACTION) runCatching { remoteBackend.info(url) }
             .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway qualities=${it.qualities.size}") }
             .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway failed=${it.message}") }
-            .getOrNull()
+            .getOrNull() else null
         if (remote != null && remote.qualities.isNotEmpty()) {
             Log.i(TAG, "backend=$backendInstanceId formats_source=backend key=${YouTubeUrls.videoId(url).orEmpty()}")
             return 200 to buildJsonObject {
@@ -150,16 +150,23 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 put("video", backendVideoInfoJson(remote, url))
             }
         }
-        if (!BuildConfig.USE_LOCAL_FORMAT_EXTRACTION) {
-            Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
-            throw BackendRequestException("The backend could not provide download qualities for this video.")
+        if (BuildConfig.USE_PRESET_FORMAT_FALLBACK) {
+            Log.i(TAG, "backend=$backendInstanceId formats_source=preset_fallback url=$url")
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("video", presetVideoInfoJson(url))
+            }
         }
-        Log.w(TAG, "backend=$backendInstanceId formats_source=local_fallback url=$url")
-        val media = loadInfo(url, requestId)
-        return 200 to buildJsonObject {
-            put("ok", true)
-            put("video", mediaJson(media, url, includeQualities = true))
+        if (BuildConfig.USE_LOCAL_FORMAT_EXTRACTION_FALLBACK) {
+            Log.w(TAG, "backend=$backendInstanceId formats_source=local_extraction url=$url")
+            val media = loadInfo(url, requestId)
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("video", mediaJson(media, url, includeQualities = true))
+            }
         }
+        Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
+        throw BackendRequestException("The backend could not provide download qualities for this video.")
     }
 
     private suspend fun search(body: JsonObject): Pair<Int, JsonObject> {
@@ -285,34 +292,12 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             throw BackendRequestException("The backend could not start this download.")
         }
         Log.w(TAG, "backend=$backendInstanceId download_source=local_fallback url=$url quality=$quality")
+        Log.i(TAG, "backend=$backendInstanceId download_source=local_ytdlp url=$url quality=$quality")
 
-        val media = loadInfo(url, UUID.randomUUID().toString().take(8))
-        val height = quality.toIntOrNull()
-        val selectedFormat = media.formats
-            .filter { it.hasVideo && (height == null || it.height <= height) }
-            .maxByOrNull { it.height }
-        val jobId = UUID.randomUUID().toString()
-        val request = DownloadRequest(
-            id = jobId,
-            url = url,
-            mediaInfo = media,
-            formatSelector = FormatSelector.build(
-                audioOnly = false,
-                videoHeight = height,
-                videoContainer = "mp4",
-            ),
-            isAudioOnly = false,
-            mergeFormat = "mp4",
-            qualityLabel = height?.let { "${it}p" } ?: "Best available",
-            destination = "downloads",
-            expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
-        )
-        knownJobs += jobId
-        ContextCompat.startForegroundService(app, DownloadService.createStartIntent(app, request))
-
+        val localJobId = startLocalDownload(url, quality)
         return 200 to buildJsonObject {
             put("ok", true)
-            put("job_id", jobId)
+            put("job_id", localJobId)
         }
     }
 
@@ -333,6 +318,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     }
                 }
                 Log.w(TAG, "backend=$backendInstanceId download_source=local_fallback remote_job=$jobId reason=${remoteJob.error}")
+                Log.i(TAG, "backend=$backendInstanceId download_source=local_ytdlp remote_job=$jobId")
                 val localJob = startLocalDownload(validatedUrl(url), quality)
                 fallbackJobs[jobId] = localJob
                 return 200 to buildJsonObject {
@@ -369,19 +355,20 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
     private suspend fun startLocalDownload(url: String, quality: String): String {
         val media = loadInfo(url, UUID.randomUUID().toString().take(8))
+        val audioOnly = quality.equals("audio", ignoreCase = true)
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
-            .filter { it.hasVideo && (height == null || it.height <= height) }
+            .filter { !audioOnly && it.hasVideo && (height == null || it.height <= height) }
             .maxByOrNull { it.height }
         val jobId = UUID.randomUUID().toString()
         val request = DownloadRequest(
             id = jobId,
             url = url,
             mediaInfo = media,
-            formatSelector = FormatSelector.build(false, height, videoContainer = "mp4"),
-            isAudioOnly = false,
+            formatSelector = FormatSelector.build(audioOnly, height, videoContainer = "mp4"),
+            isAudioOnly = audioOnly,
             mergeFormat = "mp4",
-            qualityLabel = height?.let { "${it}p" } ?: "Best available",
+            qualityLabel = if (audioOnly) "Audio only" else height?.let { "Up to ${it}p" } ?: "Best available",
             destination = "downloads",
             expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
         )
@@ -455,6 +442,42 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     put("filesize_label", quality.sizeLabel)
                 })
             }
+        })
+    }
+
+    private fun presetVideoInfoJson(sourceUrl: String): JsonObject = buildJsonObject {
+        val videoId = YouTubeUrls.videoId(sourceUrl).orEmpty()
+        put("id", videoId)
+        put("title", "YouTube video")
+        put("channel", "YouTube")
+        put("duration", "Unknown duration")
+        put("thumbnail", videoId.takeIf { it.isNotBlank() }?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }.orEmpty())
+        put("source_url", sourceUrl)
+        put("webpage_url", sourceUrl)
+        put("platform", "YouTube")
+        put("can_embed", videoId.isNotBlank())
+        put("embed_url", videoId.takeIf { it.isNotBlank() }?.let { "https://www.youtube.com/embed/$it" }.orEmpty())
+        put("qualities", buildJsonArray {
+            listOf("360", "480", "720", "1080").forEach { height ->
+                add(buildJsonObject {
+                    put("value", height)
+                    put("label", "Up to ${height}p")
+                    put("extension", "mp4")
+                    put("filesize_label", "Estimated size")
+                })
+            }
+            add(buildJsonObject {
+                put("value", "best")
+                put("label", "Best available")
+                put("extension", "mp4")
+                put("filesize_label", "Estimated size")
+            })
+            add(buildJsonObject {
+                put("value", "audio")
+                put("label", "Audio only")
+                put("extension", "mp3")
+                put("filesize_label", "Estimated size")
+            })
         })
     }
 
