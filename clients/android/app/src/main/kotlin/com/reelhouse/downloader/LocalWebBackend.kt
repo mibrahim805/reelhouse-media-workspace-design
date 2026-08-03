@@ -11,6 +11,8 @@ import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
+import com.reelhouse.downloader.youtube.BackendVideo
+import com.reelhouse.downloader.youtube.ReelhouseBackend
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import android.os.SystemClock
@@ -42,10 +44,12 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
     private val json = Json { ignoreUnknownKeys = true }
     private val extractor = MediaExtractor(app)
+    private val remoteBackend = ReelhouseBackend()
     private val dao = app.database.downloadDao()
     private val infoCache = ConcurrentHashMap<String, CachedInfo>()
     private val inFlightInfo = ConcurrentHashMap<String, CompletableDeferred<MediaInfo>>()
     private val inFlightSearch = ConcurrentHashMap<String, CompletableDeferred<List<MediaInfo>>>()
+    private val inFlightRemoteSearch = ConcurrentHashMap<String, CompletableDeferred<List<BackendVideo>>>()
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
@@ -145,12 +149,24 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val started = SystemClock.elapsedRealtime()
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start query=${query.take(120)}")
-        val videos = loadSearch(query, 8, operationId)
-        Log.d(TAG, "operation=$operationId phase=search_finish results=${videos.size} durationMs=${elapsed(started)}")
-        return 200 to buildJsonObject {
-            put("ok", true)
-            put("videos", mediaArray(videos))
+        val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway results=${it.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway failed=${it.message}") }
+            .getOrNull()
+        val response = if (!remoteVideos.isNullOrEmpty()) {
+            buildJsonObject {
+                put("ok", true)
+                put("videos", backendVideoArray(remoteVideos))
+            }
+        } else {
+            val videos = loadSearch(query, 8, operationId)
+            buildJsonObject {
+                put("ok", true)
+                put("videos", mediaArray(videos))
+            }
         }
+        Log.d(TAG, "operation=$operationId phase=search_finish durationMs=${elapsed(started)}")
+        return 200 to response
     }
 
     private suspend fun loadSearch(query: String, limit: Int, operationId: String): List<MediaInfo> {
@@ -176,19 +192,46 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         return deferred.await()
     }
 
+    private suspend fun loadRemoteSearch(query: String, operationId: String): List<BackendVideo> {
+        val key = "search:${query.trim().replace(Regex("\\s+"), " ").lowercase()}:limit:12"
+        val deferred = synchronized(inFlightRemoteSearch) {
+            inFlightRemoteSearch[key] ?: CompletableDeferred<List<BackendVideo>>().also { created ->
+                inFlightRemoteSearch[key] = created
+                extractionScope.launch {
+                    try {
+                        created.complete(remoteBackend.search(query))
+                    } catch (error: Throwable) {
+                        created.completeExceptionally(error)
+                    } finally {
+                        inFlightRemoteSearch.remove(key, created)
+                    }
+                }
+            }
+        }
+        if (deferred !== inFlightRemoteSearch[key]) {
+            Log.d(TAG, "backend=$backendInstanceId operation=$operationId SEARCH_REMOTE_SINGLE_FLIGHT_JOIN key=$key")
+        }
+        return deferred.await()
+    }
+
     private suspend fun topic(body: JsonObject): Pair<Int, JsonObject> {
         val topic = body.string("topic").ifBlank { "All" }
         val query = topicQuery(topic)
         val started = SystemClock.elapsedRealtime()
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start topic=$topic")
-        val videos = withContext(Dispatchers.IO) { extractor.searchYouTube(query, limit = 8) }
-        Log.d(TAG, "operation=$operationId phase=search_finish results=${videos.size} durationMs=${elapsed(started)}")
+        val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway results=${it.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway failed=${it.message}") }
+            .getOrNull()
+        val videos = remoteVideos?.takeIf { it.isNotEmpty() }?.let { backendVideoArray(it) }
+            ?: mediaArray(loadSearch(query, 8, operationId))
+        Log.d(TAG, "operation=$operationId phase=search_finish durationMs=${elapsed(started)}")
         return 200 to buildJsonObject {
             put("ok", true)
             put("topic", topic)
             put("query", query)
-            put("videos", mediaArray(videos))
+            put("videos", videos)
         }
     }
 
@@ -263,6 +306,21 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     .orEmpty()
             }
             if (url.isNotBlank()) add(mediaJson(media, url, includeQualities = false))
+        }
+    }
+
+    private fun backendVideoArray(videos: List<BackendVideo>): JsonArray = buildJsonArray {
+        videos.forEach { video ->
+            add(buildJsonObject {
+                put("id", video.id)
+                put("title", video.title)
+                put("channel", video.channel)
+                put("duration", video.duration)
+                put("thumbnail", video.thumbnail)
+                put("source_url", video.sourceUrl)
+                put("webpage_url", video.sourceUrl)
+                put("platform", video.platform)
+            })
         }
     }
 

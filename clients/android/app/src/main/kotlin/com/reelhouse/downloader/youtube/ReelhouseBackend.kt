@@ -118,8 +118,8 @@ class ReelhouseBackend(
             .openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
-            connection.connectTimeout = 30_000
-            connection.readTimeout = 120_000
+            connection.connectTimeout = 5_000
+            connection.readTimeout = 20_000
             connection.setRequestProperty("Accept", "application/json")
             connection.setRequestProperty("User-Agent", "ReelhouseAndroid/${BuildConfig.VERSION_NAME}")
             if (body != null) {
