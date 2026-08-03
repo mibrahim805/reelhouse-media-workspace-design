@@ -48,6 +48,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
+    private val backendInstanceId = UUID.randomUUID().toString().take(12)
+
+    init {
+        Log.i(TAG, "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=backend_created instance=$backendInstanceId")
+    }
 
     suspend fun handle(rawRequest: String): String {
         val requestStarted = SystemClock.elapsedRealtime()
@@ -64,7 +69,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val body = request.string("body").takeIf(String::isNotBlank)?.let {
                 json.parseToJsonElement(it).jsonObject
             } ?: JsonObject(emptyMap())
-            logTiming("request=$requestId path=$path phase=received", requestStarted)
+            logTiming("PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} backend=$backendInstanceId request=$requestId path=$path phase=received thread=${Thread.currentThread().name}", requestStarted)
 
             val cacheKey = when (path) {
                 "youtube-search" -> "search:${body.string("query").trim().lowercase()}"
@@ -74,9 +79,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             if (cacheKey != null) {
                 val cached = feedCache[cacheKey]
                 if (cached != null && System.currentTimeMillis() - cached.createdAt < FEED_CACHE_TTL_MS) {
-                    Log.d(TAG, "request=$requestId path=$path cache=hit durationMs=${elapsed(requestStarted)}")
+                    Log.d(TAG, "backend=$backendInstanceId request=$requestId path=$path SEARCH_CACHE_HIT key=$cacheKey durationMs=${elapsed(requestStarted)}")
                     return bridgeResponse(requestId, 200, cached.body)
                 }
+                Log.d(TAG, "backend=$backendInstanceId request=$requestId path=$path SEARCH_CACHE_MISS key=$cacheKey")
             }
 
             val (status, envelope) = when {
@@ -90,6 +96,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val envelopeBody = envelope.toString()
             if (cacheKey != null && status == 200) {
                 feedCache[cacheKey] = CachedResponse(System.currentTimeMillis(), envelopeBody)
+                Log.d(TAG, "backend=$backendInstanceId request=$requestId path=$path SEARCH_CACHE_STORE key=$cacheKey")
             }
             bridgeResponse(requestId, status, envelopeBody).also {
                 logTiming("request=$requestId path=$path phase=response_sent status=$status", requestStarted)
@@ -319,10 +326,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val key = stableInfoKey(url)
         val cached = infoCache[key]
         if (cached != null && System.currentTimeMillis() - cached.createdAt < INFO_CACHE_TTL_MS) {
-            Log.d(TAG, "operation=$operationId key=$key cache=hit lookupMs=${elapsed(started)}")
+            Log.d(TAG, "backend=$backendInstanceId operation=$operationId key=$key INFO_CACHE_HIT lookupMs=${elapsed(started)}")
             return cached.media
         }
-        Log.d(TAG, "operation=$operationId key=$key cache=miss lookupMs=${elapsed(started)}")
+        Log.d(TAG, "backend=$backendInstanceId operation=$operationId key=$key INFO_CACHE_MISS lookupMs=${elapsed(started)}")
 
         val deferred = synchronized(inFlightInfo) {
             inFlightInfo[key] ?: CompletableDeferred<MediaInfo>().also { created ->
@@ -333,6 +340,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     try {
                         val media = withContext(Dispatchers.IO) { extractor.extractInfo(url) }
                         infoCache[key] = CachedInfo(System.currentTimeMillis(), media)
+                        Log.d(TAG, "backend=$backendInstanceId operation=$operationId INFO_CACHE_STORE key=$key expiresInMs=$INFO_CACHE_TTL_MS")
                         created.complete(media)
                         Log.d(TAG, "operation=$operationId key=$key extraction=finish durationMs=${elapsed(extractionStarted)}")
                     } catch (error: Throwable) {

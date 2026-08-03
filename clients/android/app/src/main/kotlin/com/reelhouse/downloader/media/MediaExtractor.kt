@@ -1,6 +1,8 @@
 package com.reelhouse.downloader.media
 
 import android.content.Context
+import android.os.SystemClock
+import android.util.Log
 import com.reelhouse.downloader.ReelhouseApp
 import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
@@ -27,6 +29,12 @@ import kotlinx.serialization.json.longOrNull
  */
 class MediaExtractor(private val context: Context) {
 
+    private companion object {
+        const val TAG = "ReelhousePerf"
+        private var callCount = 0L
+        @Synchronized fun nextCall(): Long = ++callCount
+    }
+
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -38,6 +46,9 @@ class MediaExtractor(private val context: Context) {
      * Runs entirely on the device — no Railway server contact.
      */
     suspend fun extractInfo(url: String): MediaInfo = withContext(Dispatchers.IO) {
+        val call = nextCall()
+        val started = SystemClock.elapsedRealtime()
+        Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_STARTED number=$call type=info thread=${Thread.currentThread().name} url=${url.take(180)}")
         awaitEngine()
         val request = YoutubeDLRequest(url).apply {
             addOption("--dump-single-json")
@@ -57,7 +68,9 @@ class MediaExtractor(private val context: Context) {
             throw Exception("No information could be extracted from this URL")
         }
 
-        parseMediaInfo(jsonStr)
+        parseMediaInfo(jsonStr).also {
+            Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_FINISHED number=$call type=info durationMs=${SystemClock.elapsedRealtime() - started}")
+        }
     }
 
     /**
@@ -66,6 +79,9 @@ class MediaExtractor(private val context: Context) {
      */
     suspend fun searchYouTube(query: String, limit: Int = 12): List<MediaInfo> =
         withContext(Dispatchers.IO) {
+            val call = nextCall()
+            val started = SystemClock.elapsedRealtime()
+            Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_STARTED number=$call type=search query=${query.take(120)} thread=${Thread.currentThread().name}")
             val cleanedQuery = query.trim().replace(Regex("""[\r\n]+"""), " ").take(120)
             require(cleanedQuery.isNotBlank()) { "Enter a search term." }
             val safeLimit = limit.coerceIn(1, 20)
@@ -89,7 +105,9 @@ class MediaExtractor(private val context: Context) {
             val root = json.parseToJsonElement(output).jsonObject
             root["entries"]?.jsonArray?.mapNotNull { element ->
                 runCatching { parseSearchResult(element.jsonObject) }.getOrNull()
-            }.orEmpty()
+            }.orEmpty().also {
+                Log.i(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_CALL_FINISHED number=$call type=search results=${it.size} durationMs=${SystemClock.elapsedRealtime() - started}")
+            }
         }
 
 

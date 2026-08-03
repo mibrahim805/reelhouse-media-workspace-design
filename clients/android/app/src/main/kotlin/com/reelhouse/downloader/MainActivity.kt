@@ -16,6 +16,7 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import android.util.Log
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
@@ -45,10 +46,12 @@ class MainActivity : ComponentActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=activity_start")
         window.statusBarColor = Color.rgb(24, 24, 28)
         window.navigationBarColor = Color.rgb(24, 24, 28)
 
         localBackend = LocalWebBackend(application as ReelhouseApp)
+        Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=webview_backend_ready")
         webView = WebView(this).apply {
             setBackgroundColor(Color.rgb(10, 10, 12))
             settings.apply {
@@ -159,6 +162,7 @@ class MainActivity : ComponentActivity() {
                 return@addWebMessageListener
             }
             val requestText = message.data ?: return@addWebMessageListener
+            Log.d("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=bridge_request_received thread=${Thread.currentThread().name}")
             lifecycleScope.launch {
                 val response = withContext(Dispatchers.IO) {
                     localBackend.handle(requestText)
@@ -314,6 +318,7 @@ class MainActivity : ComponentActivity() {
                   body = await request.clone().text();
                 }
                 if (body != null && typeof body !== 'string') body = String(body);
+                console.debug('PERF_BUILD_ID=cache-debug-v2 phase=js_fetch route=' + url.pathname + ' id=' + id);
 
                 return new Promise((resolve) => {
                   const timer = setTimeout(() => {

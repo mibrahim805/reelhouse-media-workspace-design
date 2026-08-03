@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import android.util.Log
 
 class ReelhouseApp : Application() {
     val database by lazy { DownloadDatabase.getInstance(this) }
@@ -24,6 +25,7 @@ class ReelhouseApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=application_start")
         applicationScope.launch {
             database.downloadDao().markInterruptedDownloads()
         }

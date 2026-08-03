@@ -28,6 +28,8 @@ android {
         versionCode = 23
         versionName = "1.6.4"
 
+        buildConfigField("String", "PERF_BUILD_ID", "\"cache-debug-v2\"")
+
         buildConfigField(
             "String",
             "REELHOUSE_WEB_BASE_URL",
