@@ -307,7 +307,7 @@ export function WatchView({ videoId }: { videoId: string }) {
               </button>
             )}
 
-            {searchResults.length > 0 && currentIndex >= 0 && (!playing || playerControlsVisible) && (
+            {searchResults.length > 0 && currentIndex >= 0 && playerControlsVisible && (
               <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
                 <button
                   type="button"
