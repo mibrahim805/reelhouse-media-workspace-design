@@ -4,6 +4,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -162,8 +163,8 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     },
                     onDetailsReady = { navController.navigate("details") },
                     onOpen = {
-                        val opened = viewModel.open(it)?.let(context::startSafely) == true
-                        if (!opened) viewModel.reportFileActionFailure()
+                        if (it.contentUri != null) navController.navigate("local-player/${Uri.encode(it.id)}")
+                        else viewModel.open(it)?.let(context::startSafely)
                     },
                 )
             }
@@ -239,13 +240,25 @@ fun ReelhouseRoot(viewModel: AppViewModel) {
                     onRetry = viewModel::retryDownload,
                 )
             }
+            composable("local-player/{downloadId}") { entry ->
+                val id = entry.arguments?.getString("downloadId")
+                val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+                val item = downloads.firstOrNull { it.id == id }
+                if (item?.contentUri != null) {
+                    LocalVideoScreen(item, onBack = { navController.popBackStack() })
+                } else {
+                    NoticeScreen("Video unavailable", "The downloaded file is no longer available.") {
+                        navController.popBackStack()
+                    }
+                }
+            }
             composable("history") {
                 val history by viewModel.history.collectAsStateWithLifecycle()
                 HistoryScreen(
                     history = history,
                     onOpen = {
-                        val opened = viewModel.open(it)?.let(context::startSafely) == true
-                        if (!opened) viewModel.reportFileActionFailure()
+                        if (it.contentUri != null) navController.navigate("local-player/${Uri.encode(it.id)}")
+                        else viewModel.open(it)?.let(context::startSafely)
                     },
                     onShare = {
                         val shared = viewModel.share(it)?.let(context::startSafely) == true
