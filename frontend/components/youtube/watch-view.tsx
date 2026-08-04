@@ -221,10 +221,13 @@ export function WatchView({ videoId }: { videoId: string }) {
   }
 
   const embedUrl = youtubeEmbedUrl(video)
-  const currentIndex = searchResults.findIndex((item) => item.id === video.id)
-  const previousVideo = currentIndex > 0 ? searchResults[currentIndex - 1] : null
-  const nextVideo = currentIndex >= 0 && currentIndex < searchResults.length - 1
-    ? searchResults[currentIndex + 1]
+  const navigationVideos = searchResults.some((item) => item.id === video.id)
+    ? searchResults
+    : [video, ...searchResults]
+  const currentIndex = navigationVideos.findIndex((item) => item.id === video.id)
+  const previousVideo = currentIndex > 0 ? navigationVideos[currentIndex - 1] : null
+  const nextVideo = currentIndex >= 0 && currentIndex < navigationVideos.length - 1
+    ? navigationVideos[currentIndex + 1]
     : null
 
   function openSearchVideo(target: MediaVideo | null) {
@@ -271,7 +274,7 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            {searchResults.length > 0 && currentIndex >= 0 && (!playing || playerControlsVisible) && (
+            {navigationVideos.length > 1 && currentIndex >= 0 && (!playing || playerControlsVisible) && (
               <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
                 <button
                   type="button"
