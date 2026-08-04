@@ -274,30 +274,30 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            {navigationVideos.length > 1 && currentIndex >= 0 && (!playing || playerControlsVisible) && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
-                <button
-                  type="button"
-                  onClick={() => openSearchVideo(previousVideo)}
-                  disabled={!previousVideo}
-                  aria-label="Previous video"
-                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronLeft className="size-6" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSearchVideo(nextVideo)}
-                  disabled={!nextVideo}
-                  aria-label="Next video"
-                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronRight className="size-6" />
-                </button>
-              </div>
-            )}
-
           </div>
+
+          {navigationVideos.length > 1 && currentIndex >= 0 && (
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={() => openSearchVideo(previousVideo)}
+                disabled={!previousVideo}
+                aria-label="Previous video"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ChevronLeft className="size-4" /> Previous
+              </button>
+              <button
+                type="button"
+                onClick={() => openSearchVideo(nextVideo)}
+                disabled={!nextVideo}
+                aria-label="Next video"
+                className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-sm font-medium text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next <ChevronRight className="size-4" />
+              </button>
+            </div>
+          )}
 
           <h1 className="mt-4 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">
             {video.title}
