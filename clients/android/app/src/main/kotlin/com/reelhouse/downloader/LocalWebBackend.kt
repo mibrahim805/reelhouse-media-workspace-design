@@ -40,9 +40,23 @@ import kotlinx.serialization.json.put
  * every operation through the Android device's embedded yt-dlp/FFmpeg engine.
  */
 class LocalWebBackend(private val app: ReelhouseApp) {
+    private enum class PreparationStatus { IDLE, PREPARING, READY, FAILED }
+
     private data class CachedResponse(val createdAt: Long, val body: String)
     private data class CachedInfo(val createdAt: Long, val media: MediaInfo)
     private data class PreparingJob(val url: String, val quality: String, val error: String? = null)
+    private data class VideoPreparation(
+        val videoKey: String,
+        val url: String,
+        val status: PreparationStatus = PreparationStatus.IDLE,
+        val media: MediaInfo? = null,
+        val pendingQuality: String? = null,
+        val pendingJobId: String? = null,
+        val error: String? = null,
+        val startedAt: Long = 0L,
+        val completedAt: Long = 0L,
+        val downloadStarted: Boolean = false,
+    )
 
     private val json = Json { ignoreUnknownKeys = true }
     private val extractor = MediaExtractor(app)
@@ -58,7 +72,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val remoteJobs = ConcurrentHashMap<String, Pair<String, String>>()
     private val fallbackJobs = ConcurrentHashMap<String, String>()
     private val preparingJobs = ConcurrentHashMap<String, PreparingJob>()
-    private val preparingByUrl = ConcurrentHashMap<String, String>()
+    private val preparationStates = ConcurrentHashMap<String, VideoPreparation>()
     private val backendInstanceId = UUID.randomUUID().toString().take(12)
 
     init {
@@ -98,6 +112,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
             val (status, envelope) = when {
                 path == "fetch-info" -> fetchInfo(body)
+                path == "prepare-video" -> prepareVideo(body)
+                path == "preparation-status" -> preparationStatus(body)
                 path == "youtube-search" -> search(body)
                 path == "youtube-topic" -> topic(body)
                 path == "start-download" -> startDownload(body)
@@ -137,6 +153,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             feedCache.entries.minByOrNull { it.value.createdAt }?.let { feedCache.remove(it.key) } ?: break
         }
         if (infoCache.size > MAX_INFO_CACHE_ENTRIES) infoCache.clear()
+        preparationStates.entries.removeIf { (_, state) ->
+            state.pendingQuality == null && state.completedAt > 0L && now - state.completedAt >= INFO_CACHE_TTL_MS
+        }
     }
 
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
@@ -264,9 +283,124 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }
     }
 
+    private fun prepareVideo(body: JsonObject): Pair<Int, JsonObject> {
+        val url = validatedUrl(body.string("url"))
+        val operationId = body.string("operationId").ifBlank { "prepare-${UUID.randomUUID().toString().take(8)}" }
+        val key = stableInfoKey(url)
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=VIDEO_CLICKED key=$key")
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_REQUESTED key=$key")
+        requestPreparation(url, operationId)
+        val status = preparationStates[key]?.status ?: PreparationStatus.IDLE
+        return 200 to buildJsonObject {
+            put("ok", true)
+            put("videoKey", key)
+            put("status", status.name.lowercase())
+        }
+    }
+
+    private fun preparationStatus(body: JsonObject): Pair<Int, JsonObject> {
+        val url = validatedUrl(body.string("url"))
+        val key = stableInfoKey(url)
+        val operationId = body.string("operationId").ifBlank { "download-${UUID.randomUUID().toString().take(8)}" }
+        val state = preparationStates[key]
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_BUTTON_CLICKED key=$key state=${state?.status ?: PreparationStatus.IDLE}")
+        return 200 to buildJsonObject {
+            put("ok", true)
+            put("videoKey", key)
+            put("status", (state?.status ?: PreparationStatus.IDLE).name.lowercase())
+            state?.pendingQuality?.let { put("pendingQuality", it) }
+            state?.error?.let { put("error", it) }
+        }
+    }
+
+    private fun requestPreparation(url: String, operationId: String) {
+        val key = stableInfoKey(url)
+        val cached = infoCache[key]?.takeIf {
+            System.currentTimeMillis() - it.createdAt < INFO_CACHE_TTL_MS
+        }
+        if (cached != null) {
+            synchronized(preparationStates) {
+                val current = preparationStates[key] ?: VideoPreparation(key, url)
+                preparationStates[key] = current.copy(
+                    status = PreparationStatus.READY,
+                    media = cached.media,
+                    error = null,
+                    completedAt = System.currentTimeMillis(),
+                )
+            }
+            Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_CACHE_HIT key=$key")
+            startPendingDownloadIfReady(key, operationId)
+            return
+        }
+
+        val shouldStart = synchronized(preparationStates) {
+            val current = preparationStates[key]
+            when (current?.status) {
+                PreparationStatus.PREPARING -> false
+                PreparationStatus.READY -> current.media == null
+                else -> {
+                    preparationStates[key] = (current ?: VideoPreparation(key, url)).copy(
+                        status = PreparationStatus.PREPARING,
+                        media = null,
+                        error = null,
+                        startedAt = System.currentTimeMillis(),
+                        completedAt = 0L,
+                        downloadStarted = false,
+                    )
+                    true
+                }
+            }
+        }
+        if (!shouldStart) {
+            Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_JOINED_IN_FLIGHT key=$key")
+            return
+        }
+
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_CACHE_MISS key=$key")
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_STARTED key=$key")
+        extractionScope.launch {
+            val started = SystemClock.elapsedRealtime()
+            try {
+                Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=YTDLP_INFO_STARTED key=$key")
+                val media = loadInfo(url, operationId)
+                synchronized(preparationStates) {
+                    val current = preparationStates[key] ?: VideoPreparation(key, url)
+                    preparationStates[key] = current.copy(
+                        status = PreparationStatus.READY,
+                        media = media,
+                        error = null,
+                        completedAt = System.currentTimeMillis(),
+                    )
+                }
+                Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=YTDLP_INFO_FINISHED key=$key durationMs=${elapsed(started)}")
+                Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_READY key=$key durationMs=${elapsed(started)}")
+                startPendingDownloadIfReady(key, operationId)
+            } catch (error: Throwable) {
+                val pendingJob = synchronized(preparationStates) {
+                    val current = preparationStates[key] ?: VideoPreparation(key, url)
+                    preparationStates[key] = current.copy(
+                        status = PreparationStatus.FAILED,
+                        error = error.message ?: "Video preparation failed.",
+                        completedAt = System.currentTimeMillis(),
+                    )
+                    current.pendingJobId
+                }
+                pendingJob?.let { jobId ->
+                    val quality = preparationStates[key]?.pendingQuality.orEmpty()
+                    preparingJobs[jobId] = PreparingJob(url, quality, error.message ?: "Video preparation failed.")
+                }
+                Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key durationMs=${elapsed(started)}", error)
+            }
+        }
+    }
+
     private suspend fun startDownload(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
-        val quality = body.string("quality").ifBlank { "best" }
+        val quality = validatedQuality(body.string("quality"))
+        val operationId = body.string("operationId").ifBlank { "select-${UUID.randomUUID().toString().take(8)}" }
+        val key = stableInfoKey(url)
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_BUTTON_CLICKED key=$key")
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=CUSTOM_QUALITY_SELECTED key=$key quality=$quality")
         dao.findActiveByUrl(url)?.let { active ->
             knownJobs += active.id
             return 200 to buildJsonObject {
@@ -278,8 +412,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         if (!BuildConfig.USE_LOCAL_DOWNLOAD_FALLBACK) {
             throw BackendRequestException("Local download fallback is disabled.")
         }
-        Log.i(TAG, "backend=$backendInstanceId download_source=local_ytdlp url=$url quality=$quality")
-        val localJobId = startLocalPreparation(url, quality)
+        val localJobId = queuePreparedDownload(url, quality, operationId)
         return 200 to buildJsonObject {
             put("ok", true)
             put("job_id", localJobId)
@@ -314,7 +447,11 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     }
                 }
                 val localJob = synchronized(fallbackJobs) {
-                    fallbackJobs[jobId] ?: startLocalPreparation(validatedUrl(url), quality).also {
+                    fallbackJobs[jobId] ?: queuePreparedDownload(
+                        validatedUrl(url),
+                        validatedQuality(quality),
+                        "remote-${UUID.randomUUID().toString().take(8)}",
+                    ).also {
                         fallbackJobs[jobId] = it
                     }
                 }
@@ -351,35 +488,64 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }
     }
 
-    private fun startLocalPreparation(url: String, quality: String): String {
-        preparingByUrl[url]?.let { return it }
-        val jobId = UUID.randomUUID().toString()
-        preparingByUrl[url] = jobId
-        preparingJobs[jobId] = PreparingJob(url, quality)
-        extractionScope.launch {
-            try {
-                Log.i(TAG, "backend=$backendInstanceId download_source=local_ytdlp phase=extraction_start job=$jobId quality=$quality")
-                startLocalDownload(jobId, url, quality)
-                Log.i(TAG, "backend=$backendInstanceId download_source=local_ytdlp phase=download_started job=$jobId")
-            } catch (error: Throwable) {
-                preparingJobs[jobId] = PreparingJob(url, quality, error.message ?: "Local preparation failed.")
-                Log.e(TAG, "backend=$backendInstanceId download_source=local_ytdlp phase=preparation_failed job=$jobId", error)
-            } finally {
-                preparingByUrl.remove(url, jobId)
+    private fun queuePreparedDownload(url: String, quality: String, operationId: String): String {
+        val key = stableInfoKey(url)
+        val jobId: String
+        var alreadyStarted = false
+        synchronized(preparationStates) {
+            val current = preparationStates[key] ?: VideoPreparation(key, url)
+            jobId = current.pendingJobId ?: UUID.randomUUID().toString()
+            alreadyStarted = current.downloadStarted
+            if (!alreadyStarted) {
+                preparationStates[key] = current.copy(
+                    pendingQuality = quality,
+                    pendingJobId = jobId,
+                )
             }
         }
+        knownJobs += jobId
+        if (alreadyStarted) return jobId
+        preparingJobs[jobId] = PreparingJob(url, quality)
+        Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=QUALITY_STORED_PENDING key=$key quality=$quality job=$jobId")
+        requestPreparation(url, operationId)
+        startPendingDownloadIfReady(key, operationId)
         return jobId
     }
 
-    private suspend fun startLocalDownload(jobId: String, url: String, quality: String) {
-        // Resolve the lightweight local manifest first. If YouTube does not
-        // provide usable formats for this client, retain the original full
-        // Android extraction as a compatibility fallback. Railway is never
-        // used for the file itself.
-        val media = runCatching { extractor.extractInfoFast(url) }
-            .getOrNull()
-            ?.takeIf { info -> info.formats.any { it.hasVideo || it.hasAudio } }
-            ?: extractor.extractInfo(url)
+    private fun startPendingDownloadIfReady(key: String, operationId: String) {
+        val prepared = synchronized(preparationStates) {
+            val current = preparationStates[key] ?: return
+            val media = current.media ?: return
+            val quality = current.pendingQuality ?: return
+            val jobId = current.pendingJobId ?: return
+            if (current.status != PreparationStatus.READY || current.downloadStarted) return
+            preparationStates[key] = current.copy(downloadStarted = true)
+            Triple(jobId, quality, media)
+        }
+        extractionScope.launch {
+            val (jobId, quality, media) = prepared
+            try {
+                Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=QUALITY_RESOLVED key=$key quality=$quality")
+                startPreparedDownload(jobId, preparationStates[key]?.url ?: media.webpageUrl, quality, media)
+                synchronized(preparationStates) {
+                    preparationStates[key]?.let { current ->
+                        preparationStates[key] = current.copy(pendingQuality = null)
+                    }
+                }
+                Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=AUTO_DOWNLOAD_TRIGGERED key=$key quality=$quality job=$jobId")
+            } catch (error: Throwable) {
+                synchronized(preparationStates) {
+                    preparationStates[key]?.let { current ->
+                        preparationStates[key] = current.copy(downloadStarted = false, error = error.message)
+                    }
+                }
+                preparingJobs[jobId] = PreparingJob(preparationStates[key]?.url.orEmpty(), quality, error.message ?: "Download could not start.")
+                Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key job=$jobId", error)
+            }
+        }
+    }
+
+    private suspend fun startPreparedDownload(jobId: String, url: String, quality: String, media: MediaInfo) {
         val audioOnly = quality.equals("audio", ignoreCase = true)
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
@@ -399,6 +565,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         knownJobs += jobId
         preparingJobs.remove(jobId)
         ContextCompat.startForegroundService(app, DownloadService.createStartIntent(app, request))
+        Log.i(TAG, "backend=$backendInstanceId event=DOWNLOAD_JOB_STARTED key=${stableInfoKey(url)} quality=$quality job=$jobId")
     }
 
     private fun remoteJobJson(job: com.reelhouse.downloader.youtube.BackendJob): Pair<Int, JsonObject> =
@@ -482,7 +649,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         put("can_embed", videoId.isNotBlank())
         put("embed_url", videoId.takeIf { it.isNotBlank() }?.let { "https://www.youtube.com/embed/$it" }.orEmpty())
         put("qualities", buildJsonArray {
-            listOf("360", "480", "720", "1080").forEach { height ->
+            listOf("144", "240", "360", "480", "720", "1080").forEach { height ->
                 add(buildJsonObject {
                     put("value", height)
                     put("label", "Up to ${height}p")
@@ -582,6 +749,12 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             (result as UrlValidator.ValidationResult.Invalid).reason
         }
         return result.url
+    }
+
+    private fun validatedQuality(rawQuality: String): String {
+        val quality = rawQuality.trim().lowercase().removeSuffix("p").ifBlank { "best" }
+        require(quality in CUSTOM_QUALITIES) { "Unsupported download quality." }
+        return quality
     }
 
     private suspend fun loadInfo(url: String, operationId: String): MediaInfo {
@@ -686,5 +859,6 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         const val INFO_CACHE_TTL_MS = 15 * 60 * 1000L
         const val TAG = "ReelhousePerf"
         private val YOUTUBE_ID = Regex("""^[A-Za-z0-9_-]{11}$""")
+        private val CUSTOM_QUALITIES = setOf("audio", "144", "240", "360", "480", "720", "1080", "best")
     }
 }

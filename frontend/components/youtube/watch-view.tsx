@@ -15,7 +15,8 @@ import {
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
 import {
-  fetchVideoInfo,
+  getPreparationStatus,
+  prepareVideo,
   type MediaVideo,
   type QualityOption,
   youtubeEmbedUrl,
@@ -24,6 +25,15 @@ import {
 } from '@/lib/backend-api'
 
 const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/
+const CUSTOM_DOWNLOAD_QUALITIES: QualityOption[] = [
+  { value: 'audio', label: 'Audio only', note: 'Best available audio', size: 'Estimated size' },
+  ...[144, 240, 360, 480, 720, 1080].map((height) => ({
+    value: String(height),
+    label: `Up to ${height}p`,
+    note: 'MP4 video',
+    size: 'Estimated size',
+  })),
+]
 
 function browserPlaybackVideo(value: string): MediaVideo | null {
   const id = value.startsWith('http') ? videoIdFromUrl(value) : value
@@ -49,8 +59,6 @@ export function WatchView({ videoId }: { videoId: string }) {
   const { startDownload } = useDownloads()
   const [video, setVideo] = useState<MediaVideo | null>(null)
   const [loading, setLoading] = useState(true)
-  const [detailsLoading, setDetailsLoading] = useState(false)
-  const [detailsLoaded, setDetailsLoaded] = useState(false)
   const [error, setError] = useState('')
   const [playing, setPlaying] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -109,10 +117,7 @@ export function WatchView({ videoId }: { videoId: string }) {
     }
   }, [playing, showPlayerControls])
 
-  const qualities = video?.qualities ?? []
-  const downloadQualities: QualityOption[] = qualities.length > 0
-    ? qualities
-    : [{ value: 'best', label: 'Best available', note: 'MP4 video', size: 'Unknown size' }]
+  const downloadQualities = CUSTOM_DOWNLOAD_QUALITIES
 
   useEffect(() => {
     let cancelled = false
@@ -135,6 +140,10 @@ export function WatchView({ videoId }: { videoId: string }) {
       // Playback happens in the visitor's browser, so it must not depend on
       // yt-dlp being accepted from the hosted backend's IP address.
       setVideo(fallback)
+      const operationId = `prepare-${fallback.id}-${Date.now()}`
+      void prepareVideo(fallback.sourceUrl, fallback.id, operationId).catch(() => {
+        // Playback and the quality selector remain independent of preparation.
+      })
 
       setLoading(false)
     }
@@ -146,39 +155,15 @@ export function WatchView({ videoId }: { videoId: string }) {
     }
   }, [videoId])
 
-  async function openDownloadDialog() {
-    if (!video || detailsLoading) return
-    if (detailsLoaded && video.qualities?.length) {
-      setDialogOpen(true)
-      return
-    }
-
-    setDetailsLoading(true)
-    setError('')
-    try {
-      const loaded = await fetchVideoInfo(video.sourceUrl)
-      setVideo({
-        ...loaded,
-        id: video.id,
-        sourceUrl: video.sourceUrl,
-        embedUrl: video.embedUrl,
-        canEmbed: true,
-      })
-      setDetailsLoaded(true)
-      setDialogOpen(true)
-    } catch (err) {
-      const reason = err instanceof Error
-        ? err.message
-        : 'The download server could not load this video.'
-      setError(`Download options are unavailable: ${reason}`)
-    } finally {
-      setDetailsLoading(false)
-    }
+  function openDownloadDialog() {
+    if (!video) return
+    setDialogOpen(true)
+    void getPreparationStatus(video.sourceUrl, `download-${video.id}-${Date.now()}`).catch(() => undefined)
   }
 
   function confirmDownload(q: QualityOption) {
     if (!video) return
-    setSuccess('Download queued. Track progress in the downloads panel.')
+    setSuccess('Preparing your download. It will start automatically.')
     startDownload({
       title: video.title,
       channel: video.channel,
@@ -303,12 +288,12 @@ export function WatchView({ videoId }: { videoId: string }) {
             {video.title}
           </h1>
           <button
-            onClick={() => void openDownloadDialog()}
-            disabled={loading || detailsLoading}
+            onClick={openDownloadDialog}
+            disabled={loading}
             className="mt-3 inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-primary px-3.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-wait disabled:opacity-70"
           >
-            {loading || detailsLoading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
-            {loading || detailsLoading ? 'Loading…' : 'Download'}
+            {loading ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />}
+            {loading ? 'Loading…' : 'Download'}
           </button>
           {success && (
             <p className="mt-2 flex items-center gap-1.5 text-xs text-success">

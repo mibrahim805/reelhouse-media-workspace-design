@@ -300,6 +300,21 @@ export async function fetchVideoInfo(url: string) {
   return normalizeVideo(payload.video, payload.video.platform)
 }
 
+export async function prepareVideo(url: string, videoId: string, operationId: string) {
+  return apiPost<{ videoKey: string; status: string }>('prepare-video', {
+    url,
+    videoId,
+    operationId,
+  })
+}
+
+export async function getPreparationStatus(url: string, operationId: string) {
+  return apiPost<{ videoKey: string; status: string; pendingQuality?: string }>(
+    'preparation-status',
+    { url, operationId },
+  )
+}
+
 export async function searchYouTube(query: string) {
   const payload = await apiPost<{ videos: RawVideo[] }>('youtube-search', {
     query,
@@ -321,10 +336,11 @@ export async function fetchYouTubeTopic(topic: string) {
   }
 }
 
-export async function startBackendDownload(url: string, quality: string) {
+export async function startBackendDownload(url: string, quality: string, operationId?: string) {
   const payload = await apiPost<{ job_id: string }>('start-download', {
     url,
     quality,
+    operationId,
   })
 
   return payload.job_id

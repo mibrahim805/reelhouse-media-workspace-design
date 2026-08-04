@@ -12,6 +12,13 @@ class FormatSelectorTest {
         assertFalse(selector.contains(';'))
     }
 
+    @Test fun everyPresetVideoQualityMapsToAnUpperBoundSelector() {
+        listOf(144, 240, 360, 480, 720, 1080).forEach { height ->
+            val selector = FormatSelector.build(audioOnly = false, videoHeight = height)
+            assertTrue("Missing preset height $height", selector.contains("height<=$height"))
+        }
+    }
+
     @Test fun audioUsesBestAudioWithoutUserFlags() {
         assertEquals("bestaudio/best", FormatSelector.build(audioOnly = true, videoHeight = 720))
     }

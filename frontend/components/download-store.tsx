@@ -240,6 +240,7 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
         const jobId = await startBackendDownload(
           input.sourceUrl,
           input.qualityValue,
+          `select-${id}`,
         )
         setDownloads((prev) =>
           prev.map((download) =>
