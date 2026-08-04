@@ -11,7 +11,6 @@ import {
   ChevronRight,
   Download,
   Loader2,
-  Maximize2,
   Play,
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
@@ -58,7 +57,6 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [playing, setPlaying] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
   const searchResults = (() => {
     try {
@@ -88,28 +86,6 @@ export function WatchView({ videoId }: { videoId: string }) {
   useEffect(() => {
     showPlayerControls()
   }, [playing, showPlayerControls])
-
-  async function toggleFullscreen(event?: React.MouseEvent<HTMLButtonElement>) {
-    event?.preventDefault()
-    event?.stopPropagation()
-    const player = iframeRef.current ?? playerRef.current
-    if (!player) return
-    try {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen()
-      } else {
-        await player.requestFullscreen()
-      }
-    } catch {
-      setError('Fullscreen is not available in this player.')
-    }
-  }
-
-  useEffect(() => {
-    const onFullscreenChange = () => setIsFullscreen(Boolean(document.fullscreenElement))
-    document.addEventListener('fullscreenchange', onFullscreenChange)
-    return () => document.removeEventListener('fullscreenchange', onFullscreenChange)
-  }, [])
 
   useEffect(() => {
     function onPointerMove(event: MouseEvent) {
@@ -296,18 +272,7 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            {(!playing || playerControlsVisible) && (
-              <button
-                type="button"
-                onClick={toggleFullscreen}
-                aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                className="absolute right-3 top-3 z-10 flex size-9 items-center justify-center rounded-lg bg-black/65 text-white transition-colors hover:bg-black/85"
-              >
-                <Maximize2 className="size-4" />
-              </button>
-            )}
-
-            {searchResults.length > 0 && currentIndex >= 0 && playerControlsVisible && (
+            {searchResults.length > 0 && currentIndex >= 0 && !playing && playerControlsVisible && (
               <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
                 <button
                   type="button"
