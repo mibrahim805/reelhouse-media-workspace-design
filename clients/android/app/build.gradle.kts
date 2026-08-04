@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 23
-        versionName = "1.6.4"
+        versionCode = 24
+        versionName = "1.6.5"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"cache-debug-v2\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"background-download-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")
