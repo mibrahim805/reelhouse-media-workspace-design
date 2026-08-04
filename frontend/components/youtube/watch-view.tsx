@@ -58,7 +58,9 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
   const searchResults = (() => {
     try {
-      const saved = window.sessionStorage.getItem('reelhouse.active-results')
+      const saved =
+        window.sessionStorage.getItem('reelhouse.active-results') ??
+        window.sessionStorage.getItem('reelhouse.home-feed')
       return saved ? (JSON.parse(saved) as MediaVideo[]) : []
     } catch {
       return []
