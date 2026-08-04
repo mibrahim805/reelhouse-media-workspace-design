@@ -372,9 +372,14 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun startLocalDownload(jobId: String, url: String, quality: String) {
-        // Downloads use the original full Android extraction path. Railway is
-        // used for search/metadata when available, never for the file itself.
-        val media = extractor.extractInfo(url)
+        // Resolve the lightweight local manifest first. If YouTube does not
+        // provide usable formats for this client, retain the original full
+        // Android extraction as a compatibility fallback. Railway is never
+        // used for the file itself.
+        val media = runCatching { extractor.extractInfoFast(url) }
+            .getOrNull()
+            ?.takeIf { info -> info.formats.any { it.hasVideo || it.hasAudio } }
+            ?: extractor.extractInfo(url)
         val audioOnly = quality.equals("audio", ignoreCase = true)
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
