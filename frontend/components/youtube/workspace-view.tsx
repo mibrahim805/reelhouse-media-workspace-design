@@ -11,6 +11,7 @@ import {
   saveAccountSearch,
   YOUTUBE_TOPICS,
   type MediaVideo,
+  videoIdFromUrl,
 } from '@/lib/backend-api'
 import { cn } from '@/lib/utils'
 
@@ -18,6 +19,9 @@ function watchHref(video: MediaVideo) {
   if (video.id && !video.id.startsWith('http')) {
     return `/youtube/watch/${encodeURIComponent(video.id)}`
   }
+
+  const id = videoIdFromUrl(video.sourceUrl)
+  if (id) return `/youtube/watch/${encodeURIComponent(id)}`
 
   return `/downloader?url=${encodeURIComponent(video.sourceUrl)}`
 }

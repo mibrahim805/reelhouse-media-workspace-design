@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { HeroSection } from '@/components/hero-section'
-import { fetchYouTubeTopic, type MediaVideo } from '@/lib/backend-api'
+import { fetchYouTubeTopic, type MediaVideo, videoIdFromUrl } from '@/lib/backend-api'
 
 export function HomeView() {
   const router = useRouter()
@@ -62,6 +62,12 @@ export function HomeView() {
   function openVideo(video: MediaVideo) {
     if (video.id && !video.id.startsWith('http')) {
       router.push(`/youtube/watch/${encodeURIComponent(video.id)}`)
+      return
+    }
+
+    const id = videoIdFromUrl(video.sourceUrl)
+    if (id) {
+      router.push(`/youtube/watch/${encodeURIComponent(id)}`)
       return
     }
 
