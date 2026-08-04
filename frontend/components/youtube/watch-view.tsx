@@ -7,8 +7,6 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
-  ChevronLeft,
-  ChevronRight,
   Download,
   Loader2,
   Play,
@@ -272,28 +270,6 @@ export function WatchView({ videoId }: { videoId: string }) {
               </>
             )}
 
-            {searchResults.length > 0 && currentIndex >= 0 && !playing && playerControlsVisible && (
-              <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
-                <button
-                  type="button"
-                  onClick={() => openSearchVideo(previousVideo)}
-                  disabled={!previousVideo}
-                  aria-label="Previous video"
-                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronLeft className="size-6" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openSearchVideo(nextVideo)}
-                  disabled={!nextVideo}
-                  aria-label="Next video"
-                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
-                >
-                  <ChevronRight className="size-6" />
-                </button>
-              </div>
-            )}
           </div>
 
           <h1 className="mt-4 text-lg font-semibold leading-snug text-foreground text-balance sm:text-xl">

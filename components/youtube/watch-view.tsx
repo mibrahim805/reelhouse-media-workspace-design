@@ -6,7 +6,6 @@ import {
   ChevronDown,
   Download,
   ListVideo,
-  Maximize2,
   Pause,
   Play,
   Settings,
@@ -90,7 +89,6 @@ export function WatchView({ video }: { video: Video }) {
                     {quality}
                   </span>
                   <Settings className="size-5" />
-                  <Maximize2 className="size-5" />
                 </div>
               </div>
             </div>
