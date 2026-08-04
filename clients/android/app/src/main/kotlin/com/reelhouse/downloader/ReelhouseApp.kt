@@ -1,8 +1,11 @@
 package com.reelhouse.downloader
 
 import android.app.Application
+import androidx.core.content.ContextCompat
 import com.reelhouse.downloader.data.DownloadDatabase
 import com.reelhouse.downloader.data.PreferencesRepository
+import com.reelhouse.downloader.download.DownloadService
+import com.reelhouse.downloader.download.toDownloadRequest
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.CompletableDeferred
@@ -27,7 +30,20 @@ class ReelhouseApp : Application() {
         super.onCreate()
         Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=application_start")
         applicationScope.launch {
-            database.downloadDao().markInterruptedDownloads()
+            val activeDownloads = database.downloadDao().getActiveDownloadsOnce()
+            activeDownloads.forEach { download ->
+                Log.i(
+                    "ReelhousePerf",
+                    "event=BACKGROUND_DOWNLOAD_RECOVERY job=${download.id} status=${download.status}",
+                )
+                ContextCompat.startForegroundService(
+                    this@ReelhouseApp,
+                    DownloadService.createStartIntent(
+                        this@ReelhouseApp,
+                        download.toDownloadRequest(),
+                    ),
+                )
+            }
         }
         applicationScope.launch {
             try {

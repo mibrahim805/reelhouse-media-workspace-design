@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.PowerManager
 import androidx.core.app.ServiceCompat
 import com.reelhouse.downloader.data.DownloadDatabase
 import com.reelhouse.downloader.data.PreferencesRepository
@@ -91,6 +92,7 @@ class DownloadService : Service() {
     private val activeJobCount = AtomicInteger(0)
     private val completionNotifications = AtomicBoolean(true)
     private val executionMutex = Mutex()
+    private lateinit var wakeLock: PowerManager.WakeLock
 
     override fun onCreate() {
         super.onCreate()
@@ -100,6 +102,10 @@ class DownloadService : Service() {
         val fileManager = FileManager(applicationContext)
         notification = DownloadNotification(applicationContext)
         notification.createChannel()
+        wakeLock = (getSystemService(POWER_SERVICE) as PowerManager).newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "$packageName:downloads",
+        ).apply { setReferenceCounted(false) }
 
         serviceScope.launch {
             PreferencesRepository(applicationContext).notificationsEnabled.collect {
@@ -153,6 +159,7 @@ class DownloadService : Service() {
 
                 if (!downloadManager.hasActiveJob(request.id)) {
                     val jobCount = activeJobCount.incrementAndGet()
+                    if (!wakeLock.isHeld) wakeLock.acquire()
                     startForegroundWithNotification(jobCount)
                     enqueueDownload(request)
                 }
@@ -166,7 +173,10 @@ class DownloadService : Service() {
             }
         }
 
-        return START_NOT_STICKY
+        // Ask Android to redeliver the request if it has to recreate this
+        // foreground service. yt-dlp's default .part behavior then continues
+        // the same output instead of abandoning the persisted Room job.
+        return START_REDELIVER_INTENT
     }
 
     private fun startForegroundWithNotification(jobCount: Int) {
@@ -218,6 +228,7 @@ class DownloadService : Service() {
             } finally {
                 val remaining = activeJobCount.decrementAndGet()
                 if (remaining <= 0) {
+                    if (wakeLock.isHeld) wakeLock.release()
                     stopForeground(STOP_FOREGROUND_REMOVE)
                     stopSelf()
                 } else {
@@ -253,6 +264,7 @@ class DownloadService : Service() {
     }
 
     override fun onDestroy() {
+        if (::wakeLock.isInitialized && wakeLock.isHeld) wakeLock.release()
         super.onDestroy()
         serviceScope.cancel()
     }

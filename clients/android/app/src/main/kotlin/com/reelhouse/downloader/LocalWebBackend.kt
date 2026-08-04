@@ -412,10 +412,44 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         if (!BuildConfig.USE_LOCAL_DOWNLOAD_FALLBACK) {
             throw BackendRequestException("Local download fallback is disabled.")
         }
+        resetFinishedPreparationDownload(key, operationId)
         val localJobId = queuePreparedDownload(url, quality, operationId)
         return 200 to buildJsonObject {
             put("ok", true)
             put("job_id", localJobId)
+        }
+    }
+
+    private suspend fun resetFinishedPreparationDownload(key: String, operationId: String) {
+        val previousJobId = synchronized(preparationStates) {
+            preparationStates[key]
+                ?.takeIf { it.downloadStarted }
+                ?.pendingJobId
+        } ?: return
+        val previousJob = dao.getById(previousJobId) ?: return
+        if (!DownloadRetryPolicy.isFinished(previousJob.status)) return
+
+        val reset = synchronized(preparationStates) {
+            val current = preparationStates[key]
+            if (current?.pendingJobId != previousJobId || !current.downloadStarted) {
+                false
+            } else {
+                preparationStates[key] = current.copy(
+                    pendingQuality = null,
+                    pendingJobId = null,
+                    error = null,
+                    downloadStarted = false,
+                )
+                true
+            }
+        }
+        if (reset) {
+            preparingJobs.remove(previousJobId)
+            Log.i(
+                TAG,
+                "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_RETRY_STATE_RESET " +
+                    "key=$key previousJob=$previousJobId previousStatus=${previousJob.status}",
+            )
         }
     }
 

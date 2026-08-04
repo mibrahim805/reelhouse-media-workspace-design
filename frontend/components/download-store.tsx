@@ -81,19 +81,23 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
   const pollers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
   const pollFailures = useRef<Map<string, number>>(new Map())
   const deviceDownloadsStarted = useRef<Set<string>>(new Set())
+  const restoredActiveJobs = useRef<Array<{ id: string; jobId: string }>>([])
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem('reelhouse.downloads')
       if (saved) {
         const restored = JSON.parse(saved) as DownloadItem[]
-        setDownloads(
-          restored.map((item) =>
-            item.status === 'queued' || item.status === 'downloading' || item.status === 'processing'
-              ? { ...item, status: 'failed', error: 'Download was interrupted. Retry to continue.' }
-              : item,
-          ),
-        )
+        restoredActiveJobs.current = restored
+          .filter(
+            (item): item is DownloadItem & { jobId: string } =>
+              Boolean(item.jobId) &&
+              (item.status === 'queued' ||
+                item.status === 'downloading' ||
+                item.status === 'processing'),
+          )
+          .map(({ id, jobId }) => ({ id, jobId }))
+        setDownloads(restored)
       }
     } catch {
       // Storage is optional; downloads still work for the current session.
@@ -198,6 +202,11 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
     },
     [stopPolling],
   )
+
+  useEffect(() => {
+    const jobs = restoredActiveJobs.current.splice(0)
+    jobs.forEach(({ id, jobId }) => pollProgress(id, jobId))
+  }, [pollProgress])
 
   const beginDownload = useCallback(
     async (input: StartInput, existingId?: string) => {

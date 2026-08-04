@@ -2,6 +2,7 @@ package com.reelhouse.downloader.download
 
 import android.content.Context
 import android.net.Uri
+import android.util.Log
 import com.reelhouse.downloader.data.DownloadDao
 import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.media.MediaExtractor
@@ -50,7 +51,7 @@ class DownloadManager(
         // Prevent duplicate downloads
         if (!activeUrls.add(request.url)) return false
         val existing = dao.findActiveByUrl(request.url)
-        if (existing != null) {
+        if (existing != null && existing.id != request.id) {
             activeUrls.remove(request.url)
             return false
         }
@@ -88,7 +89,14 @@ class DownloadManager(
         )
 
         try {
-            dao.insert(entity)
+            if (existing == null) {
+                dao.insert(entity)
+            } else {
+                Log.i(
+                    "ReelhousePerf",
+                    "event=BACKGROUND_DOWNLOAD_RESUMED job=${request.id} previousStatus=${existing.status}",
+                )
+            }
             _activeDownloadIds.value = _activeDownloadIds.value + request.id
         } catch (error: Exception) {
             activeUrls.remove(request.url)
@@ -261,6 +269,14 @@ class DownloadManager(
                 return
             }
             val errorType = ErrorClassifier.classify(e)
+            val safeReason = e.message.orEmpty()
+                .replace(Regex("https?://\\S+", RegexOption.IGNORE_CASE), "<url>")
+                .replace(Regex("(?i)(cookie|authorization|token)\\s*[:=]\\s*\\S+"), "$1=<redacted>")
+                .take(500)
+            Log.e(
+                "ReelhousePerf",
+                "event=DOWNLOAD_FAILED job=${request.id} errorType=${errorType.name} reason=$safeReason",
+            )
             dao.updateStatus(
                 id = request.id,
                 status = DownloadEntity.Status.FAILED,

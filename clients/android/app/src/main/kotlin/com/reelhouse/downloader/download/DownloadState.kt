@@ -1,5 +1,6 @@
 package com.reelhouse.downloader.download
 
+import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.media.MediaInfo
 
 /**
@@ -16,4 +17,24 @@ data class DownloadRequest(
     val destination: String = "downloads",
     val audioBitrate: Int? = null,
     val expectedBytes: Long = 0L,
+)
+
+internal fun DownloadEntity.toDownloadRequest(): DownloadRequest = DownloadRequest(
+    id = id,
+    url = url,
+    mediaInfo = MediaInfo(
+        id = sourceId,
+        title = title,
+        uploader = uploader,
+        thumbnail = thumbnail,
+        platform = platform,
+        webpageUrl = url,
+    ),
+    formatSelector = formatSelector,
+    isAudioOnly = isAudioOnly,
+    mergeFormat = fileExtension,
+    qualityLabel = formatLabel,
+    destination = destination,
+    audioBitrate = audioBitrate,
+    expectedBytes = totalBytes,
 )
