@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
 import {
   AlertCircle,
   ArrowLeft,
@@ -45,7 +44,6 @@ function browserPlaybackVideo(value: string): MediaVideo | null {
 }
 
 export function WatchView({ videoId }: { videoId: string }) {
-  const router = useRouter()
   const { startDownload } = useDownloads()
   const [video, setVideo] = useState<MediaVideo | null>(null)
   const [loading, setLoading] = useState(true)
@@ -56,14 +54,6 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
-  const searchResults = (() => {
-    try {
-      const saved = window.sessionStorage.getItem('reelhouse.active-results')
-      return saved ? (JSON.parse(saved) as MediaVideo[]) : []
-    } catch {
-      return []
-    }
-  })()
   const playerRef = useRef<HTMLDivElement>(null)
   const iframeRef = useRef<HTMLIFrameElement>(null)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -219,17 +209,6 @@ export function WatchView({ videoId }: { videoId: string }) {
   }
 
   const embedUrl = youtubeEmbedUrl(video)
-  const currentIndex = searchResults.findIndex((item) => item.id === video.id)
-  const previousVideo = currentIndex > 0 ? searchResults[currentIndex - 1] : null
-  const nextVideo = currentIndex >= 0 && currentIndex < searchResults.length - 1
-    ? searchResults[currentIndex + 1]
-    : null
-
-  function openSearchVideo(target: MediaVideo | null) {
-    if (!target?.id) return
-    router.push(`/youtube/watch/${encodeURIComponent(target.id)}`)
-  }
-
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
         <div className="min-w-0">
