@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   AlertCircle,
@@ -10,14 +10,15 @@ import {
   ChevronRight,
   Download,
   Loader2,
+  Play,
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
-import { YouTubePreviewPlayer } from '@/components/video-player/YouTubePreviewPlayer'
 import {
   fetchVideoInfo,
   type MediaVideo,
   type QualityOption,
+  youtubeEmbedUrl,
   youtubeUrlFromId,
   videoIdFromUrl,
 } from '@/lib/backend-api'
@@ -51,8 +52,10 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [detailsLoading, setDetailsLoading] = useState(false)
   const [detailsLoaded, setDetailsLoaded] = useState(false)
   const [error, setError] = useState('')
+  const [playing, setPlaying] = useState(false)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
+  const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
   const searchResults = (() => {
     try {
       const saved =
@@ -63,6 +66,48 @@ export function WatchView({ videoId }: { videoId: string }) {
       return []
     }
   })()
+  const playerRef = useRef<HTMLDivElement>(null)
+  const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
+
+  const showPlayerControls = useCallback(() => {
+    setPlayerControlsVisible(true)
+    if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+    if (playing) {
+      controlsTimeoutRef.current = setTimeout(() => {
+        setPlayerControlsVisible(false)
+      }, 2600)
+    }
+  }, [playing])
+
+  // Start the same auto-hide timer after the playing state has committed.
+  // This keeps overlay controls such as Previous/Next synchronized with
+  // Play/Pause instead of relying on the click handler's stale state.
+  useEffect(() => {
+    showPlayerControls()
+  }, [playing, showPlayerControls])
+
+  useEffect(() => {
+    function onPointerMove(event: MouseEvent) {
+      const player = playerRef.current
+      if (!player) return
+      const bounds = player.getBoundingClientRect()
+      if (
+        event.clientX >= bounds.left &&
+        event.clientX <= bounds.right &&
+        event.clientY >= bounds.top &&
+        event.clientY <= bounds.bottom
+      ) {
+        showPlayerControls()
+      }
+    }
+
+    window.addEventListener('mousemove', onPointerMove)
+    return () => {
+      window.removeEventListener('mousemove', onPointerMove)
+      if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current)
+    }
+  }, [playing, showPlayerControls])
 
   const qualities = video?.qualities ?? []
   const downloadQualities: QualityOption[] = qualities.length > 0
@@ -75,6 +120,8 @@ export function WatchView({ videoId }: { videoId: string }) {
     async function loadVideo() {
       setLoading(true)
       setError('')
+      setPlaying(false)
+      setPlayerControlsVisible(true)
       setSuccess('')
 
       const fallback = browserPlaybackVideo(videoId)
@@ -173,6 +220,7 @@ export function WatchView({ videoId }: { videoId: string }) {
     )
   }
 
+  const embedUrl = youtubeEmbedUrl(video)
   const navigationVideos = searchResults.some((item) => item.id === video.id)
     ? searchResults
     : [video, ...searchResults]
@@ -189,7 +237,44 @@ export function WatchView({ videoId }: { videoId: string }) {
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
         <div className="min-w-0">
-          <YouTubePreviewPlayer videoId={video.id} title={video.title} thumbnail={video.thumbnail} />
+          <div
+            ref={playerRef}
+            onTouchStart={showPlayerControls}
+            className="relative aspect-video w-full overflow-hidden rounded-2xl bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:h-full [&:fullscreen]:rounded-none"
+          >
+            {playing && embedUrl ? (
+              <iframe
+                src={embedUrl}
+                title={video.title}
+                ref={iframeRef}
+                className="h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+                referrerPolicy="strict-origin-when-cross-origin"
+                allowFullScreen
+              />
+            ) : (
+              <>
+                <img
+                  src={video.thumbnail || '/placeholder.svg'}
+                  alt=""
+                  className="h-full w-full object-cover opacity-70"
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button
+                    onClick={() => {
+                      setPlaying(true)
+                      showPlayerControls()
+                    }}
+                    aria-label="Play"
+                    className="flex size-16 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl transition-transform hover:scale-105"
+                  >
+                    <Play className="size-7 translate-x-0.5 fill-current" />
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
 
           {navigationVideos.length > 1 && currentIndex >= 0 && (
             <div className="mt-3 flex items-center justify-center gap-3">
