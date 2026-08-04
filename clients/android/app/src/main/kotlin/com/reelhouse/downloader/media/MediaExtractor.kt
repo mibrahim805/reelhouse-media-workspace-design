@@ -192,8 +192,11 @@ class MediaExtractor(private val context: Context) {
         try {
             executeWithEngineRecovery { execute(request()) }
         } catch (error: Exception) {
-            if (!url.isYouTubeUrl() || !isSourceDenied(error)) throw error
-            Log.w(TAG, "YTDLP_DOWNLOAD_RETRY source_denied client=web_embedded process=$processId")
+            if (!url.isYouTubeUrl() || !isClientAccessFailure(error)) throw error
+            Log.w(
+                TAG,
+                "YTDLP_DOWNLOAD_RETRY client_access client=web_embedded process=$processId",
+            )
             executeWithEngineRecovery { execute(request("web_embedded")) }
         }
     }
@@ -232,14 +235,8 @@ class MediaExtractor(private val context: Context) {
         host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")
     }.getOrDefault(false)
 
-    private fun isSourceDenied(error: Throwable): Boolean {
-        val message = error.message.orEmpty().lowercase()
-        return "http error 403" in message ||
-            "403 forbidden" in message ||
-            "access denied" in message ||
-            "denied by the source" in message ||
-            "source denied" in message
-    }
+    private fun isClientAccessFailure(error: Throwable): Boolean =
+        isYouTubeClientAccessFailure(error.message.orEmpty())
 
     private suspend fun <T> executeWithEngineRecovery(operation: () -> T): T {
         return try {
@@ -358,4 +355,16 @@ class MediaExtractor(private val context: Context) {
 
     private fun JsonObject.longOrZero(key: String): Long =
         try { this[key]?.jsonPrimitive?.longOrNull ?: 0L } catch (_: Exception) { 0L }
+}
+
+/* Error 152 is a YouTube client-access response, not proof of private content. */
+internal fun isYouTubeClientAccessFailure(message: String): Boolean {
+    val lower = message.lowercase()
+    return "http error 403" in lower ||
+        "403 forbidden" in lower ||
+        "access denied" in lower ||
+        "denied by the source" in lower ||
+        "source denied" in lower ||
+        "error code: 152" in lower ||
+        "watch video on youtube" in lower
 }
