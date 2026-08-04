@@ -200,6 +200,7 @@ class MainActivity : ComponentActivity() {
             }
             if (!request.isForMainFrame) return false
             if (uri.scheme == "https" && uri.host == URI(webBaseUrl).host) return false
+            if (uri.scheme == "https" && uri.host.isYoutubeHost()) return false
 
             runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
             return true
@@ -228,6 +229,12 @@ class MainActivity : ComponentActivity() {
             }
             return null
         }
+    }
+
+    private fun String?.isYoutubeHost(): Boolean {
+        val host = this?.lowercase() ?: return false
+        return host == "youtube.com" || host.endsWith(".youtube.com") ||
+            host == "youtu.be" || host.endsWith(".youtu.be")
     }
 
     private fun exitFullscreen() {
