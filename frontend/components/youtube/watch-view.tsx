@@ -6,6 +6,8 @@ import {
   AlertCircle,
   ArrowLeft,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Download,
   Loader2,
   Play,
@@ -54,9 +56,17 @@ export function WatchView({ videoId }: { videoId: string }) {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [success, setSuccess] = useState('')
   const [playerControlsVisible, setPlayerControlsVisible] = useState(true)
+  const searchResults = (() => {
+    try {
+      const saved = window.sessionStorage.getItem('reelhouse.active-results')
+      return saved ? (JSON.parse(saved) as MediaVideo[]) : []
+    } catch {
+      return []
+    }
+  })()
   const playerRef = useRef<HTMLDivElement>(null)
-  const iframeRef = useRef<HTMLIFrameElement>(null)
   const controlsTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const iframeRef = useRef<HTMLIFrameElement>(null)
 
   const showPlayerControls = useCallback(() => {
     setPlayerControlsVisible(true)
@@ -209,6 +219,16 @@ export function WatchView({ videoId }: { videoId: string }) {
   }
 
   const embedUrl = youtubeEmbedUrl(video)
+  const currentIndex = searchResults.findIndex((item) => item.id === video.id)
+  const previousVideo = currentIndex > 0 ? searchResults[currentIndex - 1] : null
+  const nextVideo = currentIndex >= 0 && currentIndex < searchResults.length - 1
+    ? searchResults[currentIndex + 1]
+    : null
+
+  function openSearchVideo(target: MediaVideo | null) {
+    if (!target?.id) return
+    window.location.assign(`/youtube/watch/${encodeURIComponent(target.id)}`)
+  }
   return (
     <div className="mx-auto w-full max-w-[1600px] px-3 py-4 sm:px-5">
         <div className="min-w-0">
@@ -247,6 +267,29 @@ export function WatchView({ videoId }: { videoId: string }) {
                   </button>
                 </div>
               </>
+            )}
+
+            {searchResults.length > 0 && currentIndex >= 0 && playerControlsVisible && (
+              <div className="pointer-events-none absolute inset-x-0 bottom-14 z-10 flex items-center justify-center gap-20 sm:gap-28">
+                <button
+                  type="button"
+                  onClick={() => openSearchVideo(previousVideo)}
+                  disabled={!previousVideo}
+                  aria-label="Previous video"
+                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <ChevronLeft className="size-6" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openSearchVideo(nextVideo)}
+                  disabled={!nextVideo}
+                  aria-label="Next video"
+                  className="pointer-events-auto flex size-11 items-center justify-center rounded-full bg-black/70 text-white shadow-lg transition hover:bg-black/90 disabled:cursor-not-allowed disabled:opacity-35"
+                >
+                  <ChevronRight className="size-6" />
+                </button>
+              </div>
             )}
 
           </div>
