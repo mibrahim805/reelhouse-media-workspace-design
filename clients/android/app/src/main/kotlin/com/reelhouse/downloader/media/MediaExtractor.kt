@@ -169,34 +169,76 @@ class MediaExtractor(private val context: Context) {
         onProgress: (Float, Long, String) -> Unit = { _, _, _ -> },
     ) = withContext(Dispatchers.IO) {
         awaitEngine()
-        val request = YoutubeDLRequest(url).apply {
-            addOption("-f", formatSelector)
-            addOption("-o", outputPath)
-            addOption("--no-playlist")
-            addOption("--no-warnings")
-            addOption("--no-config")
-            addOption("--retries", "3")
-            addOption("--fragment-retries", "3")
-            addOption("--socket-timeout", "30")
-            if (audioOnly) {
-                addOption("--extract-audio")
-                addOption("--audio-format", mergeFormat)
-                addOption(
-                    "--audio-quality",
-                    FormatSelector.safeAudioBitrate(audioBitrate)?.let { "${it}K" } ?: "0",
-                )
-            } else {
-                addOption("--merge-output-format", mergeFormat)
-                addOption("--remux-video", mergeFormat)
+        fun request(playerClient: String? = null) = YoutubeDLRequest(url).apply {
+            addDownloadOptions(
+                formatSelector = formatSelector,
+                outputPath = outputPath,
+                audioOnly = audioOnly,
+                audioBitrate = audioBitrate,
+                mergeFormat = mergeFormat,
+            )
+            playerClient?.let {
+                addOption("--extractor-args", "youtube:player_client=$it")
             }
-            addOption("--restrict-filenames")
         }
 
-        executeWithEngineRecovery {
-            YoutubeDL.getInstance().execute(request, processId) { progress, eta, line ->
-                onProgress(progress, eta.toLong(), line ?: "")
-            }
+        fun execute(downloadRequest: YoutubeDLRequest) = YoutubeDL.getInstance().execute(
+            downloadRequest,
+            processId,
+        ) { progress, eta, line ->
+            onProgress(progress, eta.toLong(), line ?: "")
         }
+
+        try {
+            executeWithEngineRecovery { execute(request()) }
+        } catch (error: Exception) {
+            if (!url.isYouTubeUrl() || !isSourceDenied(error)) throw error
+            Log.w(TAG, "YTDLP_DOWNLOAD_RETRY source_denied client=web_embedded process=$processId")
+            executeWithEngineRecovery { execute(request("web_embedded")) }
+        }
+    }
+
+    private fun YoutubeDLRequest.addDownloadOptions(
+        formatSelector: String,
+        outputPath: String,
+        audioOnly: Boolean,
+        audioBitrate: Int?,
+        mergeFormat: String,
+    ) {
+        addOption("-f", formatSelector)
+        addOption("-o", outputPath)
+        addOption("--no-playlist")
+        addOption("--no-warnings")
+        addOption("--no-config")
+        addOption("--retries", "3")
+        addOption("--fragment-retries", "3")
+        addOption("--socket-timeout", "30")
+        if (audioOnly) {
+            addOption("--extract-audio")
+            addOption("--audio-format", mergeFormat)
+            addOption(
+                "--audio-quality",
+                FormatSelector.safeAudioBitrate(audioBitrate)?.let { "${it}K" } ?: "0",
+            )
+        } else {
+            addOption("--merge-output-format", mergeFormat)
+            addOption("--remux-video", mergeFormat)
+        }
+        addOption("--restrict-filenames")
+    }
+
+    private fun String.isYouTubeUrl(): Boolean = runCatching {
+        val host = android.net.Uri.parse(this).host.orEmpty().lowercase()
+        host == "youtu.be" || host == "youtube.com" || host.endsWith(".youtube.com")
+    }.getOrDefault(false)
+
+    private fun isSourceDenied(error: Throwable): Boolean {
+        val message = error.message.orEmpty().lowercase()
+        return "http error 403" in message ||
+            "403 forbidden" in message ||
+            "access denied" in message ||
+            "denied by the source" in message ||
+            "source denied" in message
     }
 
     private suspend fun <T> executeWithEngineRecovery(operation: () -> T): T {
