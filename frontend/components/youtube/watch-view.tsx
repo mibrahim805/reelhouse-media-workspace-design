@@ -82,6 +82,13 @@ export function WatchView({ videoId }: { videoId: string }) {
     }
   }, [playing])
 
+  // Start the same auto-hide timer after the playing state has committed.
+  // This keeps overlay controls such as Previous/Next synchronized with
+  // Play/Pause instead of relying on the click handler's stale state.
+  useEffect(() => {
+    showPlayerControls()
+  }, [playing, showPlayerControls])
+
   async function toggleFullscreen(event?: React.MouseEvent<HTMLButtonElement>) {
     event?.preventDefault()
     event?.stopPropagation()
