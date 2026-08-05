@@ -19,6 +19,16 @@ class FormatSelectorTest {
         }
     }
 
+    @Test fun exactCombinedMp4IsPreferredBeforeSeparateStreams() {
+        val selector = FormatSelector.build(audioOnly = false, videoHeight = 360)
+        assertTrue(
+            selector.startsWith(
+                "best[height=360][ext=mp4][vcodec!=none][acodec!=none]/",
+            ),
+        )
+        assertTrue(selector.contains("bestvideo[height<=360][ext=mp4]+bestaudio[ext=m4a]"))
+    }
+
     @Test fun audioUsesBestAudioWithoutUserFlags() {
         assertEquals("bestaudio/best", FormatSelector.build(audioOnly = true, videoHeight = 720))
     }

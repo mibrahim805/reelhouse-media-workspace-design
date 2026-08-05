@@ -6,6 +6,8 @@ import com.yausername.youtubedl_android.YoutubeDL
 import com.yausername.youtubedl_android.YoutubeDLRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -27,14 +29,57 @@ class YtDlpUpdater(private val context: Context) {
     private val preferences = context.getSharedPreferences("engine_update", Context.MODE_PRIVATE)
     private val json = Json { ignoreUnknownKeys = true }
 
-    suspend fun update(): UpdateResult = withContext(Dispatchers.IO) {
-        try {
-            (context.applicationContext as? ReelhouseApp)?.awaitEngineReady()
+    /** Explicit user-requested update. Always checks the official release. */
+    suspend fun update(): UpdateResult = updateInternal(waitForApplicationEngine = true)
+
+    /**
+     * Performs a throttled update check after YoutubeDL has been initialized,
+     * but before the application exposes the engine to extraction/download
+     * callers. Fresh installs therefore do not remain pinned to the yt-dlp
+     * version bundled in the Android wrapper.
+     */
+    suspend fun updateAfterEngineInitializationIfDue(
+        nowMs: Long = System.currentTimeMillis(),
+    ): UpdateResult? = withContext(Dispatchers.IO) {
+        UPDATE_MUTEX.withLock {
+            val lastAttempt = preferences.getLong(KEY_LAST_UPDATE_ATTEMPT, 0L)
+            val lastSuccess = preferences.getLong(KEY_LAST_UPDATE_SUCCESS, 0L)
+            if (!isEngineUpdateDue(nowMs, lastAttempt, lastSuccess)) {
+                return@withLock null
+            }
+
+            preferences.edit().putLong(KEY_LAST_UPDATE_ATTEMPT, nowMs).apply()
+            performUpdate().also { result ->
+                if (result is UpdateResult.Updated || result == UpdateResult.AlreadyLatest) {
+                    preferences.edit().putLong(KEY_LAST_UPDATE_SUCCESS, nowMs).apply()
+                }
+            }
+        }
+    }
+
+    private suspend fun updateInternal(waitForApplicationEngine: Boolean): UpdateResult =
+        withContext(Dispatchers.IO) {
+            if (waitForApplicationEngine) {
+                (context.applicationContext as? ReelhouseApp)?.awaitEngineReady()
+            }
+            UPDATE_MUTEX.withLock {
+                val nowMs = System.currentTimeMillis()
+                preferences.edit().putLong(KEY_LAST_UPDATE_ATTEMPT, nowMs).apply()
+                performUpdate().also { result ->
+                    if (result is UpdateResult.Updated || result == UpdateResult.AlreadyLatest) {
+                        preferences.edit().putLong(KEY_LAST_UPDATE_SUCCESS, nowMs).apply()
+                    }
+                }
+            }
+        }
+
+    private fun performUpdate(): UpdateResult {
+        return try {
             val releaseBytes = fetch(OFFICIAL_RELEASE_API, 2 * 1024 * 1024)
             val release = json.parseToJsonElement(releaseBytes.decodeToString()).jsonObject
             val version = release.getValue("tag_name").jsonPrimitive.content
             if (version.removePrefix("v") == readInstalledVersion().removePrefix("v")) {
-                return@withContext UpdateResult.AlreadyLatest
+                return UpdateResult.AlreadyLatest
             }
 
             val assets = release.getValue("assets").jsonArray.map { it.jsonObject }
@@ -195,6 +240,9 @@ class YtDlpUpdater(private val context: Context) {
     companion object {
         private const val OFFICIAL_RELEASE_API = "https://api.github.com/repos/yt-dlp/yt-dlp/releases/latest"
         private const val KEY_VERSION = "verified_version"
+        private const val KEY_LAST_UPDATE_ATTEMPT = "last_update_attempt"
+        private const val KEY_LAST_UPDATE_SUCCESS = "last_update_success"
+        private val UPDATE_MUTEX = Mutex()
         private val TRUSTED_HOSTS = setOf(
             "api.github.com",
             "github.com",
@@ -203,4 +251,20 @@ class YtDlpUpdater(private val context: Context) {
             "github-releases.githubusercontent.com",
         )
     }
+}
+
+internal fun isEngineUpdateDue(
+    nowMs: Long,
+    lastAttemptMs: Long,
+    lastSuccessMs: Long,
+): Boolean {
+    if (lastAttemptMs <= 0L) return true
+    val elapsed = nowMs - lastAttemptMs
+    if (elapsed < 0L) return true
+    val interval = if (lastSuccessMs >= lastAttemptMs) {
+        24 * 60 * 60 * 1000L
+    } else {
+        60 * 60 * 1000L
+    }
+    return elapsed >= interval
 }

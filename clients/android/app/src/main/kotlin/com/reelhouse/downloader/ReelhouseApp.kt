@@ -6,6 +6,7 @@ import com.reelhouse.downloader.data.DownloadDatabase
 import com.reelhouse.downloader.data.PreferencesRepository
 import com.reelhouse.downloader.download.DownloadService
 import com.reelhouse.downloader.download.toDownloadRequest
+import com.reelhouse.downloader.media.YtDlpUpdater
 import com.yausername.ffmpeg.FFmpeg
 import com.yausername.youtubedl_android.YoutubeDL
 import kotlinx.coroutines.CompletableDeferred
@@ -51,6 +52,18 @@ class ReelhouseApp : Application() {
                 // that work off the main thread so first launch cannot ANR.
                 YoutubeDL.getInstance().init(this@ReelhouseApp)
                 FFmpeg.getInstance().init(this@ReelhouseApp)
+                val updateResult = YtDlpUpdater(this@ReelhouseApp)
+                    .updateAfterEngineInitializationIfDue()
+                Log.i(
+                    "ReelhousePerf",
+                    "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} event=YTDLP_STARTUP_UPDATE " +
+                        "result=${updateResult?.javaClass?.simpleName ?: "skipped"}" +
+                        ((updateResult as? YtDlpUpdater.UpdateResult.Failed)?.message
+                            ?.replace(Regex("https?://\\S+", RegexOption.IGNORE_CASE), "<url>")
+                            ?.take(240)
+                            ?.let { " reason=$it" }
+                            .orEmpty()),
+                )
                 engineReady.complete(Unit)
             } catch (error: Exception) {
                 val message = "The local download engine could not be initialized. " +

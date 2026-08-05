@@ -10,5 +10,9 @@ class ErrorClassifierTest {
         assertEquals(ErrorClassifier.ErrorType.AUTH_REQUIRED, ErrorClassifier.classify("Sign in to confirm your age"))
         assertEquals(ErrorClassifier.ErrorType.FFMPEG_FAILED, ErrorClassifier.classify("ffmpeg merge failed"))
         assertEquals(ErrorClassifier.ErrorType.STORAGE_FAILED, ErrorClassifier.classify("MediaStore file could not be published"))
+        assertEquals(
+            ErrorClassifier.ErrorType.SOURCE_UNAVAILABLE,
+            ErrorClassifier.classify("This video is unavailable. Error code: 152 - 18 Watch video on YouTube"),
+        )
     }
 }

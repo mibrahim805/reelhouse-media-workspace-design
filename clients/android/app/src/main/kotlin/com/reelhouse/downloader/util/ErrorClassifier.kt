@@ -15,6 +15,7 @@ object ErrorClassifier {
         AGE_RESTRICTED(R.string.error_age_restricted),
         AUTH_REQUIRED(R.string.error_auth_required),
         REGION_RESTRICTED(R.string.error_region_restricted),
+        SOURCE_UNAVAILABLE(R.string.error_source_unavailable),
         RATE_LIMITED(R.string.error_rate_limited),
         FORBIDDEN(R.string.error_forbidden),
         EXTRACTION_FAILED(R.string.error_extraction_failed),
@@ -47,8 +48,10 @@ object ErrorClassifier {
                 ErrorType.AGE_RESTRICTED
             "not available" in lower && ("country" in lower || "region" in lower) ->
                 ErrorType.REGION_RESTRICTED
+            "error code: 152" in lower || "watch video on youtube" in lower ->
+                ErrorType.SOURCE_UNAVAILABLE
             "not available" in lower || "unavailable" in lower || "removed" in lower ->
-                ErrorType.PRIVATE_CONTENT
+                ErrorType.SOURCE_UNAVAILABLE
 
             // HTTP errors
             "403" in lower || "forbidden" in lower ->

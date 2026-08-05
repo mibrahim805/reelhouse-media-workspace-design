@@ -10,6 +10,7 @@
     <string name="error_age_restricted">This content is age-restricted and cannot be accessed without authentication</string>
     <string name="error_auth_required">This content requires authentication, which is not supported in this version</string>
     <string name="error_region_restricted">This content is not available in your region</string>
+    <string name="error_source_unavailable">The source did not provide a downloadable stream. Update the download engine or try again later</string>
     <string name="error_rate_limited">Too many requests. Please wait and try again</string>
     <string name="error_forbidden">Access denied by the source (HTTP 403)</string>
     <string name="error_extraction_failed">Failed to extract media information</string>

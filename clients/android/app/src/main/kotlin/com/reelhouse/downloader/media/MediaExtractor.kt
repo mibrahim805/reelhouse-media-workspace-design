@@ -101,7 +101,6 @@ class MediaExtractor(private val context: Context) {
             addOption("--retries", "1")
             addOption("--extractor-retries", "1")
             addOption("--socket-timeout", "15")
-            addOption("--extractor-args", "youtube:player_client=android")
         }
         val response = YoutubeDL.getInstance().execute(request)
         val output = response.out
@@ -265,7 +264,9 @@ class MediaExtractor(private val context: Context) {
         val message = (error.message ?: "").lowercase()
         return "empty media response" in message ||
             "confirm you are on the latest version" in message ||
-            "no video formats found" in message
+            "no video formats found" in message ||
+            "error code: 152" in message ||
+            "watch video on youtube" in message
     }
 
     /**

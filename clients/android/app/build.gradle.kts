@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.6.8"
+        versionCode = 28
+        versionName = "1.6.9"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"youtube-client-fallback-v2\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"yt-dlp-auto-update-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")
