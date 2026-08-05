@@ -10,6 +10,7 @@ import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.FormatSelector
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
+import com.reelhouse.downloader.util.SourcePlatform
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
 import com.reelhouse.downloader.youtube.BackendVideo
@@ -162,6 +163,19 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private suspend fun fetchInfo(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
         val requestId = UUID.randomUUID().toString().take(8)
+
+        // The preset response below is YouTube-specific. Other pasted links
+        // need real metadata so their preview and quality list match the item
+        // that the unchanged local yt-dlp download flow will download.
+        if (!SourcePlatform.isYouTube(url)) {
+            Log.i(TAG, "backend=$backendInstanceId operation=$requestId info_source=local_ytdlp source=${SourcePlatform.label(url)}")
+            val media = loadInfo(url, requestId)
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("video", mediaJson(media, url, includeQualities = true))
+            }
+        }
+
         val remote = if (BuildConfig.USE_BACKEND_FORMAT_EXTRACTION) runCatching { remoteBackend.info(url) }
             .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway qualities=${it.qualities.size}") }
             .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway failed=${it.message}") }
@@ -719,7 +733,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         put("thumbnail", media.thumbnail)
         put("source_url", sourceUrl)
         put("webpage_url", sourceUrl)
-        put("platform", media.platform.ifBlank { "YouTube" })
+        put("platform", SourcePlatform.label(sourceUrl, media.platform))
         val videoId = YouTubeUrls.videoId(sourceUrl)
             ?: media.id.takeIf { it.matches(YOUTUBE_ID) }.orEmpty()
         put(
@@ -733,7 +747,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private fun qualitiesJson(formats: List<FormatInfo>): JsonArray = buildJsonArray {
-        formats.asSequence()
+        val videoQualities = formats.asSequence()
             .filter { it.hasVideo && it.height > 0 }
             .groupBy { it.height }
             .map { (height, choices) ->
@@ -741,7 +755,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             }
             .sortedByDescending { it.first }
             .take(8)
-            .forEach { (height, format) ->
+            .toList()
+
+        videoQualities.forEach { (height, format) ->
                 add(buildJsonObject {
                     put("value", height.toString())
                     put("label", "${height}p")
@@ -749,6 +765,16 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     put("filesize_label", format?.filesizeFormatted ?: "Unknown size")
                 })
             }
+
+        if (videoQualities.isEmpty()) {
+            val bestVideo = formats.firstOrNull { it.hasVideo }
+            add(buildJsonObject {
+                put("value", "best")
+                put("label", "Best available")
+                put("extension", bestVideo?.ext?.ifBlank { "mp4" } ?: "mp4")
+                put("filesize_label", bestVideo?.filesizeFormatted ?: "Unknown size")
+            })
+        }
     }
 
     private fun downloadJobJson(item: DownloadEntity): JsonObject = buildJsonObject {

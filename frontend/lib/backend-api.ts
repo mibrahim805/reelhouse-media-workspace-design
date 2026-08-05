@@ -235,7 +235,7 @@ function normalizeVideo(raw: RawVideo, category?: string): MediaVideo {
   const sourceUrl = raw.source_url || raw.webpage_url || ''
   const id = raw.id || videoIdFromUrl(sourceUrl) || sourceUrl
   const channel = raw.channel || 'Unknown channel'
-  const platform = raw.platform || 'YouTube'
+  const platform = raw.platform || platformFromUrl(sourceUrl)
   const qualities = raw.qualities?.map(normalizeQuality)
 
   return {
@@ -252,6 +252,19 @@ function normalizeVideo(raw: RawVideo, category?: string): MediaVideo {
     qualities: qualities?.length ? qualities : undefined,
     embedUrl: raw.embed_url || '',
     canEmbed: raw.can_embed,
+  }
+}
+
+function platformFromUrl(url: string) {
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    if (host === 'youtu.be' || host === 'youtube.com' || host.endsWith('.youtube.com')) return 'YouTube'
+    if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'Instagram'
+    if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) return 'TikTok'
+    if (host === 'facebook.com' || host.endsWith('.facebook.com') || host === 'fb.watch') return 'Facebook'
+    return host.replace(/^www\./, '') || 'Video'
+  } catch {
+    return 'Video'
   }
 }
 

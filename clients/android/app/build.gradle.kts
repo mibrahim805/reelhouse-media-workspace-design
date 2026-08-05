@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 30
-        versionName = "1.6.11"
+        versionCode = 31
+        versionName = "1.6.12"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"system-insets-v2\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"pasted-link-preview-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")
