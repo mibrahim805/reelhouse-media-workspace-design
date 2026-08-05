@@ -197,7 +197,16 @@ class MediaExtractor(private val context: Context) {
                 TAG,
                 "YTDLP_DOWNLOAD_RETRY client_access client=web_embedded process=$processId",
             )
-            executeWithEngineRecovery { execute(request("web_embedded")) }
+            try {
+                executeWithEngineRecovery { execute(request("web_embedded")) }
+            } catch (embeddedError: Exception) {
+                if (!isClientAccessFailure(embeddedError)) throw embeddedError
+                Log.w(
+                    TAG,
+                    "YTDLP_DOWNLOAD_RETRY client_access client=android_vr process=$processId",
+                )
+                executeWithEngineRecovery { execute(request("android_vr")) }
+            }
         }
     }
 
