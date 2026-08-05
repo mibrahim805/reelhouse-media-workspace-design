@@ -21,6 +21,10 @@ import android.view.View
 import android.view.ViewGroup
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
@@ -47,8 +51,15 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=activity_start")
+        // Use one edge-to-edge model on every supported Android version, then
+        // explicitly inset normal WebView content below system bars/cutouts.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         window.statusBarColor = Color.rgb(24, 24, 28)
         window.navigationBarColor = Color.rgb(24, 24, 28)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
 
         localBackend = LocalWebBackend(application as ReelhouseApp)
         Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=webview_backend_ready")
@@ -81,11 +92,11 @@ class MainActivity : ComponentActivity() {
                         ),
                     )
                     webView.visibility = View.GONE
-                    window.decorView.systemUiVisibility = (
-                        View.SYSTEM_UI_FLAG_FULLSCREEN or
-                            View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or
-                            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                        )
+                    WindowInsetsControllerCompat(window, window.decorView).apply {
+                        systemBarsBehavior =
+                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                        hide(WindowInsetsCompat.Type.systemBars())
+                    }
                     requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                 }
 
@@ -103,6 +114,7 @@ class MainActivity : ComponentActivity() {
             webViewClient = ReelhouseWebViewClient()
         }
         setContentView(webView)
+        installSafeContentInsets()
 
         checkBridgeSupport()
         installLocalBackendBridge()
@@ -149,6 +161,29 @@ class MainActivity : ComponentActivity() {
         check(WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
             "Android System WebView must be updated to run the local Reelhouse backend."
         }
+    }
+
+    private fun installSafeContentInsets() {
+        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+            if (fullscreenView != null) {
+                view.setPadding(0, 0, 0, 0)
+                return@setOnApplyWindowInsetsListener windowInsets
+            }
+
+            val safe = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout(),
+            )
+            val keyboard = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
+            view.setPadding(
+                safe.left,
+                safe.top,
+                safe.right,
+                maxOf(safe.bottom, keyboard.bottom),
+            )
+            windowInsets
+        }
+        ViewCompat.requestApplyInsets(webView)
     }
 
     private fun installLocalBackendBridge() {
@@ -244,7 +279,9 @@ class MainActivity : ComponentActivity() {
         fullscreenCallback?.onCustomViewHidden()
         fullscreenCallback = null
         webView.visibility = View.VISIBLE
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_VISIBLE
+        WindowInsetsControllerCompat(window, window.decorView)
+            .show(WindowInsetsCompat.Type.systemBars())
+        ViewCompat.requestApplyInsets(webView)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
