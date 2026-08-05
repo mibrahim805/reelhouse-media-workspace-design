@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.6.6"
+        versionCode = 26
+        versionName = "1.6.7"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"youtube-client-retry-v1\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"audio-format-fix-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")

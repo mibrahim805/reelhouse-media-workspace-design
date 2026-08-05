@@ -19,6 +19,8 @@ data class DownloadRequest(
     val expectedBytes: Long = 0L,
 )
 
+internal fun outputFormatFor(audioOnly: Boolean): String = if (audioOnly) "m4a" else "mp4"
+
 internal fun DownloadEntity.toDownloadRequest(): DownloadRequest = DownloadRequest(
     id = id,
     url = url,

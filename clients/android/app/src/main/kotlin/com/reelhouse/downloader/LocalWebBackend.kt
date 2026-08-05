@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.core.content.ContextCompat
 import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.download.DownloadRequest
+import com.reelhouse.downloader.download.outputFormatFor
 import com.reelhouse.downloader.download.DownloadService
 import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.FormatSelector
@@ -591,7 +592,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             mediaInfo = media,
             formatSelector = FormatSelector.build(audioOnly, height, videoContainer = "mp4"),
             isAudioOnly = audioOnly,
-            mergeFormat = "mp4",
+            mergeFormat = outputFormatFor(audioOnly),
             qualityLabel = if (audioOnly) "Audio only" else height?.let { "Up to ${it}p" } ?: "Best available",
             destination = "downloads",
             expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
