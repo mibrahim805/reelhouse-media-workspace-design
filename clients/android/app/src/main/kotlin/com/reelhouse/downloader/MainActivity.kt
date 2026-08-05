@@ -19,6 +19,7 @@ import android.widget.Toast
 import android.util.Log
 import android.view.View
 import android.view.ViewGroup
+import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.core.view.ViewCompat
@@ -40,6 +41,7 @@ import kotlinx.coroutines.withContext
  * device backend, so media extraction and downloads never use Railway.
  */
 class MainActivity : ComponentActivity() {
+    private lateinit var contentRoot: FrameLayout
     private lateinit var webView: WebView
     private lateinit var localBackend: LocalWebBackend
     private val webBaseUrl = BuildConfig.REELHOUSE_WEB_BASE_URL.trimEnd('/')
@@ -113,7 +115,17 @@ class MainActivity : ComponentActivity() {
             }
             webViewClient = ReelhouseWebViewClient()
         }
-        setContentView(webView)
+        contentRoot = FrameLayout(this).apply {
+            setBackgroundColor(Color.rgb(10, 10, 12))
+            addView(
+                webView,
+                FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                ),
+            )
+        }
+        setContentView(contentRoot)
         installSafeContentInsets()
 
         checkBridgeSupport()
@@ -164,9 +176,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun installSafeContentInsets() {
-        ViewCompat.setOnApplyWindowInsetsListener(webView) { view, windowInsets ->
+        ViewCompat.setOnApplyWindowInsetsListener(contentRoot) { _, windowInsets ->
+            val layout = webView.layoutParams as FrameLayout.LayoutParams
             if (fullscreenView != null) {
-                view.setPadding(0, 0, 0, 0)
+                layout.setMargins(0, 0, 0, 0)
+                webView.layoutParams = layout
                 return@setOnApplyWindowInsetsListener windowInsets
             }
 
@@ -175,15 +189,16 @@ class MainActivity : ComponentActivity() {
                     WindowInsetsCompat.Type.displayCutout(),
             )
             val keyboard = windowInsets.getInsets(WindowInsetsCompat.Type.ime())
-            view.setPadding(
+            layout.setMargins(
                 safe.left,
                 safe.top,
                 safe.right,
                 maxOf(safe.bottom, keyboard.bottom),
             )
+            webView.layoutParams = layout
             windowInsets
         }
-        ViewCompat.requestApplyInsets(webView)
+        ViewCompat.requestApplyInsets(contentRoot)
     }
 
     private fun installLocalBackendBridge() {
@@ -281,7 +296,7 @@ class MainActivity : ComponentActivity() {
         webView.visibility = View.VISIBLE
         WindowInsetsControllerCompat(window, window.decorView)
             .show(WindowInsetsCompat.Type.systemBars())
-        ViewCompat.requestApplyInsets(webView)
+        ViewCompat.requestApplyInsets(contentRoot)
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
 
