@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Clock, History, Loader2, Search, SearchX } from 'lucide-react'
+import { AlertCircle, Loader2, Search, SearchX } from 'lucide-react'
 import { SearchBar } from '@/components/youtube/search-bar'
 import { useSearch } from '@/components/youtube/search-store'
 import {
@@ -318,46 +318,19 @@ export function WorkspaceView() {
       ) : isSearching ? (
         <SearchResults query={submitted} results={results} />
       ) : (
-        <FeedState recent={recent} onPick={runSearch} results={results} />
+        <FeedState results={results} />
       )}
     </div>
   )
 }
 
 function FeedState({
-  recent,
-  onPick,
   results,
 }: {
-  recent: string[]
-  onPick: (t: string) => void
   results: MediaVideo[]
 }) {
   return (
     <div>
-      {recent.length > 0 && (
-        <section className="mb-4">
-          <div className="mb-2 flex items-center gap-2">
-            <History className="size-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold text-foreground">
-              Based on your recent searches
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {recent.map((r) => (
-              <button
-                key={r}
-                onClick={() => onPick(r)}
-                className="flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-[13px] text-foreground transition-colors hover:border-primary/40 hover:text-primary"
-              >
-                <Clock className="size-3.5 text-muted-foreground" />
-                {r}
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       <div className="mb-2 flex items-center gap-2">
         <h2 className="text-sm font-semibold text-foreground">Recommended</h2>
       </div>
