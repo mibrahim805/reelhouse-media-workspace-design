@@ -15,6 +15,7 @@ import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
 import com.reelhouse.downloader.media.YtDlpUpdater
 import com.reelhouse.downloader.storage.FileManager
+import com.reelhouse.downloader.util.SourcePlatform
 import com.reelhouse.downloader.storage.FileSanitizer
 import com.reelhouse.downloader.util.ErrorClassifier
 import com.reelhouse.downloader.util.NetworkUtil
@@ -191,7 +192,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             isAudioOnly = audioOnly,
             mergeFormat = safeFormat,
             qualityLabel = qualityLabel,
-            destination = settings.value.directory,
+            destination = if (SourcePlatform.isYouTube(media.webpageUrl) || media.platform.equals("YouTube", true)) {
+                settings.value.directory
+            } else {
+                // Gallery apps index MediaStore.Video, not every Downloads
+                // provider. Keep non-YouTube videos visible in the gallery.
+                "media"
+            },
             audioBitrate = audioBitrate,
             expectedBytes = expectedBytes.coerceAtLeast(0L),
         )

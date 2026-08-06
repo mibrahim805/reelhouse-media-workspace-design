@@ -90,6 +90,7 @@ import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.MediaInfo
 import com.reelhouse.downloader.ReelhouseApp
 import com.reelhouse.downloader.youtube.YouTubeViewModel
+import com.reelhouse.downloader.util.SourcePlatform
 import kotlinx.coroutines.delay
 
 private data class Destination(val route: String, val label: String, val icon: ImageVector)
@@ -459,6 +460,8 @@ private fun DetailsScreen(
         )
     }
     var confirming by remember { mutableStateOf(false) }
+    val youtubeVideo = SourcePlatform.isYouTube(media?.webpageUrl.orEmpty()) ||
+        media?.platform.equals("YouTube", ignoreCase = true)
 
     fun submit(choice: DownloadChoice) {
         onStart(
@@ -515,7 +518,7 @@ private fun DetailsScreen(
                 Text(media.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text("${media.displayUploader} · ${media.platform} · ${media.durationFormatted}")
             }
-            item {
+            if (youtubeVideo) item {
                 SectionTitle("Download type")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(selected = !audioOnly, onClick = {
@@ -528,8 +531,8 @@ private fun DetailsScreen(
                     }, label = { Text("Audio only") })
                 }
             }
-            item { SectionTitle(if (audioOnly) "Available audio qualities" else "Available video qualities") }
-            if (!audioOnly) {
+            if (youtubeVideo) item { SectionTitle(if (audioOnly) "Available audio qualities" else "Available video qualities") }
+            if (youtubeVideo && !audioOnly) {
                 item {
                     ChoiceRow(selected = height == null, label = "Best available", note = "Size determined by source") {
                         height = null
@@ -542,7 +545,7 @@ private fun DetailsScreen(
                         note = "${format.ext.uppercase()} · ${format.filesizeFormatted}",
                     ) { height = format.height }
                 }
-            } else {
+            } else if (youtubeVideo) {
                 item {
                     ChoiceRow(
                         selected = audioBitrate == null,
@@ -562,6 +565,12 @@ private fun DetailsScreen(
                     }
                 }
             }
+            if (!youtubeVideo) item {
+                Text(
+                    "Best available quality will be downloaded automatically for ${media.platform.ifBlank { "this platform" }}.",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             item {
                 SectionTitle("Output format")
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -578,7 +587,7 @@ private fun DetailsScreen(
                 Text("Filename preview", fontWeight = FontWeight.SemiBold)
                 Text(filenamePreview(media, outputFormat), color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    if (settings.directory == "media") {
+                    if (!youtubeVideo || settings.directory == "media") {
                         if (audioOnly) "Saved to Music/Reelhouse" else "Saved to Movies/Reelhouse"
                     } else "Saved to Downloads/Reelhouse",
                     style = MaterialTheme.typography.bodySmall,

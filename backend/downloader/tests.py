@@ -20,6 +20,7 @@ from .services import (
     normalize_youtube_url,
     platform_label,
     search_youtube_videos,
+    _video_payload,
     youtube_embed_url,
 )
 
@@ -230,6 +231,22 @@ class YoutubeUrlTests(SimpleTestCase):
             video['embed_url'],
             'https://www.youtube.com/embed/abc123',
         )
+
+    def test_non_youtube_video_does_not_expose_quality_options(self):
+        payload = _video_payload(
+            {
+                'title': 'TikTok clip',
+                'extractor_key': 'TikTok',
+                'formats': [
+                    {'height': 720, 'vcodec': 'h264', 'ext': 'mp4'},
+                    {'height': 1080, 'vcodec': 'h264', 'ext': 'mp4'},
+                ],
+            },
+            'https://www.tiktok.com/@creator/video/123',
+        )
+
+        self.assertEqual(payload['platform'], 'TikTok')
+        self.assertEqual(payload['qualities'], [])
 
 
 class YtDlpOptionsTests(SimpleTestCase):
