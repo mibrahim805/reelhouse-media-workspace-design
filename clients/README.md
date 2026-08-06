@@ -1,13 +1,14 @@
 # Reelhouse native clients
 
-Reelhouse has native wrappers for Windows and Ubuntu plus an independent native
-Android downloader.
+Reelhouse has native wrappers for Windows and Ubuntu, an independent native
+Android downloader, and a native Swift iPhone/iPad client.
 
 | Platform | Package | Completed files |
 | --- | --- | --- |
 | Windows | Electron installer or portable `.exe` | The user's `Downloads\\Reelhouse` folder |
 | Ubuntu | Electron `.AppImage` or `.deb` | The user's `Downloads/Reelhouse` folder |
 | Android | Native Kotlin `.apk` | `Download/Reelhouse` on Android 10+ |
+| iPhone / iPad | Native Swift app | `Files > On My iPhone/iPad > Reelhouse` |
 
 The desktop clients connect directly to the production Railway deployment:
 
@@ -17,6 +18,12 @@ https://reelhouse-media-workspace-design-production.up.railway.app
 
 The Android app does not use Railway for extraction or downloads. It runs
 yt-dlp and FFmpeg locally on the phone.
+
+The Windows and Linux Electron clients load the same production frontend as the
+website, so YouTube-only quality selection and automatic best-available quality
+for TikTok, Instagram, Facebook, and other sources are shared across desktop
+and browser clients. The iOS app uses a native WKWebView and saves completed
+downloads into its Files-visible app folder.
 
 ## Configure the server
 

@@ -172,7 +172,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val media = loadInfo(url, requestId)
             return 200 to buildJsonObject {
                 put("ok", true)
-                put("video", mediaJson(media, url, includeQualities = true))
+                put("video", mediaJson(media, url, includeQualities = false))
             }
         }
 
@@ -199,7 +199,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val media = loadInfo(url, requestId)
             return 200 to buildJsonObject {
                 put("ok", true)
-                put("video", mediaJson(media, url, includeQualities = true))
+                put("video", mediaJson(media, url, includeQualities = false))
             }
         }
         Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
@@ -411,7 +411,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
 
     private suspend fun startDownload(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
-        val quality = validatedQuality(body.string("quality"))
+        val requestedQuality = validatedQuality(body.string("quality"))
+        // Non-YouTube sources do not expose a reliable user-selectable
+        // quality list. Always let yt-dlp choose the best available stream.
+        val quality = if (SourcePlatform.isYouTube(url)) requestedQuality else "best"
         val operationId = body.string("operationId").ifBlank { "select-${UUID.randomUUID().toString().take(8)}" }
         val key = stableInfoKey(url)
         Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_BUTTON_CLICKED key=$key")
@@ -608,7 +611,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             isAudioOnly = audioOnly,
             mergeFormat = outputFormatFor(audioOnly),
             qualityLabel = if (audioOnly) "Audio only" else height?.let { "Up to ${it}p" } ?: "Best available",
-            destination = "downloads",
+            // Put WebView/automatic video downloads in MediaStore.Video so
+            // gallery apps index them. Downloads collection entries are not
+            // consistently surfaced by gallery apps (notably TikTok).
+            destination = "media",
             expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
         )
         knownJobs += jobId

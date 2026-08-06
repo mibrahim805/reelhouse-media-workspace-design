@@ -287,9 +287,10 @@ def get_video_info(url):
 
 def _video_payload(info, cleaned_url):
     can_embed = is_youtube_url(cleaned_url)
-    qualities = _quality_options(info)
-    if not qualities:
-        qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
+    # Only YouTube has an explicit quality picker. Other extractors often
+    # expose stale/partial format heights (TikTok in particular), so those
+    # downloads must use yt-dlp's best available format instead.
+    qualities = _quality_options(info) if can_embed else []
     return {
         'source_url': cleaned_url,
         'title': info.get('title') or 'Untitled video',
@@ -372,6 +373,8 @@ def download_video(url, quality='best', progress_hook=None):
     media_root.mkdir(parents=True, exist_ok=True)
 
     cleaned_url = normalize_video_url(url)
+    if not is_youtube_url(cleaned_url):
+        quality = 'best'
     options = {
         **_base_ydl_options(),
         'format': _download_format(quality),

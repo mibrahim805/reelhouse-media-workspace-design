@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-type PlatformId = 'windows' | 'linux' | 'android'
+type PlatformId = 'windows' | 'linux' | 'android' | 'ios'
 
 type DownloadAsset = {
   filename: string
@@ -24,10 +24,7 @@ type DownloadAsset = {
 }
 
 type DownloadManifest = {
-  platforms: Record<
-    PlatformId,
-    { available: boolean; assets: DownloadAsset[] }
-  >
+  platforms: Partial<Record<PlatformId, { available: boolean; assets: DownloadAsset[] }>>
 }
 
 const PLATFORM_DETAILS = {
@@ -46,6 +43,11 @@ const PLATFORM_DETAILS = {
     note: 'Android 7 or newer',
     Icon: Smartphone,
   },
+  ios: {
+    label: 'iPhone / iPad',
+    note: 'Native app via TestFlight or App Store',
+    Icon: Smartphone,
+  },
 } as const
 
 function formatBytes(value: number | null) {
@@ -56,6 +58,9 @@ function formatBytes(value: number | null) {
 }
 
 function installInstruction(platform: PlatformId, format: string) {
+  if (platform === 'ios') {
+    return 'Install the signed Reelhouse build from TestFlight or the App Store.'
+  }
   if (platform === 'windows' && format === 'zip') {
     return 'When the ZIP finishes, select Extract all, open the extracted folder, and double-click Reelhouse.exe.'
   }
@@ -74,6 +79,7 @@ function installInstruction(platform: PlatformId, format: string) {
 function detectedPlatform(): PlatformId | null {
   const userAgent = navigator.userAgent.toLowerCase()
   if (userAgent.includes('android')) return 'android'
+  if (userAgent.includes('iphone') || userAgent.includes('ipad') || userAgent.includes('ipod')) return 'ios'
   if (userAgent.includes('windows')) return 'windows'
   if (userAgent.includes('linux') || userAgent.includes('x11')) return 'linux'
   return null
@@ -82,7 +88,11 @@ function detectedPlatform(): PlatformId | null {
 function isInstalledApp() {
   return (
     'reelhouseDesktop' in window ||
-    navigator.userAgent.toLowerCase().includes('reelhouseandroid/')
+    navigator.userAgent.toLowerCase().includes('reelhouseandroid/') ||
+    navigator.userAgent.toLowerCase().includes('reelhouseios/') ||
+    window.matchMedia('(display-mode: standalone)').matches ||
+    // Safari exposes this non-standard flag for Home Screen web apps.
+    Boolean((navigator as Navigator & { standalone?: boolean }).standalone)
   )
 }
 
@@ -271,7 +281,11 @@ export function AppDownloadButton() {
                           </div>
                         </div>
 
-                        {platformPackages.available ? (
+                        {platform === 'ios' ? (
+                          <p className="mt-3 rounded-lg bg-primary/10 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                            The native iOS project is included in clients/ios. A signed build must be distributed through TestFlight or the App Store.
+                          </p>
+                        ) : platformPackages?.available ? (
                           <div className="mt-3 flex flex-wrap gap-2">
                             {platformPackages.assets.map((asset) => (
                               <button
