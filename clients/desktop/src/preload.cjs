@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('reelhouseDesktop', {
   openDownloads: () => ipcRenderer.invoke('reelhouse:open-downloads'),
   openSettings: () => ipcRenderer.invoke('reelhouse:settings'),
   retry: () => ipcRenderer.invoke('reelhouse:retry'),
+  navigateBack: () => ipcRenderer.invoke('reelhouse:navigate-back'),
+  navigateForward: () => ipcRenderer.invoke('reelhouse:navigate-forward'),
+  localDownload: (input) => ipcRenderer.invoke('reelhouse:local-download', input),
   setServerUrl: (value) =>
     ipcRenderer.invoke('reelhouse:set-server-url', value),
 })

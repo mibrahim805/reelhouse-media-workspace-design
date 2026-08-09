@@ -39,6 +39,21 @@ export type DownloadItem = {
   error?: string
 }
 
+type DesktopDownloadState = {
+  state: 'progress' | 'completed' | 'error'
+  id: string
+  progress?: number
+  path?: string
+  error?: string
+}
+
+function desktopApi() {
+  return (window as Window & { reelhouseDesktop?: {
+    localDownload: (input: { id: string; url: string; quality: string }) => Promise<{ ok: boolean }>
+    onDownloadState: (listener: (state: DesktopDownloadState) => void) => () => void
+  } }).reelhouseDesktop
+}
+
 type StartInput = {
   title: string
   channel: string
@@ -82,6 +97,19 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
   const pollFailures = useRef<Map<string, number>>(new Map())
   const deviceDownloadsStarted = useRef<Set<string>>(new Set())
   const restoredActiveJobs = useRef<Array<{ id: string; jobId: string }>>([])
+
+  useEffect(() => {
+    const api = desktopApi()
+    if (!api) return
+    return api.onDownloadState((event) => {
+      setDownloads((prev) => prev.map((item) => {
+        if (item.id !== event.id) return item
+        if (event.state === 'progress') return { ...item, status: 'downloading', progress: event.progress ?? item.progress }
+        if (event.state === 'completed') return { ...item, status: 'completed', progress: 100, filename: event.path?.split('/').pop() }
+        return { ...item, status: 'failed', error: event.error || 'Local download failed.' }
+      }))
+    })
+  }, [])
 
   useEffect(() => {
     try {
@@ -246,6 +274,12 @@ export function DownloadProvider({ children }: { children: React.ReactNode }) {
       setPanelOpen(true)
 
       try {
+        const desktop = desktopApi()
+        if (desktop) {
+          await desktop.localDownload({ id, url: input.sourceUrl, quality: input.qualityValue })
+          setDownloads((prev) => prev.map((download) => download.id === id ? { ...download, status: 'downloading', progress: 1 } : download))
+          return
+        }
         const jobId = await startBackendDownload(
           input.sourceUrl,
           input.qualityValue,

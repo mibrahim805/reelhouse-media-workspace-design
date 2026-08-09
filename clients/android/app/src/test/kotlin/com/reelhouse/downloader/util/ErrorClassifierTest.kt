@@ -8,8 +8,13 @@ class ErrorClassifierTest {
         assertEquals(ErrorClassifier.ErrorType.FORBIDDEN, ErrorClassifier.classify("HTTP Error 403: Forbidden"))
         assertEquals(ErrorClassifier.ErrorType.RATE_LIMITED, ErrorClassifier.classify("HTTP Error 429: Too Many Requests"))
         assertEquals(ErrorClassifier.ErrorType.AUTH_REQUIRED, ErrorClassifier.classify("Sign in to confirm your age"))
+        assertEquals(ErrorClassifier.ErrorType.AGE_RESTRICTED, ErrorClassifier.classify("This video is age-restricted"))
         assertEquals(ErrorClassifier.ErrorType.FFMPEG_FAILED, ErrorClassifier.classify("ffmpeg merge failed"))
         assertEquals(ErrorClassifier.ErrorType.STORAGE_FAILED, ErrorClassifier.classify("MediaStore file could not be published"))
+        assertEquals(
+            ErrorClassifier.ErrorType.NETWORK_ERROR,
+            ErrorClassifier.classify("Unable to download webpage: timed out"),
+        )
         assertEquals(
             ErrorClassifier.ErrorType.SOURCE_UNAVAILABLE,
             ErrorClassifier.classify("This video is unavailable. Error code: 152 - 18 Watch video on YouTube"),

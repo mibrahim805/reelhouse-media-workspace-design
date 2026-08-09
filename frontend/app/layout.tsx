@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { DownloadProvider } from '@/components/download-store'
 import { AppShell } from '@/components/app-shell'
+import { ServiceWorkerRegistration } from '@/components/service-worker-registration'
 import './globals.css'
 
 export const metadata: Metadata = {
@@ -9,11 +10,20 @@ export const metadata: Metadata = {
   description:
     'Search, watch, and download videos in one focused media workspace. YouTube workspace, direct link downloader, and a persistent download manager.',
   generator: 'v0.app',
+  icons: {
+    apple: '/apple-icon.png',
+  },
+  appleWebApp: {
+    capable: true,
+    title: 'Reelhouse',
+    statusBarStyle: 'black-translucent',
+  },
 }
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
   themeColor: '#2b2b30',
+  viewportFit: 'cover',
 }
 
 export default function RootLayout({
@@ -27,6 +37,7 @@ export default function RootLayout({
         <DownloadProvider>
           <AppShell>{children}</AppShell>
         </DownloadProvider>
+        <ServiceWorkerRegistration />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

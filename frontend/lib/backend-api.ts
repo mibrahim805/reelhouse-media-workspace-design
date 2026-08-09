@@ -30,6 +30,23 @@ export type QualityOption = {
   size: string
 }
 
+export const FALLBACK_YOUTUBE_QUALITIES: QualityOption[] = [
+  ...[1080, 720, 480, 360, 240, 144].map((height) => ({
+    value: String(height),
+    label: `Up to ${height}p`,
+    note: 'MP4 video',
+    size: 'Estimated size',
+  })),
+  { value: 'best', label: 'Best available', note: 'Automatic quality', size: 'Estimated size' },
+  { value: 'audio', label: 'Audio only', note: 'Best available audio', size: 'Estimated size' },
+]
+
+/** Handles share text such as "Watch this… https://vm.tiktok.com/…". */
+export function extractHttpUrl(value: string) {
+  const match = value.trim().match(/https?:\/\/[^\s<>"']+/i)
+  return match?.[0].replace(/[.,;!\)\]\}]+$/, '') ?? ''
+}
+
 export type MediaVideo = {
   id: string
   title: string
@@ -235,8 +252,14 @@ function normalizeVideo(raw: RawVideo, category?: string): MediaVideo {
   const sourceUrl = raw.source_url || raw.webpage_url || ''
   const id = raw.id || videoIdFromUrl(sourceUrl) || sourceUrl
   const channel = raw.channel || 'Unknown channel'
-  const platform = raw.platform || platformFromUrl(sourceUrl)
-  const qualities = raw.qualities?.map(normalizeQuality)
+  const detectedPlatform = raw.platform || platformFromUrl(sourceUrl)
+  const platform = detectedPlatform.toLowerCase() === 'youtube' ? 'YouTube' : detectedPlatform
+  const parsedQualities = raw.qualities?.map(normalizeQuality) ?? []
+  const qualities = parsedQualities.length
+    ? parsedQualities
+    : platform.toLowerCase() === 'youtube'
+      ? FALLBACK_YOUTUBE_QUALITIES
+      : undefined
 
   return {
     id,
@@ -249,7 +272,7 @@ function normalizeVideo(raw: RawVideo, category?: string): MediaVideo {
     platform,
     category,
     description: sourceUrl,
-    qualities: qualities?.length ? qualities : undefined,
+    qualities,
     embedUrl: raw.embed_url || '',
     canEmbed: raw.can_embed,
   }

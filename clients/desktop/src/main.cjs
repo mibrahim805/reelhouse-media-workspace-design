@@ -9,6 +9,7 @@ const {
 } = require('electron')
 const fs = require('node:fs')
 const path = require('node:path')
+const { spawn } = require('node:child_process')
 
 const DEFAULT_SERVER_URL =
   process.env.REELHOUSE_SERVER_URL ||
@@ -156,6 +157,37 @@ function sendDownloadState(payload) {
   }
 }
 
+function startLocalDownload({ id, url, quality }) {
+  const directory = downloadsDirectory()
+  fs.mkdirSync(directory, { recursive: true })
+  const height = Number.parseInt(String(quality || ''), 10)
+  const format = Number.isFinite(height)
+    ? `bestvideo[height<=${height}]+bestaudio/best[height<=${height}]/best`
+    : 'bestvideo+bestaudio/best'
+  const output = path.join(directory, '%(title)s.%(ext)s')
+  const child = spawn('yt-dlp', [
+    '--no-playlist', '--newline', '--restrict-filenames', '--merge-output-format', 'mp4',
+    '-f', format, '-o', output, url,
+  ])
+  let lastPath = ''
+  child.stdout.on('data', (chunk) => {
+    const text = String(chunk)
+    const progress = text.match(/(\d+(?:\.\d+)?)%/)
+    const destination = text.match(/Destination:\s+(.+)$/m)
+    if (destination) lastPath = destination[1].trim()
+    sendDownloadState({ state: 'progress', id, progress: progress ? Number(progress[1]) : 0 })
+  })
+  child.stderr.on('data', (chunk) => {
+    const progress = String(chunk).match(/(\d+(?:\.\d+)?)%/)
+    if (progress) sendDownloadState({ state: 'progress', id, progress: Number(progress[1]) })
+  })
+  child.on('error', (error) => sendDownloadState({ state: 'error', id, error: error.message }))
+  child.on('close', (code) => {
+    if (code === 0) sendDownloadState({ state: 'completed', id, path: lastPath })
+    else sendDownloadState({ state: 'error', id, error: 'Local download failed. Check that yt-dlp and ffmpeg are installed.' })
+  })
+}
+
 function configureNativeDownloads() {
   session.defaultSession.on('will-download', (event, item) => {
     if (!isMediaDownload(item)) {
@@ -239,6 +271,9 @@ function createMenu() {
     {
       label: 'View',
       submenu: [
+        { label: 'Back', accelerator: 'Alt+Left', click: () => mainWindow?.webContents.goBack() },
+        { label: 'Forward', accelerator: 'Alt+Right', click: () => mainWindow?.webContents.goForward() },
+        { type: 'separator' },
         { role: 'reload' },
         { role: 'forceReload' },
         { type: 'separator' },
@@ -321,6 +356,16 @@ ipcMain.handle('reelhouse:set-server-url', async (_event, value) => {
 
 ipcMain.handle('reelhouse:open-downloads', () => openDownloadsDirectory())
 ipcMain.handle('reelhouse:retry', () => loadReelhouse())
+ipcMain.handle('reelhouse:navigate-back', () => {
+  if (mainWindow?.webContents.canGoBack()) mainWindow.webContents.goBack()
+})
+ipcMain.handle('reelhouse:navigate-forward', () => {
+  if (mainWindow?.webContents.canGoForward()) mainWindow.webContents.goForward()
+})
+ipcMain.handle('reelhouse:local-download', (_event, input) => {
+  startLocalDownload(input)
+  return { ok: true }
+})
 ipcMain.handle('reelhouse:settings', () => loadSettings())
 
 const hasLock = app.requestSingleInstanceLock()

@@ -17,6 +17,8 @@ import java.net.UnknownHostException
  */
 object UrlValidator {
 
+    private val HTTP_URL = Regex("""(?i)https?://[^\s<>\"']+""")
+
     private val BLOCKED_SCHEMES = setOf("file", "content", "javascript", "data")
 
     private val BLOCKED_HOSTS = setOf(
@@ -31,6 +33,12 @@ object UrlValidator {
         data class Valid(val url: String) : ValidationResult()
         data class Invalid(val reason: String) : ValidationResult()
     }
+
+    /** Extracts the first web URL from text shared by apps such as TikTok and Facebook. */
+    fun extractHttpUrl(rawText: String): String? = HTTP_URL.find(rawText.trim())
+        ?.value
+        ?.trimEnd('.', ',', ';', '!', ')', ']', '}')
+        ?.takeIf(String::isNotBlank)
 
     fun validate(rawUrl: String, allowHttp: Boolean = false): ValidationResult {
         val syntax = validateSyntax(rawUrl, allowHttp)
@@ -54,11 +62,13 @@ object UrlValidator {
 
     /** Performs non-blocking structural checks. DNS-based checks are done by [validate] on an IO thread. */
     fun validateSyntax(rawUrl: String, allowHttp: Boolean = false): ValidationResult {
-        val trimmed = rawUrl.trim()
+        val rawTrimmed = rawUrl.trim()
 
-        if (trimmed.isBlank()) {
+        if (rawTrimmed.isBlank()) {
             return ValidationResult.Invalid("URL cannot be empty")
         }
+
+        val trimmed = extractHttpUrl(rawTrimmed) ?: rawTrimmed
 
         // Check for blocked scheme prefixes before parsing
         val lowerUrl = trimmed.lowercase()

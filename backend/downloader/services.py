@@ -1,5 +1,6 @@
 from hashlib import sha256
 import logging
+import re
 from time import perf_counter, sleep
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
@@ -19,6 +20,16 @@ class DownloadError(Exception):
 _info_cache_timeout = 10 * 60
 _search_cache_timeout = 5 * 60
 _info_lock_timeout = 90
+_shared_url_pattern = re.compile(r"https?://[^\s<>\"']+", re.IGNORECASE)
+
+
+def extract_shared_url(value):
+    """Return a URL from plain links or social-app share text."""
+    text = str(value or '').strip()
+    match = _shared_url_pattern.search(text)
+    if not match:
+        return text
+    return match.group(0).rstrip('.,;!)]}')
 
 
 def _info_cache_key(url):
@@ -143,6 +154,7 @@ def is_youtube_url(url):
 
 
 def normalize_video_url(url):
+    url = extract_shared_url(url)
     if is_youtube_url(url):
         return normalize_youtube_url(url)
     return url.strip()
@@ -221,6 +233,36 @@ def _quality_options(info):
     return qualities[:8]
 
 
+def _fallback_youtube_qualities():
+    qualities = [
+        {
+            'value': str(height),
+            'label': f'Up to {height}p',
+            'extension': 'mp4',
+            'filesize': None,
+            'filesize_label': 'Estimated size',
+        }
+        for height in (1080, 720, 480, 360, 240, 144)
+    ]
+    qualities.extend([
+        {
+            'value': 'best',
+            'label': 'Best available',
+            'extension': 'mp4',
+            'filesize': None,
+            'filesize_label': 'Estimated size',
+        },
+        {
+            'value': 'audio',
+            'label': 'Audio only',
+            'extension': 'mp3',
+            'filesize': None,
+            'filesize_label': 'Estimated size',
+        },
+    ])
+    return qualities
+
+
 def get_video_info(url):
     cleaned_url = normalize_video_url(url)
     started = perf_counter()
@@ -287,9 +329,12 @@ def get_video_info(url):
 
 def _video_payload(info, cleaned_url):
     can_embed = is_youtube_url(cleaned_url)
-    qualities = _quality_options(info)
-    if not qualities:
-        qualities = [{'value': 'best', 'label': 'Best available', 'extension': 'mp4', 'filesize_label': 'Unknown size'}]
+    # Only YouTube has an explicit quality picker. Other extractors often
+    # expose stale/partial format heights (TikTok in particular), so those
+    # downloads must use yt-dlp's best available format instead.
+    qualities = _quality_options(info) if can_embed else []
+    if can_embed and not qualities:
+        qualities = _fallback_youtube_qualities()
     return {
         'source_url': cleaned_url,
         'title': info.get('title') or 'Untitled video',
@@ -372,6 +417,8 @@ def download_video(url, quality='best', progress_hook=None):
     media_root.mkdir(parents=True, exist_ok=True)
 
     cleaned_url = normalize_video_url(url)
+    if not is_youtube_url(cleaned_url):
+        quality = 'best'
     options = {
         **_base_ydl_options(),
         'format': _download_format(quality),

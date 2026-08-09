@@ -18,6 +18,7 @@ import {
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
 import {
+  extractHttpUrl,
   fetchVideoInfo,
   type MediaVideo,
   type QualityOption,
@@ -58,7 +59,10 @@ export function DownloaderView() {
   const { startDownload, downloads, setPanelOpen } = useDownloads()
 
   const [platform, setPlatform] = useState('auto')
-  const [url, setUrl] = useState(() => params.get('url') ?? '')
+  const [url, setUrl] = useState(() => {
+    const initial = params.get('url') ?? ''
+    return extractHttpUrl(initial) || initial
+  })
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
     'idle',
   )
@@ -69,7 +73,8 @@ export function DownloaderView() {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   async function fetchPreview() {
-    if (!isValidUrl(url)) {
+    const cleanUrl = extractHttpUrl(url)
+    if (!isValidUrl(cleanUrl)) {
       setStatus('error')
       setPreview(null)
       setError('Enter a valid URL starting with http:// or https://')
@@ -80,15 +85,14 @@ export function DownloaderView() {
     setPreview(null)
     setError('')
     setSuccess('')
+    setUrl(cleanUrl)
 
     try {
-      const video = await fetchVideoInfo(url)
+      const video = await fetchVideoInfo(cleanUrl)
       const qualities = video.qualities ?? []
-      if (qualities.length === 0) {
-        throw new Error('The backend did not return any download qualities.')
-      }
-      const preferred =
-        qualities.find((option) => option.value === '1080') ?? qualities[0]
+      const preferred = video.platform === 'YouTube'
+        ? qualities.find((option) => option.value === '1080') ?? qualities[0]
+        : { value: 'best', label: 'Best available', note: 'Source selected', size: 'Automatic' }
 
       setPreview({ video, qualities })
       setQuality(preferred.value)
@@ -106,7 +110,7 @@ export function DownloaderView() {
     try {
       const text = await navigator.clipboard.readText()
       if (text) {
-        setUrl(text)
+        setUrl(extractHttpUrl(text) || text.trim())
         setSuccess('')
       }
     } catch {
@@ -305,50 +309,42 @@ export function DownloaderView() {
                   </div>
                 </div>
 
-                {/* Quality pills */}
-                <div>
-                  <p className="mb-1.5 text-xs font-medium text-muted-foreground">
-                    Quality
-                  </p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {preview.qualities.map((q) => (
-                      <button
-                        key={q.value}
-                        onClick={() => setQuality(q.value)}
-                        className={cn(
+                {preview.video.platform === 'YouTube' ? (
+                  <div>
+                    <p className="mb-1.5 text-xs font-medium text-muted-foreground">Quality</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {preview.qualities.map((q) => (
+                        <button key={q.value} onClick={() => setQuality(q.value)} className={cn(
                           'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                          quality === q.value
-                            ? 'border-primary/60 bg-primary/10 text-primary'
-                            : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
-                        )}
-                      >
-                        {q.label}
-                        <span className="ml-1 text-[10px] opacity-70">
-                          {q.size}
-                        </span>
-                      </button>
-                    ))}
+                          quality === q.value ? 'border-primary/60 bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
+                        )}>
+                          {q.label}<span className="ml-1 text-[10px] opacity-70">{q.size}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                    Best available quality will be downloaded automatically.
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => {
-                      const q =
-                        preview.qualities.find((x) => x.value === quality) ??
-                        preview.qualities[0]
+                      const q = preview.video.platform === 'YouTube'
+                        ? preview.qualities.find((x) => x.value === quality) ?? preview.qualities[0]
+                        : { value: 'best', label: 'Best available', note: 'Source selected', size: 'Automatic' }
                       if (q) confirmDownload(q)
                     }}
                     className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <Download className="size-4" /> Start download
                   </button>
-                  <button
+                  {preview.video.platform === 'YouTube' && <button
                     onClick={() => setDialogOpen(true)}
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
-                  >
-                    More options
-                  </button>
+                  >More options</button>}
                 </div>
               </div>
             )}

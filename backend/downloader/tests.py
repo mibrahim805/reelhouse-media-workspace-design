@@ -15,11 +15,13 @@ from .services import (
     _cached_video_info,
     _download_format,
     download_video,
+    extract_shared_url,
     get_video_info,
     normalize_video_url,
     normalize_youtube_url,
     platform_label,
     search_youtube_videos,
+    _video_payload,
     youtube_embed_url,
 )
 
@@ -110,6 +112,18 @@ class DownloadPageTests(SimpleTestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a valid video URL.'})
 
+    @patch('downloader.views.get_video_info')
+    def test_fetch_info_accepts_social_share_text(self, mocked_info):
+        mocked_info.return_value = {'title': 'Shared clip', 'platform': 'TikTok', 'qualities': []}
+
+        response = self.client.post(
+            reverse('fetch_info'),
+            {'url': 'Watch this https://vm.tiktok.com/ZMexample/ Shared via TikTok'},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        mocked_info.assert_called_once_with('https://vm.tiktok.com/ZMexample/')
+
     @patch('downloader.views.start_download_job')
     def test_start_download_returns_job_id(self, mocked_start):
         mocked_start.return_value = 'job-123'
@@ -154,6 +168,12 @@ class DownloadPageTests(SimpleTestCase):
 
 
 class YoutubeUrlTests(SimpleTestCase):
+    def test_extracts_link_from_social_share_text(self):
+        self.assertEqual(
+            extract_shared_url('Watch now https://fb.watch/example/. Shared from Facebook'),
+            'https://fb.watch/example/',
+        )
+
     @patch('downloader.services.yt_dlp.YoutubeDL')
     def test_video_info_cache_hit_avoids_second_extraction(self, mocked_youtube_dl):
         cache.clear()
@@ -230,6 +250,24 @@ class YoutubeUrlTests(SimpleTestCase):
             video['embed_url'],
             'https://www.youtube.com/embed/abc123',
         )
+        self.assertTrue(video['qualities'])
+        self.assertEqual(video['qualities'][0]['value'], '1080')
+
+    def test_non_youtube_video_does_not_expose_quality_options(self):
+        payload = _video_payload(
+            {
+                'title': 'TikTok clip',
+                'extractor_key': 'TikTok',
+                'formats': [
+                    {'height': 720, 'vcodec': 'h264', 'ext': 'mp4'},
+                    {'height': 1080, 'vcodec': 'h264', 'ext': 'mp4'},
+                ],
+            },
+            'https://www.tiktok.com/@creator/video/123',
+        )
+
+        self.assertEqual(payload['platform'], 'TikTok')
+        self.assertEqual(payload['qualities'], [])
 
 
 class YtDlpOptionsTests(SimpleTestCase):

@@ -29,6 +29,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
+import com.reelhouse.downloader.util.UrlValidator
 import java.io.ByteArrayInputStream
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
@@ -232,8 +233,10 @@ class MainActivity : ComponentActivity() {
             ?: webBaseUrl
 
     private fun sharedText(intent: Intent?): String? =
-        if (intent?.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            intent.getStringExtra(Intent.EXTRA_TEXT)?.trim()?.takeIf(String::isNotBlank)
+        if (intent?.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+            intent.getCharSequenceExtra(Intent.EXTRA_TEXT)
+                ?.toString()
+                ?.let(UrlValidator::extractHttpUrl)
         } else {
             null
         }

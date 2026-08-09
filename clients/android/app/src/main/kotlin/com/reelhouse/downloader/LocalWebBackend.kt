@@ -10,6 +10,7 @@ import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.FormatSelector
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
+import com.reelhouse.downloader.util.ErrorClassifier
 import com.reelhouse.downloader.util.SourcePlatform
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
@@ -145,6 +146,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         if ("empty media response" in lower || "instagram" in lower && "cookies" in lower) {
             return "Instagram did not provide this post to the downloader. The app tried to update its download engine automatically; the post must be public and accessible without an Instagram login."
         }
+        if (ErrorClassifier.classify(error) == ErrorClassifier.ErrorType.NETWORK_ERROR) {
+            return "The website took too long to respond. Check your connection and try again."
+        }
         return message.ifBlank { "The local Android backend failed." }
     }
 
@@ -169,9 +173,23 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         // that the unchanged local yt-dlp download flow will download.
         if (!SourcePlatform.isYouTube(url)) {
             Log.i(TAG, "backend=$backendInstanceId operation=$requestId info_source=local_ytdlp source=${SourcePlatform.label(url)}")
-            val media = loadInfo(url, requestId)
+            val media = try {
+                loadInfo(url, requestId)
+            } catch (error: Exception) {
+                // A preview is helpful but not required to download. Shared
+                // links can still be handed directly to yt-dlp when their
+                // source blocks a metadata-only request.
+                Log.w(
+                    TAG,
+                    "backend=$backendInstanceId operation=$requestId info_source=fallback source=${SourcePlatform.label(url)} reason=${error.message}",
+                )
+                fallbackMediaInfo(url)
+            }
             return 200 to buildJsonObject {
                 put("ok", true)
+                // The production frontend currently expects at least one
+                // quality for every fetched link. Non-YouTube sources expose
+                // a single safe "best available" option.
                 put("video", mediaJson(media, url, includeQualities = true))
             }
         }
@@ -199,7 +217,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             val media = loadInfo(url, requestId)
             return 200 to buildJsonObject {
                 put("ok", true)
-                put("video", mediaJson(media, url, includeQualities = true))
+                put("video", mediaJson(media, url, includeQualities = false))
             }
         }
         Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
@@ -391,27 +409,44 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_READY key=$key durationMs=${elapsed(started)}")
                 startPendingDownloadIfReady(key, operationId)
             } catch (error: Throwable) {
-                val pendingJob = synchronized(preparationStates) {
+                val shouldStartWithoutMetadata = synchronized(preparationStates) {
                     val current = preparationStates[key] ?: VideoPreparation(key, url)
-                    preparationStates[key] = current.copy(
-                        status = PreparationStatus.FAILED,
-                        error = error.message ?: "Video preparation failed.",
-                        completedAt = System.currentTimeMillis(),
+                    if (current.pendingJobId != null && current.pendingQuality != null) {
+                        preparationStates[key] = current.copy(
+                            status = PreparationStatus.READY,
+                            media = fallbackMediaInfo(url),
+                            error = null,
+                            completedAt = System.currentTimeMillis(),
+                        )
+                        true
+                    } else {
+                        preparationStates[key] = current.copy(
+                            status = PreparationStatus.FAILED,
+                            error = error.message ?: "Video preparation failed.",
+                            completedAt = System.currentTimeMillis(),
+                        )
+                        false
+                    }
+                }
+                if (shouldStartWithoutMetadata) {
+                    Log.w(
+                        TAG,
+                        "backend=$backendInstanceId operation=$operationId event=PREPARATION_BYPASSED key=$key reason=${error.message}",
                     )
-                    current.pendingJobId
+                    startPendingDownloadIfReady(key, operationId)
+                } else {
+                    Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key durationMs=${elapsed(started)}", error)
                 }
-                pendingJob?.let { jobId ->
-                    val quality = preparationStates[key]?.pendingQuality.orEmpty()
-                    preparingJobs[jobId] = PreparingJob(url, quality, error.message ?: "Video preparation failed.")
-                }
-                Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key durationMs=${elapsed(started)}", error)
             }
         }
     }
 
     private suspend fun startDownload(body: JsonObject): Pair<Int, JsonObject> {
         val url = validatedUrl(body.string("url"))
-        val quality = validatedQuality(body.string("quality"))
+        val requestedQuality = validatedQuality(body.string("quality"))
+        // Non-YouTube sources do not expose a reliable user-selectable
+        // quality list. Always let yt-dlp choose the best available stream.
+        val quality = if (SourcePlatform.isYouTube(url)) requestedQuality else "best"
         val operationId = body.string("operationId").ifBlank { "select-${UUID.randomUUID().toString().take(8)}" }
         val key = stableInfoKey(url)
         Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_BUTTON_CLICKED key=$key")
@@ -608,7 +643,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             isAudioOnly = audioOnly,
             mergeFormat = outputFormatFor(audioOnly),
             qualityLabel = if (audioOnly) "Audio only" else height?.let { "Up to ${it}p" } ?: "Best available",
-            destination = "downloads",
+            // Put WebView/automatic video downloads in MediaStore.Video so
+            // gallery apps index them. Downloads collection entries are not
+            // consistently surfaced by gallery apps (notably TikTok).
+            destination = "media",
             expectedBytes = selectedFormat?.effectiveFilesize ?: 0L,
         )
         knownJobs += jobId
@@ -836,10 +874,25 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     Log.d(TAG, "operation=$operationId key=$key extraction=start")
                     try {
                         val media = withContext(Dispatchers.IO) {
-                            runCatching { extractor.extractInfoFast(url) }
-                                .getOrNull()
-                                ?.takeIf { it.formats.any { format -> format.hasVideo && format.height > 0 } }
-                                ?: extractor.extractInfo(url)
+                            // The fast manifest path is YouTube-specific. Running it
+                            // for Instagram, TikTok, Facebook, and generic links made
+                            // a failed request run twice before surfacing its error.
+                            if (!SourcePlatform.isYouTube(url)) {
+                                extractor.extractInfo(url)
+                            } else {
+                                try {
+                                    extractor.extractInfoFast(url)
+                                        .takeIf { it.formats.any { format -> format.hasVideo && format.height > 0 } }
+                                } catch (error: Exception) {
+                                    // A second request cannot repair a network timeout;
+                                    // return it immediately instead of making the user wait
+                                    // through another socket timeout.
+                                    if (ErrorClassifier.classify(error) == ErrorClassifier.ErrorType.NETWORK_ERROR) {
+                                        throw error
+                                    }
+                                    null
+                                } ?: extractor.extractInfo(url)
+                            }
                         }
                         infoCache[key] = CachedInfo(System.currentTimeMillis(), media)
                         Log.d(TAG, "backend=$backendInstanceId operation=$operationId INFO_CACHE_STORE key=$key expiresInMs=$INFO_CACHE_TTL_MS")
@@ -877,6 +930,20 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val path = parsed.encodedPath.orEmpty()
         val query = parsed.encodedQuery?.let { "?$it" }.orEmpty()
         return "url:$scheme://$authority$path$query"
+    }
+
+    private fun fallbackMediaInfo(url: String): MediaInfo {
+        val platform = SourcePlatform.label(url)
+        val sourceId = YouTubeUrls.videoId(url)
+            ?: Uri.parse(url).lastPathSegment?.take(80)
+            ?: "shared-video"
+        return MediaInfo(
+            id = sourceId,
+            title = "$platform video",
+            uploader = platform,
+            platform = platform,
+            webpageUrl = url,
+        )
     }
 
     private fun elapsed(started: Long): Long = SystemClock.elapsedRealtime() - started

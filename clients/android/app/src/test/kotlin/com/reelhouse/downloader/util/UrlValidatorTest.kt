@@ -1,11 +1,27 @@
 package com.reelhouse.downloader.util
 
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class UrlValidatorTest {
     @Test fun acceptsPublicHttpsUrl() {
         assertTrue(UrlValidator.validateSyntax("https://example.com/video") is UrlValidator.ValidationResult.Valid)
+    }
+
+    @Test fun extractsUrlFromSharedAppText() {
+        val shared = "Watch this clip on TikTok https://vm.tiktok.com/ZMexample/ Enjoy!"
+
+        assertEquals(
+            "https://vm.tiktok.com/ZMexample/",
+            UrlValidator.extractHttpUrl(shared),
+        )
+        val validated = UrlValidator.validateSyntax(shared)
+        assertTrue(validated is UrlValidator.ValidationResult.Valid)
+        assertEquals(
+            "https://vm.tiktok.com/ZMexample/",
+            (validated as UrlValidator.ValidationResult.Valid).url,
+        )
     }
 
     @Test fun rejectsDangerousSchemesAndCredentials() {

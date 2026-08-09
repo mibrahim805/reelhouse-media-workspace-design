@@ -299,7 +299,7 @@ export function DownloaderView() {
                 </div>
 
                 {/* Quality pills */}
-                <div>
+                {preview.source === 'YouTube' ? <div>
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                     Quality
                   </p>
@@ -322,24 +322,28 @@ export function DownloaderView() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div> : (
+                  <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+                    Best available quality will be downloaded automatically.
+                  </p>
+                )}
 
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => {
                       const q = QUALITIES.find((x) => x.label === quality)
-                      confirmDownload(quality, q?.size ?? '420 MB')
+                      confirmDownload(preview.source === 'YouTube' ? quality : 'best', preview.source === 'YouTube' ? q?.size ?? '420 MB' : 'Automatic')
                     }}
                     className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <Download className="size-4" /> Start download
                   </button>
-                  <button
+                  {preview.source === 'YouTube' && <button
                     onClick={() => setDialogOpen(true)}
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                   >
                     More options
-                  </button>
+                  </button>}
                 </div>
               </div>
             )}
