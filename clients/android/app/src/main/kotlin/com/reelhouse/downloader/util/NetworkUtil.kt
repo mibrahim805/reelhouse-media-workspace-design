@@ -11,8 +11,12 @@ object NetworkUtil {
             ?: return false
         val network = cm.activeNetwork ?: return false
         val capabilities = cm.getNetworkCapabilities(network) ?: return false
-        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-               capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+        // NET_CAPABILITY_VALIDATED is only Android's connectivity probe
+        // result. It can be absent on working VPNs, captive-DNS setups, and
+        // some mobile networks. The downloader has already reached the
+        // source during link analysis, so requiring this flag falsely blocks
+        // valid downloads. yt-dlp performs the real connection check below.
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
     }
 
     fun isOnWifi(context: Context): Boolean {
