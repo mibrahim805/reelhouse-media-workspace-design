@@ -147,7 +147,7 @@ class DownloadManager(
             require(validation is UrlValidator.ValidationResult.Valid) {
                 (validation as UrlValidator.ValidationResult.Invalid).reason
             }
-            check(NetworkUtil.isOnline(context)) { "No validated network connection is available." }
+            check(NetworkUtil.isOnline(context)) { "No network connection is available." }
             check(!wifiOnly || NetworkUtil.isOnWifi(context)) {
                 "Wi-Fi-only downloads are enabled. Connect to Wi-Fi and retry."
             }
