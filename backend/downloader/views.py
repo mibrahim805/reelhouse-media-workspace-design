@@ -20,7 +20,7 @@ from google.oauth2 import id_token
 from .forms import DownloadForm
 from .models import SearchHistory
 from .jobs import get_job, start_download_job
-from .services import DownloadError, get_video_info, search_youtube_videos
+from .services import DownloadError, extract_shared_url, get_video_info, search_youtube_videos
 
 
 INVALID_URL_ERROR = 'Enter a valid video URL.'
@@ -189,7 +189,8 @@ def google_callback(request):
 @csrf_exempt
 @require_POST
 def fetch_info(request):
-    form = DownloadForm(_request_data(request))
+    data = _request_data(request)
+    form = DownloadForm({'url': extract_shared_url(data.get('url', ''))})
     if not form.is_valid():
         return JsonResponse({'ok': False, 'error': INVALID_URL_ERROR}, status=400)
 
@@ -248,7 +249,7 @@ def youtube_topic(request):
 @require_POST
 def start_download(request):
     data = _request_data(request)
-    url = str(data.get('url', '')).strip()
+    url = extract_shared_url(data.get('url', ''))
     quality = str(data.get('quality', 'best')).strip() or 'best'
     form = DownloadForm({'url': url})
 

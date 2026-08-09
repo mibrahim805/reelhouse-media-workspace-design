@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 33
-        versionName = "1.6.14"
+        versionCode = 34
+        versionName = "1.6.15"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"metadata-timeout-fix-v1\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"shared-link-recovery-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")

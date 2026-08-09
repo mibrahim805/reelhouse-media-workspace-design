@@ -18,6 +18,7 @@ import {
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
 import {
+  extractHttpUrl,
   fetchVideoInfo,
   type MediaVideo,
   type QualityOption,
@@ -58,7 +59,10 @@ export function DownloaderView() {
   const { startDownload, downloads, setPanelOpen } = useDownloads()
 
   const [platform, setPlatform] = useState('auto')
-  const [url, setUrl] = useState(() => params.get('url') ?? '')
+  const [url, setUrl] = useState(() => {
+    const initial = params.get('url') ?? ''
+    return extractHttpUrl(initial) || initial
+  })
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
     'idle',
   )
@@ -69,7 +73,8 @@ export function DownloaderView() {
   const [dialogOpen, setDialogOpen] = useState(false)
 
   async function fetchPreview() {
-    if (!isValidUrl(url)) {
+    const cleanUrl = extractHttpUrl(url)
+    if (!isValidUrl(cleanUrl)) {
       setStatus('error')
       setPreview(null)
       setError('Enter a valid URL starting with http:// or https://')
@@ -80,13 +85,11 @@ export function DownloaderView() {
     setPreview(null)
     setError('')
     setSuccess('')
+    setUrl(cleanUrl)
 
     try {
-      const video = await fetchVideoInfo(url)
+      const video = await fetchVideoInfo(cleanUrl)
       const qualities = video.qualities ?? []
-      if (video.platform === 'YouTube' && qualities.length === 0) {
-        throw new Error('The backend did not return any download qualities.')
-      }
       const preferred = video.platform === 'YouTube'
         ? qualities.find((option) => option.value === '1080') ?? qualities[0]
         : { value: 'best', label: 'Best available', note: 'Source selected', size: 'Automatic' }
@@ -107,7 +110,7 @@ export function DownloaderView() {
     try {
       const text = await navigator.clipboard.readText()
       if (text) {
-        setUrl(text)
+        setUrl(extractHttpUrl(text) || text.trim())
         setSuccess('')
       }
     } catch {

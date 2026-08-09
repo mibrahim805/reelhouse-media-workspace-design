@@ -173,10 +173,24 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         // that the unchanged local yt-dlp download flow will download.
         if (!SourcePlatform.isYouTube(url)) {
             Log.i(TAG, "backend=$backendInstanceId operation=$requestId info_source=local_ytdlp source=${SourcePlatform.label(url)}")
-            val media = loadInfo(url, requestId)
+            val media = try {
+                loadInfo(url, requestId)
+            } catch (error: Exception) {
+                // A preview is helpful but not required to download. Shared
+                // links can still be handed directly to yt-dlp when their
+                // source blocks a metadata-only request.
+                Log.w(
+                    TAG,
+                    "backend=$backendInstanceId operation=$requestId info_source=fallback source=${SourcePlatform.label(url)} reason=${error.message}",
+                )
+                fallbackMediaInfo(url)
+            }
             return 200 to buildJsonObject {
                 put("ok", true)
-                put("video", mediaJson(media, url, includeQualities = false))
+                // The production frontend currently expects at least one
+                // quality for every fetched link. Non-YouTube sources expose
+                // a single safe "best available" option.
+                put("video", mediaJson(media, url, includeQualities = true))
             }
         }
 
@@ -395,20 +409,34 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_READY key=$key durationMs=${elapsed(started)}")
                 startPendingDownloadIfReady(key, operationId)
             } catch (error: Throwable) {
-                val pendingJob = synchronized(preparationStates) {
+                val shouldStartWithoutMetadata = synchronized(preparationStates) {
                     val current = preparationStates[key] ?: VideoPreparation(key, url)
-                    preparationStates[key] = current.copy(
-                        status = PreparationStatus.FAILED,
-                        error = error.message ?: "Video preparation failed.",
-                        completedAt = System.currentTimeMillis(),
+                    if (current.pendingJobId != null && current.pendingQuality != null) {
+                        preparationStates[key] = current.copy(
+                            status = PreparationStatus.READY,
+                            media = fallbackMediaInfo(url),
+                            error = null,
+                            completedAt = System.currentTimeMillis(),
+                        )
+                        true
+                    } else {
+                        preparationStates[key] = current.copy(
+                            status = PreparationStatus.FAILED,
+                            error = error.message ?: "Video preparation failed.",
+                            completedAt = System.currentTimeMillis(),
+                        )
+                        false
+                    }
+                }
+                if (shouldStartWithoutMetadata) {
+                    Log.w(
+                        TAG,
+                        "backend=$backendInstanceId operation=$operationId event=PREPARATION_BYPASSED key=$key reason=${error.message}",
                     )
-                    current.pendingJobId
+                    startPendingDownloadIfReady(key, operationId)
+                } else {
+                    Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key durationMs=${elapsed(started)}", error)
                 }
-                pendingJob?.let { jobId ->
-                    val quality = preparationStates[key]?.pendingQuality.orEmpty()
-                    preparingJobs[jobId] = PreparingJob(url, quality, error.message ?: "Video preparation failed.")
-                }
-                Log.e(TAG, "backend=$backendInstanceId operation=$operationId event=PREPARATION_FAILED key=$key durationMs=${elapsed(started)}", error)
             }
         }
     }
@@ -902,6 +930,20 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val path = parsed.encodedPath.orEmpty()
         val query = parsed.encodedQuery?.let { "?$it" }.orEmpty()
         return "url:$scheme://$authority$path$query"
+    }
+
+    private fun fallbackMediaInfo(url: String): MediaInfo {
+        val platform = SourcePlatform.label(url)
+        val sourceId = YouTubeUrls.videoId(url)
+            ?: Uri.parse(url).lastPathSegment?.take(80)
+            ?: "shared-video"
+        return MediaInfo(
+            id = sourceId,
+            title = "$platform video",
+            uploader = platform,
+            platform = platform,
+            webpageUrl = url,
+        )
     }
 
     private fun elapsed(started: Long): Long = SystemClock.elapsedRealtime() - started
