@@ -59,10 +59,10 @@ class MediaExtractor(private val context: Context) {
             addOption("--no-config")
             // Metadata extraction should fail fast instead of spending the
             // default retry budget on a blocked or unavailable extractor.
-            addOption("--retries", "1")
-            addOption("--extractor-retries", "1")
-            addOption("--fragment-retries", "1")
-            addOption("--socket-timeout", "30")
+            addOption("--retries", "0")
+            addOption("--extractor-retries", "0")
+            addOption("--fragment-retries", "0")
+            addOption("--socket-timeout", "12")
         }
 
         Log.d(TAG, "PERF_BUILD_ID=${com.reelhouse.downloader.BuildConfig.PERF_BUILD_ID} YTDLP_INFO_ENGINE_READY number=$call waitMs=${engineReadyAt - started}")
@@ -98,9 +98,9 @@ class MediaExtractor(private val context: Context) {
             addOption("--no-playlist")
             addOption("--no-warnings")
             addOption("--no-config")
-            addOption("--retries", "1")
-            addOption("--extractor-retries", "1")
-            addOption("--socket-timeout", "15")
+            addOption("--retries", "0")
+            addOption("--extractor-retries", "0")
+            addOption("--socket-timeout", "10")
         }
         val response = YoutubeDL.getInstance().execute(request)
         val output = response.out

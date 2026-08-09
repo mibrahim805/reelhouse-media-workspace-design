@@ -10,6 +10,7 @@ import com.reelhouse.downloader.media.FormatInfo
 import com.reelhouse.downloader.media.FormatSelector
 import com.reelhouse.downloader.media.MediaExtractor
 import com.reelhouse.downloader.media.MediaInfo
+import com.reelhouse.downloader.util.ErrorClassifier
 import com.reelhouse.downloader.util.SourcePlatform
 import com.reelhouse.downloader.util.UrlValidator
 import com.reelhouse.downloader.youtube.YouTubeUrls
@@ -144,6 +145,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val lower = message.lowercase()
         if ("empty media response" in lower || "instagram" in lower && "cookies" in lower) {
             return "Instagram did not provide this post to the downloader. The app tried to update its download engine automatically; the post must be public and accessible without an Instagram login."
+        }
+        if (ErrorClassifier.classify(error) == ErrorClassifier.ErrorType.NETWORK_ERROR) {
+            return "The website took too long to respond. Check your connection and try again."
         }
         return message.ifBlank { "The local Android backend failed." }
     }
@@ -842,10 +846,25 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     Log.d(TAG, "operation=$operationId key=$key extraction=start")
                     try {
                         val media = withContext(Dispatchers.IO) {
-                            runCatching { extractor.extractInfoFast(url) }
-                                .getOrNull()
-                                ?.takeIf { it.formats.any { format -> format.hasVideo && format.height > 0 } }
-                                ?: extractor.extractInfo(url)
+                            // The fast manifest path is YouTube-specific. Running it
+                            // for Instagram, TikTok, Facebook, and generic links made
+                            // a failed request run twice before surfacing its error.
+                            if (!SourcePlatform.isYouTube(url)) {
+                                extractor.extractInfo(url)
+                            } else {
+                                try {
+                                    extractor.extractInfoFast(url)
+                                        .takeIf { it.formats.any { format -> format.hasVideo && format.height > 0 } }
+                                } catch (error: Exception) {
+                                    // A second request cannot repair a network timeout;
+                                    // return it immediately instead of making the user wait
+                                    // through another socket timeout.
+                                    if (ErrorClassifier.classify(error) == ErrorClassifier.ErrorType.NETWORK_ERROR) {
+                                        throw error
+                                    }
+                                    null
+                                } ?: extractor.extractInfo(url)
+                            }
                         }
                         infoCache[key] = CachedInfo(System.currentTimeMillis(), media)
                         Log.d(TAG, "backend=$backendInstanceId operation=$operationId INFO_CACHE_STORE key=$key expiresInMs=$INFO_CACHE_TTL_MS")

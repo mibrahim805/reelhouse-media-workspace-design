@@ -44,7 +44,8 @@ object ErrorClassifier {
                 ErrorType.AUTH_REQUIRED
             "private" in lower ->
                 ErrorType.PRIVATE_CONTENT
-            "age" in lower || "confirm your age" in lower ->
+            "age-restricted" in lower || "age restricted" in lower ||
+                "confirm your age" in lower || "age verification" in lower ->
                 ErrorType.AGE_RESTRICTED
             "not available" in lower && ("country" in lower || "region" in lower) ->
                 ErrorType.REGION_RESTRICTED
