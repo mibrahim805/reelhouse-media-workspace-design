@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Download, Link2, MonitorPlay, Play } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Download, Link2, MonitorPlay, Play } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,14 @@ function DownloadButton() {
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
 
+  function goBack() {
+    window.history.back()
+  }
+
+  function goForward() {
+    window.history.forward()
+  }
+
   return (
     <div className="flex min-h-svh flex-col">
       <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
@@ -117,6 +125,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center rounded-lg border border-border bg-card/50 p-1">
+              <button
+                type="button"
+                onClick={goBack}
+                aria-label="Go back"
+                title="Back (Alt+Left)"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" />
+              </button>
+              <button
+                type="button"
+                onClick={goForward}
+                aria-label="Go forward"
+                title="Forward (Alt+Right)"
+                className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <ArrowRight className="size-4" />
+              </button>
+            </div>
             <DownloadButton />
           </div>
         </div>
