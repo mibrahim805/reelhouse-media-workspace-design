@@ -1,5 +1,6 @@
-// 'use client'
+ 'use client'
 
+import { useState } from 'react'
 import { Camera, Download, MoreVertical, Play, Search, Video, MonitorPlay } from 'lucide-react'
 import type { MediaVideo } from '@/lib/backend-api'
 
@@ -16,6 +17,7 @@ export function HeroSection({
   feedError,
   onOpenWorkspace,
   onPasteLink,
+  onSubmitUrl,
   onOpenVideo,
 }: {
   trending: MediaVideo[]
@@ -23,15 +25,17 @@ export function HeroSection({
   feedError: boolean
   onOpenWorkspace: () => void
   onPasteLink: () => void
+  onSubmitUrl: (url: string) => void
   onOpenVideo: (video: MediaVideo) => void
 }) {
+  const [url, setUrl] = useState('')
   return (
     <section className="mx-auto max-w-xl pb-24">
-      <div className="flex items-center gap-2 rounded-full bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
+      <form onSubmit={(event) => { event.preventDefault(); if (url.trim()) onSubmitUrl(url.trim()); else onPasteLink() }} className="flex items-center gap-2 rounded-full bg-white px-4 py-3 shadow-sm ring-1 ring-black/5">
         <Search className="size-6 text-slate-500" />
-        <button onClick={onPasteLink} className="flex-1 text-left text-base text-slate-400">Search or enter url</button>
-        <button onClick={onPasteLink} aria-label="Downloads"><Download className="size-7 text-slate-900" /></button>
-      </div>
+        <input value={url} onChange={(event) => setUrl(event.target.value)} className="min-w-0 flex-1 bg-transparent text-base text-slate-900 outline-none placeholder:text-slate-400" placeholder="Search or enter url" />
+        <button type="submit" aria-label="Open downloader"><Download className="size-7 text-slate-900" /></button>
+      </form>
       <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
         <button onClick={onOpenWorkspace} className="rounded-full bg-white px-5 py-3 text-sm font-medium text-slate-900 shadow-sm">▶ Shorts</button>
         <button onClick={onPasteLink} className="rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white">All</button>

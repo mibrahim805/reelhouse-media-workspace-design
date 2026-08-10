@@ -93,7 +93,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-svh flex-col">
-      <header className="sticky top-0 z-50 border-b border-border bg-background/80 backdrop-blur-md">
+      <header className="sticky top-0 z-50 hidden border-b border-border bg-background/80 backdrop-blur-md sm:block">
         <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-3 sm:px-5">
           <Link href="/" className="flex shrink-0 items-center gap-2">
             <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
@@ -151,6 +151,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
+
+      <nav className="fixed inset-x-4 bottom-3 z-50 flex items-center justify-around rounded-full bg-white px-3 py-3 text-slate-700 shadow-lg ring-1 ring-black/5 sm:hidden">
+        <Link href="/" className={cn('flex flex-col items-center gap-1 text-[10px]', pathname === '/' ? 'text-red-500' : 'text-slate-600')}><Play className="size-5" fill="currentColor" />HOME</Link>
+        <Link href="/youtube" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><MonitorPlay className="size-5" />SHORTS</Link>
+        <Link href="/downloader" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><Download className="size-5" />MY FILES</Link>
+        <Link href="/account" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><UserRound className="size-5" />ME</Link>
+      </nav>
 
       <main className="flex-1">{children}</main>
     </div>

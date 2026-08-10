@@ -87,6 +87,7 @@ export function HomeView() {
         feedError={feedError}
         onOpenWorkspace={() => router.push('/youtube')}
         onPasteLink={() => router.push('/downloader')}
+        onSubmitUrl={(url) => router.push(`/downloader?url=${encodeURIComponent(url)}`)}
         onOpenVideo={openVideo}
       />
 
