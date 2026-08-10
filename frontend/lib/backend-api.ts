@@ -285,6 +285,7 @@ function platformFromUrl(url: string) {
     if (host === 'instagram.com' || host.endsWith('.instagram.com')) return 'Instagram'
     if (host === 'tiktok.com' || host.endsWith('.tiktok.com')) return 'TikTok'
     if (host === 'facebook.com' || host.endsWith('.facebook.com') || host === 'fb.watch') return 'Facebook'
+    if (host === 'bili.im' || host === 'bilibili.tv' || host.endsWith('.bilibili.tv')) return 'BiliBili'
     return host.replace(/^www\./, '') || 'Video'
   } catch {
     return 'Video'

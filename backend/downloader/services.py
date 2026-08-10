@@ -123,6 +123,12 @@ def _download_error_message(error):
     if any(term in lowered for term in ('not available', 'unavailable', 'region', 'copyright')):
         return 'This video is not available to this server because of region, copyright, or account restrictions.'
 
+    if any(term in lowered for term in ('bilibili', 'biliintl', 'api.bilibili.tv')):
+        return (
+            'BiliBili was detected, but this server could not reach BiliBili. '
+            'Check outbound network access or configure YTDLP_PROXY_URL.'
+        )
+
     return message
 
 
@@ -172,6 +178,8 @@ def platform_label(url, extractor_key=''):
         return 'Instagram'
     if 'facebook.com' in host or 'fb.watch' in host:
         return 'Facebook'
+    if host in {'bili.im', 'bilibili.tv'} or host.endswith('.bilibili.tv') or 'biliintl' in extractor_key.lower():
+        return 'BiliBili'
     if extractor_key:
         return extractor_key
     return host or 'Video'
