@@ -33,11 +33,12 @@ type Platform = {
 }
 
 const PLATFORMS: Platform[] = [
-  { id: 'auto', label: 'Auto-detect', icon: Link2, hint: 'youtube.com, tiktok.com, …' },
+  { id: 'auto', label: 'Auto-detect', icon: Link2, hint: 'youtube.com, bilibili.tv, …' },
   { id: 'youtube', label: 'YouTube', icon: MonitorPlay, hint: 'youtube.com / youtu.be' },
   { id: 'instagram', label: 'Instagram', icon: Camera, hint: 'instagram.com/reel/…' },
   { id: 'tiktok', label: 'TikTok', icon: Music2, hint: 'tiktok.com/@user/video/…' },
   { id: 'facebook', label: 'Facebook', icon: Video, hint: 'facebook.com/watch/…' },
+  { id: 'bilibili', label: 'BiliBili', icon: MonitorPlay, hint: 'bili.im / bilibili.tv' },
 ]
 
 type Preview = {
