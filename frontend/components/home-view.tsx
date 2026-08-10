@@ -80,7 +80,7 @@ export function HomeView() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5">
+    <div className="min-h-[calc(100svh-3.5rem)] bg-[#f5f5f5] px-4 py-5 text-slate-900 sm:px-5">
       <HeroSection
         trending={trending}
         feedLoading={feedLoading}
