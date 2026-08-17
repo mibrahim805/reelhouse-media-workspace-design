@@ -49,45 +49,43 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-/* Reelhouse dark media workspace theme.
-   Palette: near-black neutral base, layered dark cards,
-   coral-red accent for playback/download actions, emerald for success. */
+/* Shared light media workspace theme used across Home, YouTube, Downloader, and My Files. */
 :root {
-  color-scheme: dark;
-  --background: oklch(0.17 0.006 265);
-  --foreground: oklch(0.96 0.003 260);
-  --card: oklch(0.21 0.007 265);
-  --card-foreground: oklch(0.96 0.003 260);
-  --popover: oklch(0.215 0.008 265);
-  --popover-foreground: oklch(0.96 0.003 260);
-  --primary: oklch(0.66 0.2 24);
-  --primary-foreground: oklch(0.99 0.005 60);
-  --secondary: oklch(0.27 0.008 265);
-  --secondary-foreground: oklch(0.96 0.003 260);
-  --muted: oklch(0.25 0.008 265);
-  --muted-foreground: oklch(0.68 0.008 265);
-  --accent: oklch(0.29 0.009 265);
-  --accent-foreground: oklch(0.97 0.003 260);
-  --destructive: oklch(0.64 0.21 22);
-  --success: oklch(0.7 0.16 155);
-  --success-foreground: oklch(0.16 0.02 160);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.66 0.2 24);
+  color-scheme: light;
+  --background: oklch(0.97 0.003 260);
+  --foreground: oklch(0.22 0.025 260);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.025 260);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.025 260);
+  --primary: oklch(0.58 0.22 25);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.94 0.008 260);
+  --secondary-foreground: oklch(0.3 0.025 260);
+  --muted: oklch(0.93 0.008 260);
+  --muted-foreground: oklch(0.5 0.02 260);
+  --accent: oklch(0.94 0.008 260);
+  --accent-foreground: oklch(0.22 0.025 260);
+  --destructive: oklch(0.58 0.22 25);
+  --success: oklch(0.55 0.16 155);
+  --success-foreground: oklch(1 0 0);
+  --border: oklch(0.2 0.02 260 / 12%);
+  --input: oklch(0.2 0.02 260 / 12%);
+  --ring: oklch(0.58 0.22 25);
   --chart-1: oklch(0.66 0.2 24);
   --chart-2: oklch(0.7 0.16 155);
   --chart-3: oklch(0.75 0.13 75);
   --chart-4: oklch(0.62 0.13 250);
   --chart-5: oklch(0.68 0.008 265);
   --radius: 0.7rem;
-  --sidebar: oklch(0.19 0.006 265);
-  --sidebar-foreground: oklch(0.96 0.003 260);
-  --sidebar-primary: oklch(0.66 0.2 24);
-  --sidebar-primary-foreground: oklch(0.99 0.005 60);
-  --sidebar-accent: oklch(0.27 0.008 265);
-  --sidebar-accent-foreground: oklch(0.96 0.003 260);
-  --sidebar-border: oklch(1 0 0 / 9%);
-  --sidebar-ring: oklch(0.66 0.2 24);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.22 0.025 260);
+  --sidebar-primary: oklch(0.58 0.22 25);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.94 0.008 260);
+  --sidebar-accent-foreground: oklch(0.22 0.025 260);
+  --sidebar-border: oklch(0.2 0.02 260 / 12%);
+  --sidebar-ring: oklch(0.58 0.22 25);
 }
 
 @layer base {

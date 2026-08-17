@@ -21,8 +21,8 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#2b2b30',
+  colorScheme: 'light',
+  themeColor: '#f5f5f5',
   viewportFit: 'cover',
 }
 
@@ -32,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className="dark bg-background">
+    <html lang="en" className="bg-background">
       <body className="font-sans antialiased">
         <DownloadProvider>
           <AppShell>{children}</AppShell>

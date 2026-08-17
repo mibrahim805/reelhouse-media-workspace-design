@@ -1,6 +1,6 @@
  'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Camera, Download, MoreVertical, Play, Search, Video, MonitorPlay } from 'lucide-react'
 import { QualityDialog, type QualityTarget } from '@/components/quality-dialog'
 import { FALLBACK_YOUTUBE_QUALITIES, type MediaVideo, type QualityOption } from '@/lib/backend-api'
@@ -35,6 +35,19 @@ export function HeroSection({
   const [downloadTarget, setDownloadTarget] = useState<QualityTarget | null>(null)
   const [downloadVideo, setDownloadVideo] = useState<MediaVideo | null>(null)
   const qualities = downloadVideo?.qualities?.length ? downloadVideo.qualities : FALLBACK_YOUTUBE_QUALITIES
+
+  useEffect(() => {
+    const previous = (window as Window & { __reelhouseHandleBack?: () => boolean }).__reelhouseHandleBack
+    ;(window as Window & { __reelhouseHandleBack?: () => boolean }).__reelhouseHandleBack = () => {
+      if (!downloadTarget) return false
+      setDownloadTarget(null)
+      setDownloadVideo(null)
+      return true
+    }
+    return () => {
+      ;(window as Window & { __reelhouseHandleBack?: () => boolean }).__reelhouseHandleBack = previous
+    }
+  }, [downloadTarget])
   return (
     <section className="mx-auto max-w-xl pb-24">
       <form onSubmit={(event) => { event.preventDefault(); const value = url.trim(); if (!value) return onPasteLink(); if (/^https?:\/\//i.test(value)) onSubmitUrl(value); else onSearch(value) }} className="flex items-center gap-1.5 rounded-full bg-white px-3 py-2.5 shadow-sm ring-1 ring-black/5">
