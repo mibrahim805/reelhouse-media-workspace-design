@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { AlertCircle, Loader2, Search, SearchX } from 'lucide-react'
+import { AlertCircle, Download, Loader2, Search, SearchX } from 'lucide-react'
+import { QualityDialog, type QualityTarget } from '@/components/quality-dialog'
+import { useDownloads } from '@/components/download-store'
 import { SearchBar } from '@/components/youtube/search-bar'
 import { useSearch } from '@/components/youtube/search-store'
 import {
@@ -11,6 +13,8 @@ import {
   saveAccountSearch,
   YOUTUBE_TOPICS,
   type MediaVideo,
+  FALLBACK_YOUTUBE_QUALITIES,
+  type QualityOption,
   videoIdFromUrl,
 } from '@/lib/backend-api'
 import { cn } from '@/lib/utils'
@@ -58,6 +62,23 @@ function writeActiveSearchResults(videos: MediaVideo[]) {
   }
 }
 
+function DownloadAction({ video }: { video: MediaVideo }) {
+  const { startDownload } = useDownloads()
+  const [open, setOpen] = useState(false)
+  const qualities = video.qualities?.length ? video.qualities : FALLBACK_YOUTUBE_QUALITIES
+  const target: QualityTarget = { title: video.title, channel: video.channel, thumbnail: video.thumbnail, source: video.platform }
+
+  function confirm(quality: QualityOption) {
+    startDownload({ title: video.title, channel: video.channel, thumbnail: video.thumbnail, quality: quality.label, qualityValue: quality.value, size: quality.size, source: video.platform, sourceUrl: video.sourceUrl })
+    setOpen(false)
+  }
+
+  return <>
+    <button type="button" onClick={(event) => { event.preventDefault(); event.stopPropagation(); setOpen(true) }} aria-label={`Download ${video.title}`} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-muted"><Download className="size-3.5" /> Download</button>
+    <QualityDialog open={open} target={target} qualities={qualities} onClose={() => setOpen(false)} onConfirm={confirm} />
+  </>
+}
+
 function FeedCard({ video }: { video: MediaVideo }) {
   return (
     <Link href={watchHref(video)} className="group flex flex-col">
@@ -72,6 +93,7 @@ function FeedCard({ video }: { video: MediaVideo }) {
         <span className="absolute bottom-2 right-2 rounded bg-background/85 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-foreground">
           {video.duration}
         </span>
+        <span className="absolute bottom-2 left-2"><DownloadAction video={video} /></span>
       </div>
       <div className="mt-2.5 flex gap-2.5">
         <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold text-foreground">
@@ -132,6 +154,7 @@ function ResultRow({ video }: { video: MediaVideo }) {
             {video.category}
           </span>
         )}
+        <div className="mt-3"><DownloadAction video={video} /></div>
       </div>
     </Link>
   )

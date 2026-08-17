@@ -139,10 +139,16 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     if (fullscreenView != null) {
                         exitFullscreen()
-                    } else if (webView.canGoBack()) {
-                        webView.goBack()
                     } else {
-                        finish()
+                        // Let transient web UI (such as the Home quality dialog)
+                        // consume Back before changing the WebView history.
+                        webView.evaluateJavascript(
+                            "window.__reelhouseHandleBack ? window.__reelhouseHandleBack() : false",
+                        ) { handled ->
+                            if (handled != "true") {
+                                if (webView.canGoBack()) webView.goBack() else finish()
+                            }
+                        }
                     }
                 }
             },
