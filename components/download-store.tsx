@@ -19,6 +19,8 @@ export type DownloadItem = {
   quality: string
   size: string
   source: string
+  /** URL returned by the downloader for the finished media file. */
+  fileUrl?: string
   status: DownloadStatus
   progress: number
   startedAt: number

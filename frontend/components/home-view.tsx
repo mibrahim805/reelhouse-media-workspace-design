@@ -3,10 +3,12 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { HeroSection } from '@/components/hero-section'
-import { fetchYouTubeTopic, type MediaVideo, videoIdFromUrl } from '@/lib/backend-api'
+import { fetchYouTubeTopic, type MediaVideo, type QualityOption, videoIdFromUrl } from '@/lib/backend-api'
+import { useDownloads } from '@/components/download-store'
 
 export function HomeView() {
   const router = useRouter()
+  const { startDownload } = useDownloads()
   const [trending, setTrending] = useState<MediaVideo[]>(() => {
     if (typeof window === 'undefined') return []
     try {
@@ -79,15 +81,25 @@ export function HomeView() {
     router.push('/youtube')
   }
 
+  function searchVideos(query: string) {
+    window.sessionStorage.setItem('reelhouse.active-search', query)
+    router.push('/youtube')
+  }
+
+  function downloadVideo(video: MediaVideo, quality: QualityOption) {
+    startDownload({ title: video.title, channel: video.channel, thumbnail: video.thumbnail, quality: quality.label, qualityValue: quality.value, size: quality.size, source: video.platform, sourceUrl: video.sourceUrl })
+  }
+
   return (
     <div className="min-h-[calc(100svh-3.5rem)] bg-[#f5f5f5] px-4 py-5 text-slate-900 sm:px-5">
       <HeroSection
         trending={trending}
         feedLoading={feedLoading}
         feedError={feedError}
-        onOpenWorkspace={() => router.push('/youtube')}
         onPasteLink={() => router.push('/downloader')}
         onSubmitUrl={(url) => router.push(`/downloader?url=${encodeURIComponent(url)}`)}
+        onSearch={searchVideos}
+        onDownloadVideo={downloadVideo}
         onOpenVideo={openVideo}
       />
 

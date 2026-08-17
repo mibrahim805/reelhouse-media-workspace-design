@@ -1,9 +1,10 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Check,
   Download,
-  FolderOpen,
+  Play,
   RotateCw,
   Trash2,
   X,
@@ -33,7 +34,13 @@ function StatusBadge({ item }: { item: DownloadItem }) {
   )
 }
 
-function DownloadRow({ item }: { item: DownloadItem }) {
+function DownloadRow({
+  item,
+  onPlay,
+}: {
+  item: DownloadItem
+  onPlay: (item: DownloadItem) => void
+}) {
   const { removeDownload, retryDownload } = useDownloads()
   return (
     <div className="flex gap-3 rounded-lg p-2 transition-colors hover:bg-muted/60">
@@ -67,8 +74,11 @@ function DownloadRow({ item }: { item: DownloadItem }) {
         {item.status !== 'downloading' && (
           <div className="mt-1.5 flex items-center gap-1">
             {item.status === 'completed' && (
-              <button className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground">
-                <FolderOpen className="size-3" /> Open
+              <button
+                onClick={() => onPlay(item)}
+                className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
+              >
+                <Play className="size-3 fill-current" /> Play
               </button>
             )}
             {item.status === 'failed' && (
@@ -95,6 +105,7 @@ function DownloadRow({ item }: { item: DownloadItem }) {
 export function DownloadsPanel() {
   const { downloads, panelOpen, setPanelOpen, clearCompleted, completedCount } =
     useDownloads()
+  const [playing, setPlaying] = useState<DownloadItem | null>(null)
 
   if (!panelOpen) return null
 
@@ -158,7 +169,7 @@ export function DownloadsPanel() {
                   </p>
                   <div className="space-y-0.5">
                     {active.map((d) => (
-                      <DownloadRow key={d.id} item={d} />
+                      <DownloadRow key={d.id} item={d} onPlay={setPlaying} />
                     ))}
                   </div>
                 </div>
@@ -172,7 +183,7 @@ export function DownloadsPanel() {
                     className={cn('space-y-0.5', active.length > 0 && 'pt-0.5')}
                   >
                     {others.map((d) => (
-                      <DownloadRow key={d.id} item={d} />
+                      <DownloadRow key={d.id} item={d} onPlay={setPlaying} />
                     ))}
                   </div>
                 </div>
@@ -181,6 +192,40 @@ export function DownloadsPanel() {
           )}
         </div>
       </div>
+      {playing && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 p-4">
+          <div className="w-full max-w-4xl overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+              <p className="truncate text-sm font-semibold text-foreground">{playing.title}</p>
+              <button
+                onClick={() => setPlaying(null)}
+                aria-label="Close video player"
+                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+            <div className="aspect-video bg-black">
+              {playing.fileUrl ? (
+                <video
+                  src={playing.fileUrl}
+                  poster={playing.thumbnail || undefined}
+                  controls
+                  autoPlay
+                  className="h-full w-full"
+                />
+              ) : (
+                <div className="relative flex h-full items-center justify-center">
+                  <img src={playing.thumbnail || '/placeholder.svg'} alt="" className="absolute h-full w-full object-cover opacity-40" />
+                  <p className="relative rounded-lg bg-background/90 px-4 py-3 text-center text-sm text-foreground">
+                    The downloaded video file is not available in this session.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }

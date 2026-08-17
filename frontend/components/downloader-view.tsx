@@ -135,6 +135,7 @@ export function DownloaderView() {
   }
 
   const recent = downloads.slice(0, 5)
+  const myFiles = downloads.filter((download) => download.status === 'completed')
 
   return (
     <div className="mx-auto w-full max-w-[1100px] px-3 py-5 sm:px-5">
@@ -358,8 +359,8 @@ export function DownloaderView() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Download className="size-4 text-primary" />
-                <h2 className="text-sm font-semibold text-foreground">
-                  Recent downloads
+                  <h2 className="text-sm font-semibold text-foreground">
+                  My Files
                 </h2>
               </div>
               {downloads.length > 0 && (
@@ -372,13 +373,12 @@ export function DownloaderView() {
               )}
             </div>
             <div className="mt-2 space-y-1">
-              {recent.length === 0 ? (
+              {myFiles.length === 0 ? (
                 <p className="rounded-lg border border-dashed border-border p-3 text-xs text-muted-foreground">
-                  Downloads you start will appear here and in the top-right
-                  panel.
+                  Completed videos will appear here after they finish downloading.
                 </p>
               ) : (
-                recent.map((d) => (
+                myFiles.map((d) => (
                   <div key={d.id} className="flex items-center gap-2.5 py-1">
                     <div className="h-9 w-14 shrink-0 overflow-hidden rounded-md bg-muted">
                       <img
