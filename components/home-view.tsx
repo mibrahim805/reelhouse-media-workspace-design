@@ -33,6 +33,7 @@ export function HomeView() {
   const { downloads, activeCount, completedCount, setPanelOpen } =
     useDownloads()
   const [url, setUrl] = useState('')
+  const [search, setSearch] = useState('')
 
   const valid = isValidUrl(url)
 
@@ -42,6 +43,11 @@ export function HomeView() {
     } else {
       router.push('/downloader')
     }
+  }
+
+  function searchYouTube() {
+    const term = search.trim()
+    router.push(term ? `/youtube?q=${encodeURIComponent(term)}` : '/youtube')
   }
 
   const recent = downloads.slice(0, 4)
@@ -62,6 +68,27 @@ export function HomeView() {
         <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance sm:text-3xl">
           Your media workspace
         </h1>
+      </div>
+
+      <div className="mt-5 flex items-center gap-2 rounded-xl border border-border bg-card p-1.5 focus-within:border-primary/50">
+        <Search className="ml-2 size-4 shrink-0 text-muted-foreground" />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.nativeEvent.isComposing) searchYouTube()
+          }}
+          placeholder="Search videos on YouTube"
+          aria-label="Search videos on YouTube"
+          className="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
+        />
+        <button
+          onClick={searchYouTube}
+          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          Search
+          <ArrowRight className="size-4" />
+        </button>
       </div>
 
       {/* Primary actions */}

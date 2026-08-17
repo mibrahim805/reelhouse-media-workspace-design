@@ -2,7 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Download, Link2, MonitorPlay, Play } from 'lucide-react'
+import {
+  ArrowLeft,
+  ArrowRight,
+  Download,
+  Facebook,
+  Instagram,
+  MonitorPlay,
+  Music2,
+  Play,
+} from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
@@ -10,7 +19,9 @@ import { cn } from '@/lib/utils'
 const NAV = [
   { href: '/', label: 'Home', icon: Play },
   { href: '/youtube', label: 'YouTube', icon: MonitorPlay },
-  { href: '/downloader', label: 'Link Downloader', icon: Link2 },
+  { href: '/downloader', label: 'Instagram', icon: Instagram },
+  { href: '/downloader', label: 'TikTok', icon: Music2 },
+  { href: '/downloader', label: 'Facebook', icon: Facebook },
 ]
 
 function DownloadButton() {
@@ -99,7 +110,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </span>
           </Link>
 
-          <nav className="flex items-center gap-1 rounded-lg border border-border bg-card/50 p-1">
+          <nav
+            aria-label="Media apps"
+            className="flex min-w-0 items-center gap-1 overflow-x-auto rounded-lg border border-border bg-card/50 p-1"
+          >
             {NAV.map((item) => {
               const active =
                 item.href === '/'
@@ -111,14 +125,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   className={cn(
-                    'flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
+                    'flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
                     active
                       ? 'bg-primary/15 text-primary'
                       : 'text-muted-foreground hover:bg-muted hover:text-foreground',
                   )}
                 >
                   <Icon className="size-4" />
-                  <span className="hidden md:block">{item.label}</span>
+                  <span className="hidden lg:block">{item.label}</span>
                 </Link>
               )
             })}

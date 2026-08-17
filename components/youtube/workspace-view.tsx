@@ -1,7 +1,8 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Clock, History, Loader2, Search, SearchX } from 'lucide-react'
 import { SearchBar } from '@/components/youtube/search-bar'
 import { useSearch } from '@/components/youtube/search-store'
@@ -82,11 +83,19 @@ function ResultRow({ video }: { video: Video }) {
 }
 
 export function WorkspaceView() {
+  const params = useSearchParams()
   const { recent, addRecent } = useSearch()
   const [query, setQuery] = useState('')
   const [submitted, setSubmitted] = useState('')
   const [filter, setFilter] = useState('All')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    const initialQuery = params.get('q')?.trim() ?? ''
+    if (!initialQuery || submitted === initialQuery) return
+    setQuery(initialQuery)
+    runSearch(initialQuery)
+  }, [params])
 
   function runSearch(term: string) {
     const t = term.trim()
