@@ -3,8 +3,6 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ArrowLeft, ArrowRight, Download, Link2, MonitorPlay, Play, UserRound } from 'lucide-react'
-import { useDownloads } from '@/components/download-store'
-import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -14,69 +12,10 @@ const NAV = [
 ]
 
 function DownloadButton() {
-  const { downloads, activeCount, panelOpen, setPanelOpen } = useDownloads()
-
-  const active = downloads.filter(
-    (d) =>
-      d.status === 'queued' ||
-      d.status === 'downloading' ||
-      d.status === 'processing',
-  )
-  const avg =
-    active.length > 0
-      ? active.reduce((sum, d) => sum + d.progress, 0) / active.length
-      : 0
-
-  const radius = 15
-  const circumference = 2 * Math.PI * radius
-  const dash = (avg / 100) * circumference
-
   return (
-    <div className="relative">
-      <button
-        onClick={() => setPanelOpen(!panelOpen)}
-        aria-label={`Downloads${activeCount ? `, ${activeCount} active` : ''}`}
-        aria-expanded={panelOpen}
-        className={cn(
-          'relative flex size-9 items-center justify-center rounded-lg border border-border transition-colors',
-          panelOpen ? 'bg-muted text-foreground' : 'text-foreground hover:bg-muted',
-        )}
-      >
-        {active.length > 0 && (
-          <svg
-            className="absolute inset-0 -rotate-90"
-            viewBox="0 0 36 36"
-            aria-hidden
-          >
-            <circle
-              cx="18"
-              cy="18"
-              r={radius}
-              fill="none"
-              className="stroke-primary/20"
-              strokeWidth="2.5"
-            />
-            <circle
-              cx="18"
-              cy="18"
-              r={radius}
-              fill="none"
-              className="stroke-primary transition-[stroke-dasharray] duration-300"
-              strokeWidth="2.5"
-              strokeLinecap="round"
-              strokeDasharray={`${dash} ${circumference}`}
-            />
-          </svg>
-        )}
-        <Download className="size-4" />
-        {activeCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-primary px-1 text-[10px] font-bold tabular-nums text-primary-foreground">
-            {activeCount}
-          </span>
-        )}
-      </button>
-      <DownloadsPanel />
-    </div>
+    <Link href="/files" aria-label="My downloaded videos" className="flex size-9 items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-muted">
+      <Download className="size-4" />
+    </Link>
   )
 }
 
@@ -155,7 +94,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <nav className="fixed inset-x-4 bottom-3 z-50 flex items-center justify-around rounded-full bg-white px-3 py-3 text-slate-700 shadow-lg ring-1 ring-black/5 sm:hidden">
         <Link href="/" className={cn('flex flex-col items-center gap-1 text-[10px]', pathname === '/' ? 'text-red-500' : 'text-slate-600')}><Play className="size-5" fill="currentColor" />HOME</Link>
         <Link href="/youtube" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><MonitorPlay className="size-5" />SHORTS</Link>
-        <Link href="/downloader" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><Download className="size-5" />MY FILES</Link>
+        <Link href="/files" className={cn('flex flex-col items-center gap-1 text-[10px]', pathname === '/files' ? 'text-red-500' : 'text-slate-600')}><Download className="size-5" />MY FILES</Link>
         <Link href="/account" className="flex flex-col items-center gap-1 text-[10px] text-slate-600"><UserRound className="size-5" />ME</Link>
       </nav>
 
