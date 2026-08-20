@@ -27,6 +27,15 @@ that port, so it must not be set manually. Cookies for authenticated YouTube
 downloads can optionally be stored as the secret variable
 `YTDLP_COOKIE_CONTENT`.
 
+After deployment, the Android ARM64 APK is available directly at:
+
+```text
+https://reelhouse-media-workspace-design-production.up.railway.app/api/app-download/android
+```
+
+Open that URL on an ARM64 Android phone, install the downloaded APK, and allow
+installation from the browser or file manager when Android asks.
+
 To test YouTube through Railway's IPv6 network, enable **Outbound IPv6** under
 the service's **Settings → Networking**, add `YTDLP_FORCE_IPV6=true` in
 **Variables**, and redeploy. Remove the variable or set it to `false` if the

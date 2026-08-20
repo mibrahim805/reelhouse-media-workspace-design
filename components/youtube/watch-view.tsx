@@ -32,8 +32,10 @@ export function WatchView({ video }: { video: Video }) {
       channel: video.channel,
       thumbnail: video.thumbnail,
       quality: q,
+      qualityValue: q === 'Audio' ? 'audio' : q.replace(/p$/i, ''),
       size,
       source: 'YouTube',
+      sourceUrl: `https://www.youtube.com/watch?v=${video.id}`,
     })
   }
 

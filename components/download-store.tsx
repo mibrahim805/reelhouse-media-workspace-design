@@ -1,161 +1,25 @@
 'use client'
+import { createContext,useCallback,useContext,useEffect,useRef,useState } from 'react'
+import { cancelBackendDownload,fetchBackendProgress,startBackendDownload } from '@/lib/backend-api'
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useRef,
-  useState,
-} from 'react'
+export type DownloadStatus='queued'|'downloading'|'processing'|'completed'|'failed'|'canceled'|'interrupted'
+export type DownloadItem={id:string;jobId?:string;title:string;channel:string;thumbnail:string;quality:string;qualityValue:string;size:string;source:string;sourceUrl:string;fileUrl?:string;filename?:string;status:DownloadStatus;progress:number;speed?:number|null;eta?:number|null;error?:string;startedAt:number}
+type StartInput={title:string;channel:string;thumbnail:string;quality:string;qualityValue?:string;size:string;source:string;sourceUrl:string}
+type Value={downloads:DownloadItem[];activeCount:number;completedCount:number;panelOpen:boolean;setPanelOpen:(v:boolean)=>void;startDownload:(v:StartInput)=>void;cancelDownload:(id:string)=>void;removeDownload:(id:string)=>void;retryDownload:(id:string)=>void;clearCompleted:()=>void;saveDownload:(id:string)=>void}
+const Context=createContext<Value|null>(null)
 
-export type DownloadStatus = 'queued' | 'downloading' | 'completed' | 'failed'
-
-export type DownloadItem = {
-  id: string
-  title: string
-  channel: string
-  thumbnail: string
-  quality: string
-  size: string
-  source: string
-  /** URL returned by the downloader for the finished media file. */
-  fileUrl?: string
-  status: DownloadStatus
-  progress: number
-  startedAt: number
+export function DownloadProvider({children}:{children:React.ReactNode}){
+ const [downloads,setDownloads]=useState<DownloadItem[]>([]);const [panelOpen,setPanelOpen]=useState(false);const [hydrated,setHydrated]=useState(false);const pollers=useRef(new Map<string,ReturnType<typeof setInterval>>());const failures=useRef(new Map<string,number>())
+ const stop=useCallback((id:string)=>{const timer=pollers.current.get(id);if(timer)clearInterval(timer);pollers.current.delete(id);failures.current.delete(id)},[])
+ const poll=useCallback((id:string,jobId:string)=>{stop(id);const read=async()=>{try{const job=await fetchBackendProgress(jobId);failures.current.delete(id);setDownloads(prev=>prev.map(d=>d.id!==id?d:job.status==='complete'?{...d,status:'completed',progress:100,speed:job.speed,eta:0,fileUrl:job.result?.fileUrl,filename:job.result?.filename,size:job.result?.filesizeMb?`${job.result.filesizeMb} MB`:d.size,error:undefined}:job.status==='error'?{...d,status:'failed',progress:job.percent,error:job.error||'Download failed.'}:job.status==='canceled'?{...d,status:'canceled',error:'Download canceled.'}:{...d,status:job.status,progress:Math.max(0,Math.min(job.percent,99)),speed:job.speed,eta:job.eta,error:undefined}));if(['complete','error','canceled'].includes(job.status))stop(id)}catch(error){const count=(failures.current.get(id)||0)+1;failures.current.set(id,count);if(count>=5){stop(id);setDownloads(prev=>prev.map(d=>d.id===id?{...d,status:'interrupted',error:error instanceof Error?error.message:'Network interruption.'}:d))}}};void read();pollers.current.set(id,setInterval(read,1000))},[stop])
+ useEffect(()=>{try{const raw=localStorage.getItem('reelhouse.downloads');if(raw){const saved=JSON.parse(raw) as DownloadItem[];setDownloads(saved);saved.filter(d=>d.jobId&&['queued','downloading','processing','interrupted'].includes(d.status)).forEach(d=>poll(d.id,d.jobId!))}}catch{}finally{setHydrated(true)}},[poll])
+ useEffect(()=>{if(hydrated)try{localStorage.setItem('reelhouse.downloads',JSON.stringify(downloads.slice(0,50)))}catch{}},[downloads,hydrated])
+ const begin=useCallback(async(input:StartInput,existing?:string)=>{const id=existing||`dl_${Date.now()}`;const item:DownloadItem={id,...input,qualityValue:input.qualityValue||input.quality,status:'queued',progress:0,startedAt:Date.now()};setDownloads(prev=>existing?prev.map(d=>d.id===existing?item:d):[item,...prev]);setPanelOpen(true);try{const jobId=await startBackendDownload(input.sourceUrl,item.qualityValue);setDownloads(prev=>prev.map(d=>d.id===id?{...d,jobId,status:'queued'}:d));poll(id,jobId)}catch(e){setDownloads(prev=>prev.map(d=>d.id===id?{...d,status:'failed',error:e instanceof Error?e.message:'Could not start download.'}:d))}},[poll])
+ const startDownload=useCallback((v:StartInput)=>{void begin(v)},[begin]);const retryDownload=useCallback((id:string)=>{const d=downloads.find(x=>x.id===id);if(d)void begin({title:d.title,channel:d.channel,thumbnail:d.thumbnail,quality:d.quality,qualityValue:d.qualityValue,size:d.size,source:d.source,sourceUrl:d.sourceUrl},id)},[begin,downloads])
+ const cancelDownload=useCallback((id:string)=>{const d=downloads.find(x=>x.id===id);stop(id);setDownloads(prev=>prev.map(x=>x.id===id?{...x,status:'canceled',error:'Download canceled.'}:x));if(d?.jobId)void cancelBackendDownload(d.jobId).catch(()=>setDownloads(prev=>prev.map(x=>x.id===id?{...x,status:'interrupted',error:'Could not confirm cancellation with backend.'}:x)))},[downloads,stop])
+ const removeDownload=useCallback((id:string)=>{stop(id);setDownloads(prev=>prev.filter(d=>d.id!==id))},[stop]);const clearCompleted=useCallback(()=>setDownloads(prev=>prev.filter(d=>d.status!=='completed')),[]);const saveDownload=useCallback((id:string)=>{const d=downloads.find(x=>x.id===id);if(d?.fileUrl){const a=document.createElement('a');a.href=d.fileUrl;a.download=d.filename||'download';a.click()}},[downloads])
+ useEffect(()=>()=>{pollers.current.forEach(clearInterval);pollers.current.clear()},[])
+ const activeCount=downloads.filter(d=>['queued','downloading','processing'].includes(d.status)).length;const completedCount=downloads.filter(d=>d.status==='completed').length
+ return <Context.Provider value={{downloads,activeCount,completedCount,panelOpen,setPanelOpen,startDownload,cancelDownload,removeDownload,retryDownload,clearCompleted,saveDownload}}>{children}</Context.Provider>
 }
-
-type StartInput = {
-  title: string
-  channel: string
-  thumbnail: string
-  quality: string
-  size: string
-  source: string
-}
-
-type DownloadContextValue = {
-  downloads: DownloadItem[]
-  activeCount: number
-  completedCount: number
-  panelOpen: boolean
-  setPanelOpen: (open: boolean) => void
-  startDownload: (input: StartInput) => void
-  removeDownload: (id: string) => void
-  retryDownload: (id: string) => void
-  clearCompleted: () => void
-}
-
-const DownloadContext = createContext<DownloadContextValue | null>(null)
-
-export function DownloadProvider({ children }: { children: React.ReactNode }) {
-  const [downloads, setDownloads] = useState<DownloadItem[]>([])
-  const [panelOpen, setPanelOpen] = useState(false)
-  const timers = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map())
-
-  const runProgress = useCallback((id: string) => {
-    const existing = timers.current.get(id)
-    if (existing) clearInterval(existing)
-
-    const interval = setInterval(() => {
-      setDownloads((prev) =>
-        prev.map((d) => {
-          if (d.id !== id) return d
-          if (d.status !== 'downloading') return d
-          // Simulate variable download speed.
-          const step = 3 + Math.random() * 9
-          const next = Math.min(100, d.progress + step)
-          if (next >= 100) {
-            const timer = timers.current.get(id)
-            if (timer) clearInterval(timer)
-            timers.current.delete(id)
-            return { ...d, progress: 100, status: 'completed' }
-          }
-          return { ...d, progress: next }
-        }),
-      )
-    }, 420)
-
-    timers.current.set(id, interval)
-  }, [])
-
-  const startDownload = useCallback(
-    (input: StartInput) => {
-      const id = `dl_${Date.now()}_${Math.floor(Math.random() * 1000)}`
-      const item: DownloadItem = {
-        id,
-        ...input,
-        status: 'downloading',
-        progress: 0,
-        startedAt: Date.now(),
-      }
-      setDownloads((prev) => [item, ...prev])
-      setPanelOpen(true)
-      runProgress(id)
-    },
-    [runProgress],
-  )
-
-  const removeDownload = useCallback((id: string) => {
-    const timer = timers.current.get(id)
-    if (timer) clearInterval(timer)
-    timers.current.delete(id)
-    setDownloads((prev) => prev.filter((d) => d.id !== id))
-  }, [])
-
-  const retryDownload = useCallback(
-    (id: string) => {
-      setDownloads((prev) =>
-        prev.map((d) =>
-          d.id === id ? { ...d, status: 'downloading', progress: 0 } : d,
-        ),
-      )
-      runProgress(id)
-    },
-    [runProgress],
-  )
-
-  const clearCompleted = useCallback(() => {
-    setDownloads((prev) => prev.filter((d) => d.status !== 'completed'))
-  }, [])
-
-  useEffect(() => {
-    const map = timers.current
-    return () => {
-      map.forEach((t) => clearInterval(t))
-      map.clear()
-    }
-  }, [])
-
-  const activeCount = downloads.filter(
-    (d) => d.status === 'downloading' || d.status === 'queued',
-  ).length
-  const completedCount = downloads.filter((d) => d.status === 'completed').length
-
-  return (
-    <DownloadContext.Provider
-      value={{
-        downloads,
-        activeCount,
-        completedCount,
-        panelOpen,
-        setPanelOpen,
-        startDownload,
-        removeDownload,
-        retryDownload,
-        clearCompleted,
-      }}
-    >
-      {children}
-    </DownloadContext.Provider>
-  )
-}
-
-export function useDownloads() {
-  const ctx = useContext(DownloadContext)
-  if (!ctx) {
-    throw new Error('useDownloads must be used within a DownloadProvider')
-  }
-  return ctx
-}
+export function useDownloads(){const value=useContext(Context);if(!value)throw new Error('useDownloads must be used within DownloadProvider');return value}

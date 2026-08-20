@@ -1,338 +1,284 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  ArrowRight,
-  CheckCircle2,
-  Clock,
-  Download,
-  Gauge,
-  Link2,
-  ListVideo,
-  Play,
-  MonitorPlay,
-  Search,
-  Sparkles,
+  Bell, CheckCircle2, ChevronRight, Download,
+  Link2, Play, Search, Sparkles
 } from 'lucide-react'
-import { useDownloads } from '@/components/download-store'
-import { VIDEOS } from '@/lib/mock-data'
-import { cn } from '@/lib/utils'
+import { useDownloads, type DownloadItem } from '@/components/download-store'
+import { useMedia } from '@/components/media-state'
 
-function isValidUrl(value: string) {
-  try {
-    const u = new URL(value.trim())
-    return u.protocol === 'http:' || u.protocol === 'https:'
-  } catch {
-    return false
-  }
-}
+const QUICK_SOURCES = [
+  { id: 'yt',  label: 'YouTube',   color: '#FF0000', hint: 'youtube.com' },
+  { id: 'ig',  label: 'Instagram', color: '#C13584', hint: 'instagram.com' },
+  { id: 'tt',  label: 'TikTok',    color: '#69C9D0', hint: 'tiktok.com' },
+  { id: 'fb',  label: 'Facebook',  color: '#1877F2', hint: 'facebook.com' },
+  { id: 'x',   label: 'X',        color: '#FFFFFF', hint: 'x.com' },
+  { id: 'more',label: 'More',      color: '#8B5CF6', hint: '' },
+]
 
 export function HomeView() {
   const router = useRouter()
-  const { downloads, activeCount, completedCount, setPanelOpen } =
-    useDownloads()
   const [url, setUrl] = useState('')
-  const [search, setSearch] = useState('')
+  const [discover, setDiscover] = useState<HomeDiscoverResult[]>([])
+  const [discoverConfigured, setDiscoverConfigured] = useState<boolean | null>(null)
+  const { downloads, activeCount, completedCount } = useDownloads()
+  const { open } = useMedia()
 
-  const valid = isValidUrl(url)
+  useEffect(() => {
+    fetch('/api/search?type=trending&maxResults=8')
+      .then(r => r.json())
+      .then(data => {
+        setDiscover(data.results || [])
+        setDiscoverConfigured(Boolean(data.configured))
+      })
+      .catch(() => setDiscoverConfigured(false))
+  }, [])
 
-  function goDownloader() {
-    if (valid) {
-      router.push(`/downloader?url=${encodeURIComponent(url.trim())}`)
-    } else {
-      router.push('/downloader')
-    }
+  const completed = downloads.filter(d => d.status === 'completed')
+  const active    = downloads.filter(d => ['queued','downloading','processing'].includes(d.status))
+
+  const analyze = () =>
+    router.push(url.trim() ? `/downloader?url=${encodeURIComponent(url.trim())}` : '/downloader')
+
+  const paste = async () => {
+    try { const t = await navigator.clipboard.readText(); if (t) setUrl(t) } catch { /* denied */ }
   }
-
-  function searchYouTube() {
-    const term = search.trim()
-    router.push(term ? `/youtube?q=${encodeURIComponent(term)}` : '/youtube')
-  }
-
-  const recent = downloads.slice(0, 4)
 
   return (
-    <div className="mx-auto w-full max-w-[1600px] px-3 py-5 sm:px-5">
-      {/* Intro */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-          <span className="flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1">
-            <span className="size-1.5 rounded-full bg-success" />
-            Workspace ready
+    <main className="w-full pb-28">
+
+      {/* ── Top bar ── */}
+      <header className="flex items-center justify-between px-4 pt-5 pb-3">
+        <div className="flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-xl bg-primary">
+            <Play className="size-4 fill-white text-white" />
           </span>
-          <span className="hidden sm:inline">
-            Search, watch, and download — all in one place
+          <span className="text-[18px] font-bold tracking-tight text-white">Reelhouse</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <button className="flex size-9 items-center justify-center rounded-full border border-[#292929] bg-[#151515] text-[#a3a3a3] hover:text-white" aria-label="Notifications">
+            <Bell className="size-4" />
+          </button>
+          <Link href="/search" className="flex size-9 items-center justify-center rounded-full border border-[#292929] bg-[#151515] text-[#a3a3a3] hover:text-white" aria-label="Search">
+            <Search className="size-4" />
+          </Link>
+        </div>
+      </header>
+
+      {/* ── Paste URL card ── */}
+      <section className="mx-4 mt-2 overflow-hidden rounded-[20px] border border-[#292929] bg-[#111]">
+        <div className="p-5">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-primary">
+            <Sparkles className="size-3.5" /> Paste a link to download
           </span>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight text-foreground text-balance sm:text-3xl">
-          Your media workspace
-        </h1>
-      </div>
-
-      <div className="mt-5 flex items-center gap-2 rounded-xl border border-border bg-card p-1.5 focus-within:border-primary/50">
-        <Search className="ml-2 size-4 shrink-0 text-muted-foreground" />
-        <input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.nativeEvent.isComposing) searchYouTube()
-          }}
-          placeholder="Search videos on YouTube"
-          aria-label="Search videos on YouTube"
-          className="min-w-0 flex-1 bg-transparent px-1 text-sm text-foreground outline-none placeholder:text-muted-foreground"
-        />
-        <button
-          onClick={searchYouTube}
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-        >
-          Search
-          <ArrowRight className="size-4" />
-        </button>
-      </div>
-
-      {/* Primary actions */}
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        {/* YouTube workspace */}
-        <button
-          onClick={() => router.push('/youtube')}
-          className="group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5 text-left transition-colors hover:border-primary/40"
-        >
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                <MonitorPlay className="size-5" />
-              </span>
-              <h2 className="mt-3 text-lg font-semibold text-foreground">
-                Open YouTube Workspace
-              </h2>
-              <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Browse a familiar feed, search with instant filters, watch, and
-                queue downloads without leaving the page.
-              </p>
-            </div>
-            <span className="flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-muted-foreground transition-all group-hover:bg-primary group-hover:text-primary-foreground">
-              <ArrowRight className="size-4" />
-            </span>
-          </div>
-          <div className="mt-5 flex -space-x-2">
-            {VIDEOS.slice(0, 5).map((v) => (
-              <div
-                key={v.id}
-                className="h-10 w-16 overflow-hidden rounded-md border-2 border-card bg-muted"
-              >
-                <img
-                  src={v.thumbnail || '/placeholder.svg'}
-                  alt=""
-                  className="h-full w-full object-cover"
-                />
-              </div>
-            ))}
-            <div className="flex h-10 items-center rounded-md pl-4 text-xs font-medium text-muted-foreground">
-              Trending now
-            </div>
-          </div>
-        </button>
-
-        {/* Paste a link */}
-        <div className="relative flex flex-col justify-between overflow-hidden rounded-2xl border border-border bg-card p-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <span className="flex size-11 items-center justify-center rounded-xl bg-secondary text-foreground">
-                <Link2 className="size-5" />
-              </span>
-              <h2 className="mt-3 text-lg font-semibold text-foreground">
-                Paste a Link
-              </h2>
-              <p className="mt-1 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Drop a URL from YouTube, Instagram, TikTok, or Facebook. We
-                detect the source and grab the best quality.
-              </p>
-            </div>
-          </div>
-          <div className="mt-5">
-            <div className="flex items-center gap-2 rounded-xl border border-border bg-background p-1.5 focus-within:border-primary/50">
-              <Link2 className="ml-1.5 size-4 shrink-0 text-muted-foreground" />
-              <input
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.nativeEvent.isComposing)
-                    goDownloader()
-                }}
-                inputMode="url"
-                placeholder="https://…"
-                className="min-w-0 flex-1 bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-              />
-              <button
-                onClick={goDownloader}
-                className="flex h-8 shrink-0 items-center gap-1.5 rounded-lg bg-primary px-3 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
-              >
-                Continue
-                <ArrowRight className="size-4" />
-              </button>
-            </div>
-            <div className="mt-2 flex flex-wrap items-center gap-1.5">
-              {['YouTube', 'Instagram', 'TikTok', 'Facebook', 'Auto-detect'].map(
-                (p) => (
-                  <span
-                    key={p}
-                    className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground"
-                  >
-                    {p}
-                  </span>
-                ),
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Lower grid */}
-      <div className="mt-3 grid gap-3 lg:grid-cols-3">
-        {/* Downloads status */}
-        <section className="rounded-2xl border border-border bg-card p-4 lg:col-span-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Download className="size-4 text-primary" />
-              <h3 className="text-sm font-semibold text-foreground">
-                Downloads
-              </h3>
-            </div>
+          <div className="mt-3 flex items-center gap-2 rounded-2xl border border-[#292929] bg-black px-3 py-1 focus-within:border-primary/60">
+            <Link2 className="size-4 shrink-0 text-[#a3a3a3]" />
+            <input
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && analyze()}
+              placeholder="Paste video link…"
+              className="min-w-0 flex-1 bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-[#a3a3a3]"
+              inputMode="url"
+            />
             <button
-              onClick={() => setPanelOpen(true)}
-              className="text-xs font-medium text-primary hover:underline"
+              onClick={paste}
+              className="shrink-0 rounded-lg bg-[#1d1d1d] px-3 py-2 text-[12px] font-semibold text-[#a3a3a3] hover:text-white"
             >
-              Open panel
+              Paste
             </button>
           </div>
+          <button
+            onClick={analyze}
+            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90"
+          >
+            Analyze &amp; Download
+          </button>
+        </div>
+      </section>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <Stat
-              icon={<Gauge className="size-4" />}
-              label="Active"
-              value={activeCount}
-              tone="primary"
-            />
-            <Stat
-              icon={<CheckCircle2 className="size-4" />}
-              label="Completed"
-              value={completedCount}
-              tone="success"
-            />
-            <Stat
-              icon={<ListVideo className="size-4" />}
-              label="Total"
-              value={downloads.length}
-              tone="muted"
-            />
+      {/* ── Quick sources ── */}
+      <section className="mt-5 px-4">
+        <SectionRow title="Quick Download" />
+        <div className="no-scrollbar -mx-0 flex gap-3 overflow-x-auto pb-1">
+          {QUICK_SOURCES.map(src => (
+            <button
+              key={src.id}
+              onClick={() => {
+                if (src.id === 'more') { router.push('/downloader'); return }
+                setUrl(`https://${src.hint}/`)
+              }}
+              className="flex shrink-0 flex-col items-center gap-2"
+            >
+              <span
+                className="flex size-12 items-center justify-center rounded-2xl border border-[#292929] bg-[#151515] text-[15px] font-extrabold"
+                style={{ color: src.color }}
+              >
+                {src.label.charAt(0)}
+              </span>
+              <span className="text-[11px] text-[#a3a3a3]">{src.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Active downloads ── */}
+      {active.length > 0 && (
+        <section className="mt-6 px-4">
+          <SectionRow title="Downloading" href="/downloads" />
+          <div className="space-y-2">
+            {active.slice(0, 3).map(item => (
+              <ActiveCard key={item.id} item={item} />
+            ))}
           </div>
+        </section>
+      )}
 
-          <div className="mt-3 space-y-1">
-            {recent.length === 0 ? (
-              <div className="flex items-center gap-3 rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                <Download className="size-4" />
-                No downloads yet — start one from the workspace or paste a link.
-              </div>
-            ) : (
-              recent.map((d) => (
-                <div
-                  key={d.id}
-                  className="flex items-center gap-3 rounded-lg p-1.5 hover:bg-muted/60"
-                >
-                  <div className="h-10 w-16 shrink-0 overflow-hidden rounded-md bg-muted">
-                    <img
-                      src={d.thumbnail || '/placeholder.svg'}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="line-clamp-1 text-[13px] font-medium text-foreground">
-                      {d.title}
-                    </p>
-                    <p className="text-[11px] text-muted-foreground">
-                      {d.quality} · {d.size} · {d.source}
-                    </p>
-                  </div>
-                  <div className="shrink-0">
-                    {d.status === 'completed' ? (
-                      <span className="flex items-center gap-1 text-[11px] font-medium text-success">
-                        <CheckCircle2 className="size-3.5" /> Done
-                      </span>
-                    ) : (
-                      <span className="text-[11px] font-medium tabular-nums text-primary">
-                        {Math.round(d.progress)}%
-                      </span>
-                    )}
+      {/* ── Continue watching ── */}
+      {completed.length > 0 && (
+        <section className="mt-6">
+          <SectionRow title="Recently Downloaded" href="/downloads" className="px-4" />
+          <div className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1">
+            {completed.slice(0, 8).map(item => (
+              <button
+                key={item.id}
+                onClick={() => open(item)}
+                className="group shrink-0 snap-start text-left"
+                style={{ width: '72vw', maxWidth: 280 }}
+              >
+                <div className="relative aspect-video overflow-hidden rounded-2xl bg-[#151515]">
+                  <img src={item.thumbnail || '/placeholder.svg'} alt="" className="size-full object-cover" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/30">
+                    <Play className="size-8 fill-white text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100" />
                   </div>
                 </div>
-              ))
-            )}
+                <p className="mt-2 line-clamp-2 text-[13px] font-semibold leading-snug text-white">{item.title}</p>
+                <p className="mt-0.5 truncate text-[12px] text-[#a3a3a3]">{item.source} · {item.size}</p>
+              </button>
+            ))}
           </div>
         </section>
+      )}
 
-        {/* Capabilities */}
-        <section className="rounded-2xl border border-border bg-card p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="size-4 text-primary" />
-            <h3 className="text-sm font-semibold text-foreground">
-              What you can do
-            </h3>
+      {/* Online discovery stays separate from downloaded media. */}
+      <section className="mt-7">
+        <SectionRow title="Trending / Discover" href="/explore" className="px-4" />
+        {discoverConfigured === false ? (
+          <p className="px-4 text-xs text-[#a3a3a3]">Online discovery is unavailable until a provider is configured.</p>
+        ) : discover.length > 0 ? (
+          <div className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4">
+            {discover.slice(0, 6).map(item => (
+              <a key={item.videoId} href={item.sourceUrl} target="_blank" rel="noopener noreferrer" className="w-[72vw] max-w-[280px] shrink-0 snap-start">
+                <div className="relative aspect-video overflow-hidden rounded-2xl bg-[#151515]"><img src={item.thumbnail} alt="" className="size-full object-cover" /><span className="absolute bottom-2 right-2 rounded bg-black/80 px-1.5 py-0.5 text-[11px]">{item.duration || ''}</span></div>
+                <p className="mt-2 line-clamp-2 text-[13px] font-semibold">{item.title}</p>
+                <p className="mt-0.5 truncate text-xs text-[#a3a3a3]">{item.channel}</p>
+              </a>
+            ))}
           </div>
-          <ul className="mt-3 space-y-2.5">
-            {[
-              { icon: Search, text: 'Search a YouTube-style feed with filters' },
-              { icon: Play, text: 'Watch with an up-next queue' },
-              { icon: Download, text: 'Pick quality, then download' },
-              { icon: Clock, text: 'Keep completed files in one panel' },
-            ].map((f, i) => {
-              const Icon = f.icon
-              return (
-                <li key={i} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md bg-secondary text-foreground">
-                    <Icon className="size-3.5" />
-                  </span>
-                  <span className="text-[13px] leading-snug text-muted-foreground">
-                    {f.text}
-                  </span>
-                </li>
-              )
-            })}
-          </ul>
+        ) : null}
+      </section>
+
+      {/* ── Discover / Explore CTA ── */}
+      <section className="mx-4 mt-6 overflow-hidden rounded-[20px] border border-[#292929] bg-[#111] p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary">
+            <Search className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold text-white">Discover new content</p>
+            <p className="mt-0.5 text-sm text-[#a3a3a3]">Search millions of videos online</p>
+          </div>
+          <Link href="/search" className="flex items-center gap-1 text-sm font-semibold text-primary">
+            Search <ChevronRight className="size-4" />
+          </Link>
+        </div>
+      </section>
+
+      <section className="mx-4 mt-3 flex items-center gap-3 rounded-2xl border border-primary/25 bg-primary/10 p-4">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-white"><Play className="size-5 fill-current" /></span>
+        <div className="min-w-0 flex-1">
+          <p className="font-semibold text-white">YouTube Workspace</p>
+          <p className="mt-0.5 text-xs text-[#a3a3a3]">Browse, search, and watch online videos</p>
+        </div>
+        <Link href="/youtube" className="rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white">Open</Link>
+      </section>
+
+      {/* ── Empty state ── */}
+      {!completed.length && !active.length && (
+        <section className="mx-4 mt-6">
+          <div className="flex flex-col items-center rounded-3xl border border-dashed border-[#292929] px-5 py-14 text-center">
+            <span className="flex size-14 items-center justify-center rounded-2xl bg-[#1d1d1d]">
+              <Download className="size-6 text-[#a3a3a3]" />
+            </span>
+            <h3 className="mt-4 text-base font-bold text-white">Your library starts here</h3>
+            <p className="mt-2 max-w-xs text-sm text-[#a3a3a3]">Paste a video link above or tap Explore to discover something to download.</p>
+            <div className="mt-5 flex gap-3">
+              <Link href="/downloader" className="flex h-10 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white">
+                <Link2 className="size-4" /> Paste Link
+              </Link>
+              <Link href="/explore" className="flex h-10 items-center gap-2 rounded-xl border border-[#292929] bg-[#151515] px-4 text-sm font-semibold text-white">
+                <Search className="size-4" /> Explore
+              </Link>
+            </div>
+          </div>
         </section>
-      </div>
+      )}
+
+    </main>
+  )
+}
+
+type HomeDiscoverResult = {
+  videoId: string
+  title: string
+  channel: string
+  thumbnail: string
+  duration: string | null
+  sourceUrl: string
+}
+
+function SectionRow({ title, href, className }: { title: string; href?: string; className?: string }) {
+  return (
+    <div className={`mb-3 flex items-center justify-between ${className || ''}`}>
+      <h2 className="text-[16px] font-bold text-white">{title}</h2>
+      {href && (
+        <Link href={href} className="flex items-center gap-0.5 text-[13px] font-medium text-primary">
+          See all <ChevronRight className="size-3.5" />
+        </Link>
+      )}
     </div>
   )
 }
 
-function Stat({
-  icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: React.ReactNode
-  label: string
-  value: number
-  tone: 'primary' | 'success' | 'muted'
-}) {
+function ActiveCard({ item }: { item: DownloadItem }) {
+  const failed = ['failed','interrupted','canceled'].includes(item.status)
   return (
-    <div className="rounded-xl border border-border bg-background p-3">
-      <div
-        className={cn(
-          'flex items-center gap-1.5 text-xs font-medium',
-          tone === 'primary' && 'text-primary',
-          tone === 'success' && 'text-success',
-          tone === 'muted' && 'text-muted-foreground',
+    <div className="flex gap-3 rounded-2xl border border-[#292929] bg-[#151515] p-3">
+      <img src={item.thumbnail || '/placeholder.svg'} alt="" className="h-14 w-24 shrink-0 rounded-xl object-cover" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-white">{item.title}</p>
+        <p className={`mt-0.5 text-xs capitalize ${failed ? 'text-destructive' : 'text-[#a3a3a3]'}`}>
+          {item.status}{item.speed ? ` · ${(item.speed / 1024 / 1024).toFixed(1)} MB/s` : ''}
+        </p>
+        {!failed && (
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[#1d1d1d]">
+            <div className="h-full rounded-full bg-primary transition-[width]" style={{ width: `${item.progress}%` }} />
+          </div>
         )}
-      >
-        {icon}
-        {label}
       </div>
-      <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">
-        {value}
-      </p>
+      <span className="shrink-0 text-xs font-bold text-primary">{Math.round(item.progress)}%</span>
+    </div>
+  )
+}
+
+function StatCard({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="rounded-2xl border border-[#292929] bg-[#151515] p-4 text-center">
+      <p className="text-2xl font-bold text-white">{value}</p>
+      <p className="mt-0.5 text-[11px] text-[#a3a3a3]">{label}</p>
     </div>
   )
 }

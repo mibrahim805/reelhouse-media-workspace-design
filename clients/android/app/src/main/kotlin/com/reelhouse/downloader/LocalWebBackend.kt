@@ -72,6 +72,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private val extractionScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val feedCache = ConcurrentHashMap<String, CachedResponse>()
     private val knownJobs = ConcurrentHashMap.newKeySet<String>()
+    private val canceledJobs = ConcurrentHashMap.newKeySet<String>()
     private val remoteJobs = ConcurrentHashMap<String, Pair<String, String>>()
     private val fallbackJobs = ConcurrentHashMap<String, String>()
     private val preparingJobs = ConcurrentHashMap<String, PreparingJob>()
@@ -120,6 +121,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 path == "youtube-search" -> search(body)
                 path == "youtube-topic" -> topic(body)
                 path == "start-download" -> startDownload(body)
+                path == "cancel-download" -> cancelDownload(body)
                 path.startsWith("progress/") -> progress(path.substringAfter("progress/"))
                 else -> 404 to errorEnvelope("Unknown local backend endpoint.")
             }
@@ -504,6 +506,15 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun progress(jobId: String): Pair<Int, JsonObject> {
+        if (jobId in canceledJobs) {
+            return 200 to buildJsonObject {
+                put("ok", true)
+                put("job", buildJsonObject {
+                    put("status", "canceled")
+                    put("percent", 0)
+                })
+            }
+        }
         fallbackJobs[jobId]?.let { return progress(it) }
         preparingJobs[jobId]?.let { preparing ->
             return 200 to buildJsonObject {
@@ -572,6 +583,34 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }
     }
 
+    private suspend fun cancelDownload(body: JsonObject): Pair<Int, JsonObject> {
+        val jobId = body.string("job_id").trim()
+        require(jobId.isNotBlank()) { "Download job was not found." }
+
+        canceledJobs += jobId
+        preparingJobs.remove(jobId)
+        fallbackJobs.remove(jobId)?.let { canceledJobs += it }
+        remoteJobs.remove(jobId)
+        synchronized(preparationStates) {
+            preparationStates.replaceAll { _, current ->
+                if (current.pendingJobId == jobId) {
+                    current.copy(
+                        pendingQuality = null,
+                        pendingJobId = null,
+                        downloadStarted = false,
+                    )
+                } else {
+                    current
+                }
+            }
+        }
+
+        dao.getById(jobId)?.let {
+            app.startService(DownloadService.createCancelIntent(app, jobId))
+        }
+        return 200 to buildJsonObject { put("ok", true) }
+    }
+
     private fun queuePreparedDownload(url: String, quality: String, operationId: String): String {
         val key = stableInfoKey(url)
         val jobId: String
@@ -608,6 +647,10 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }
         extractionScope.launch {
             val (jobId, quality, media) = prepared
+            if (jobId in canceledJobs) {
+                preparingJobs.remove(jobId)
+                return@launch
+            }
             try {
                 Log.i(TAG, "backend=$backendInstanceId operation=$operationId event=QUALITY_RESOLVED key=$key quality=$quality")
                 startPreparedDownload(jobId, preparationStates[key]?.url ?: media.webpageUrl, quality, media)
@@ -630,6 +673,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun startPreparedDownload(jobId: String, url: String, quality: String, media: MediaInfo) {
+        if (jobId in canceledJobs) return
         val audioOnly = quality.equals("audio", ignoreCase = true)
         val height = quality.toIntOrNull()
         val selectedFormat = media.formats
@@ -818,7 +862,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private fun downloadJobJson(item: DownloadEntity): JsonObject = buildJsonObject {
         val publicStatus = when (item.status) {
             DownloadEntity.Status.COMPLETE -> "complete"
-            DownloadEntity.Status.FAILED, DownloadEntity.Status.CANCELLED -> "error"
+            DownloadEntity.Status.CANCELLED -> "canceled"
+            DownloadEntity.Status.FAILED -> "error"
             DownloadEntity.Status.PROCESSING -> "processing"
             DownloadEntity.Status.DOWNLOADING -> "downloading"
             else -> "queued"
@@ -835,7 +880,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                     "filename",
                     item.savedDisplayName.ifBlank { "${item.title}.${item.fileExtension}" },
                 )
-                put("file_url", "reelhouse-local://${item.id}")
+                put("file_url", "android-media/${item.id}")
                 put("filesize_mb", item.fileSizeBytes / (1024.0 * 1024.0))
                 put("source_url", item.url)
             })

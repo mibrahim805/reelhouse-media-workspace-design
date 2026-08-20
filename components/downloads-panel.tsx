@@ -6,6 +6,7 @@ import {
   Download,
   Play,
   RotateCw,
+  Ban,
   Trash2,
   X,
 } from 'lucide-react'
@@ -41,7 +42,7 @@ function DownloadRow({
   item: DownloadItem
   onPlay: (item: DownloadItem) => void
 }) {
-  const { removeDownload, retryDownload } = useDownloads()
+  const { cancelDownload, removeDownload, retryDownload, saveDownload } = useDownloads()
   return (
     <div className="flex gap-3 rounded-lg p-2 transition-colors hover:bg-muted/60">
       <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-md bg-muted">
@@ -62,16 +63,23 @@ function DownloadRow({
           {item.quality} · {item.size} · {item.source}
         </p>
 
-        {item.status === 'downloading' && (
+        {['queued','downloading','processing'].includes(item.status) && (
+          <>
           <div className="mt-2 h-1 w-full overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
               style={{ width: `${item.progress}%` }}
             />
           </div>
+          <div className="mt-1 flex items-center text-[10px] text-muted-foreground">
+            <span>{item.status === 'processing' ? 'Processing file…' : item.speed ? `${(item.speed / 1024 / 1024).toFixed(1)} MB/s` : item.status}</span>
+            {item.eta != null && <span className="ml-auto">{item.eta}s remaining</span>}
+            <button onClick={() => cancelDownload(item.id)} className="ml-2 text-destructive"><Ban className="size-3" /></button>
+          </div>
+          </>
         )}
 
-        {item.status !== 'downloading' && (
+        {!['queued','downloading','processing'].includes(item.status) && (
           <div className="mt-1.5 flex items-center gap-1">
             {item.status === 'completed' && (
               <button
@@ -81,7 +89,8 @@ function DownloadRow({
                 <Play className="size-3 fill-current" /> Play
               </button>
             )}
-            {item.status === 'failed' && (
+            {item.status === 'completed' && item.fileUrl && <button onClick={() => saveDownload(item.id)} className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary"><Download className="size-3"/> Save</button>}
+            {['failed','interrupted','canceled'].includes(item.status) && (
               <button
                 onClick={() => retryDownload(item.id)}
                 className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-medium text-primary transition-colors hover:bg-primary/10"
@@ -109,8 +118,8 @@ export function DownloadsPanel() {
 
   if (!panelOpen) return null
 
-  const active = downloads.filter((d) => d.status === 'downloading')
-  const others = downloads.filter((d) => d.status !== 'downloading')
+  const active = downloads.filter((d) => ['queued','downloading','processing'].includes(d.status))
+  const others = downloads.filter((d) => !['queued','downloading','processing'].includes(d.status))
 
   return (
     <>

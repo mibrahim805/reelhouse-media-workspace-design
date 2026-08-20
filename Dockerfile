@@ -1,14 +1,24 @@
 FROM node:22-bookworm-slim AS frontend-build
 
-WORKDIR /app/frontend
+WORKDIR /app/web
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NEXT_PUBLIC_BACKEND_BASE_URL=""
 
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
+RUN corepack enable && corepack prepare pnpm@10.18.3 --activate
 
-COPY frontend/ ./
-RUN npm run build
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+
+COPY app/ ./app/
+COPY components/ ./components/
+COPY hooks/ ./hooks/
+COPY lib/ ./lib/
+COPY providers/ ./providers/
+COPY public/ ./public/
+COPY services/ ./services/
+COPY types/ ./types/
+COPY components.json eslint.config.mjs next-env.d.ts next.config.mjs postcss.config.mjs tsconfig.json ./
+RUN pnpm build
 
 
 FROM node:22-bookworm-slim AS pot-provider-build
@@ -52,12 +62,13 @@ RUN /opt/venv/bin/pip install --no-cache-dir -r /tmp/backend-requirements.txt
 COPY --chown=node:node backend/ /app/backend/
 COPY --from=pot-provider-build --chown=node:node /build/bgutil/server/ /opt/bgutil-provider/server/
 COPY --from=pot-provider-build --chown=node:node /build/bgutil/LICENSE /opt/bgutil-provider/LICENSE
-COPY --from=frontend-build --chown=node:node /app/frontend/.next/standalone/ /app/frontend/
-COPY --from=frontend-build --chown=node:node /app/frontend/.next/static/ /app/frontend/.next/static/
-COPY --from=frontend-build --chown=node:node /app/frontend/public/ /app/frontend/public/
+COPY --from=frontend-build --chown=node:node /app/web/.next/standalone/ /app/frontend/
+COPY --from=frontend-build --chown=node:node /app/web/.next/static/ /app/frontend/.next/static/
+COPY --from=frontend-build --chown=node:node /app/web/public/ /app/frontend/public/
+COPY --chown=node:node clients/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk /app/android/Reelhouse-Android-arm64.apk
 COPY --chown=node:node deploy/start-container.sh /app/deploy/start-container.sh
 
-RUN mkdir -p /data/downloads /data/job-cache \
+RUN mkdir -p /data/downloads /data/job-cache /app/android \
     && chown -R node:node /app /data \
     && chmod +x /app/deploy/start-container.sh
 

@@ -58,6 +58,8 @@ def get_job(job_id):
 
 def _progress_hook(job_id):
     def hook(status):
+        if get_job(job_id).get('status') == 'canceled':
+            raise DownloadError('Download canceled.')
         total = status.get('total_bytes') or status.get('total_bytes_estimate') or 0
         downloaded = status.get('downloaded_bytes') or 0
         percent = int((downloaded / total) * 100) if total else 0
@@ -76,6 +78,16 @@ def _progress_hook(job_id):
     return hook
 
 
+def cancel_download_job(job_id):
+    job = get_job(job_id)
+    if not job:
+        return False
+    if job.get('status') in {'complete', 'error', 'canceled'}:
+        return True
+    _save_job(job_id, status='canceled', error='Download canceled.')
+    return True
+
+
 def start_download_job(url, quality):
 
     job_id = uuid4().hex
@@ -86,7 +98,8 @@ def start_download_job(url, quality):
             _save_job(job_id, status='downloading', percent=1)
             result = download_video(url, quality=quality, progress_hook=_progress_hook(job_id))
         except DownloadError as exc:
-            _save_job(job_id, status='error', percent=0, error=str(exc))
+            if get_job(job_id).get('status') != 'canceled':
+                _save_job(job_id, status='error', percent=0, error=str(exc))
         except Exception:
             # Never leave the UI polling a job that died outside yt-dlp's
             # normal error handling (for example, an ffmpeg/process error).

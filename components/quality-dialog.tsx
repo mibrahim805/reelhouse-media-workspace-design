@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Check, Download, Music, Video, X } from 'lucide-react'
-import { QUALITIES } from '@/lib/mock-data'
+import type { QualityOption } from '@/lib/backend-api'
 import { cn } from '@/lib/utils'
 
 export type QualityTarget = {
@@ -10,6 +10,7 @@ export type QualityTarget = {
   channel: string
   thumbnail: string
   source: string
+  qualities?: QualityOption[]
 }
 
 export function QualityDialog({
@@ -23,11 +24,11 @@ export function QualityDialog({
   onClose: () => void
   onConfirm: (quality: string, size: string) => void
 }) {
-  const [selected, setSelected] = useState('1080p')
+  const [selected, setSelected] = useState('')
 
   useEffect(() => {
-    if (open) setSelected('1080p')
-  }, [open])
+    if (open) setSelected(target?.qualities?.[0]?.value || 'best')
+  }, [open, target])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -39,7 +40,8 @@ export function QualityDialog({
 
   if (!open || !target) return null
 
-  const chosen = QUALITIES.find((q) => q.label === selected) ?? QUALITIES[2]
+  const options = target.qualities?.length ? target.qualities : [{value:'best',label:'Best available',extension:'mp4',filesize:null,size:'Estimated size'}]
+  const chosen = options.find((q) => q.value === selected) ?? options[0]
 
   return (
     <div
@@ -83,13 +85,13 @@ export function QualityDialog({
             Select quality
           </p>
           <div className="max-h-[46vh] space-y-1 overflow-y-auto px-1 pb-1">
-            {QUALITIES.map((q) => {
-              const isAudio = q.label === 'Audio'
-              const active = selected === q.label
+            {options.map((q) => {
+              const isAudio = q.value === 'audio'
+              const active = selected === q.value
               return (
                 <button
-                  key={q.label}
-                  onClick={() => setSelected(q.label)}
+                  key={q.value}
+                  onClick={() => setSelected(q.value)}
                   className={cn(
                     'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
                     active
@@ -116,7 +118,7 @@ export function QualityDialog({
                       {q.label}
                     </span>
                     <span className="block text-xs text-muted-foreground">
-                      {q.note}
+                      {q.extension.toUpperCase()}{q.filesize ? ` · ${Math.round(q.filesize / 1024 / 1024)} MB` : ''}
                     </span>
                   </span>
                   <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
@@ -147,7 +149,7 @@ export function QualityDialog({
           </button>
           <button
             onClick={() => {
-              onConfirm(chosen.label, chosen.size)
+              onConfirm(chosen.value, chosen.size)
               onClose()
             }}
             className="flex h-10 flex-[1.6] items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"

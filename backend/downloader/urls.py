@@ -19,6 +19,7 @@ urlpatterns = [
     path('youtube-search/', views.youtube_search, name='youtube_search'),
     path('youtube-topic/', views.youtube_topic, name='youtube_topic'),
     path('start-download/', views.start_download, name='start_download'),
+    path('cancel-download/', views.cancel_download, name='cancel_download'),
     path('progress/<str:job_id>/', views.download_progress, name='download_progress'),
     path('media/<path:file_path>', views.downloaded_file, name='downloaded_file'),
 ]

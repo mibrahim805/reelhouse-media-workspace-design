@@ -14,6 +14,7 @@ from .services import (
     _cache_video_info,
     _cached_video_info,
     _download_format,
+    DownloadError,
     download_video,
     extract_shared_url,
     get_video_info,
@@ -141,6 +142,24 @@ class DownloadPageTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json(), {'ok': False, 'error': 'Enter a valid video URL.'})
+
+    @patch('downloader.views.cancel_download_job')
+    def test_cancel_download_returns_success(self, mocked_cancel):
+        mocked_cancel.return_value = True
+
+        response = self.client.post(reverse('cancel_download'), {'job_id': 'job-123'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {'ok': True})
+        mocked_cancel.assert_called_once_with('job-123')
+
+    @patch('downloader.views.cancel_download_job')
+    def test_cancel_download_rejects_unknown_job(self, mocked_cancel):
+        mocked_cancel.return_value = False
+
+        response = self.client.post(reverse('cancel_download'), {'job_id': 'missing'})
+
+        self.assertEqual(response.status_code, 404)
 
     @patch('downloader.views.search_youtube_videos')
     def test_youtube_search_returns_results(self, mocked_search):
@@ -345,6 +364,34 @@ class CachedVideoDownloadTests(SimpleTestCase):
         ydl.extract_info.assert_not_called()
         self.assertEqual(result['filename'], 'demo.mp4')
         self.assertIsNone(_cached_video_info(source_url))
+
+    @patch('downloader.services.yt_dlp.YoutubeDL')
+    def test_retries_youtube_download_with_fallback_clients(self, mocked_youtube_dl):
+        source_url = 'https://www.youtube.com/watch?v=abc123'
+        info = {'id': 'abc123', 'title': 'Demo video', 'ext': 'mp4'}
+
+        with TemporaryDirectory() as directory:
+            output_file = Path(directory) / 'demo.mp4'
+            output_file.write_bytes(b'demo video')
+            ydl = mocked_youtube_dl.return_value.__enter__.return_value
+            ydl.process_ie_result.side_effect = DownloadError('ERROR: HTTP Error 403: Forbidden')
+            ydl.extract_info.side_effect = [
+                DownloadError('ERROR: HTTP Error 403: Forbidden'),
+                DownloadError('ERROR: HTTP Error 403: Forbidden'),
+                info,
+            ]
+            ydl.prepare_filename.return_value = str(output_file)
+
+            with override_settings(MEDIA_ROOT=directory):
+                result = download_video(source_url)
+
+        self.assertEqual(result['filename'], 'demo.mp4')
+        self.assertEqual(mocked_youtube_dl.call_count, 3)
+        clients = [
+            call.args[0].get('extractor_args', {}).get('youtube', {}).get('player_client')
+            for call in mocked_youtube_dl.call_args_list
+        ]
+        self.assertEqual(clients, [None, ['web_embedded'], ['android_vr']])
 
     @patch('downloader.services.yt_dlp.YoutubeDL')
     def test_audio_download_returns_generated_mp3(self, mocked_youtube_dl):

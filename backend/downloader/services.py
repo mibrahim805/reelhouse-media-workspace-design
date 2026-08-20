@@ -109,6 +109,31 @@ def _base_ydl_options():
     return options
 
 
+def _youtube_client_options(options, client):
+    """Return yt-dlp options for a specific YouTube player client."""
+    extractor_args = {
+        **options.get('extractor_args', {}),
+        'youtube': {
+            **options.get('extractor_args', {}).get('youtube', {}),
+            'player_client': [client],
+        },
+    }
+    return {**options, 'extractor_args': extractor_args}
+
+
+def _is_youtube_client_access_failure(error):
+    message = str(error).lower()
+    return any(term in message for term in (
+        'http error 403',
+        '403 forbidden',
+        'access denied',
+        'denied by the source',
+        'source denied',
+        'error code: 152',
+        'watch video on youtube',
+    ))
+
+
 def _download_error_message(error):
     message = str(error)
     lowered = message.lower()
@@ -448,13 +473,28 @@ def download_video(url, quality='best', progress_hook=None):
         options['progress_hooks'] = [progress_hook]
 
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            cached_info = _cached_video_info(cleaned_url)
-            if cached_info:
-                info = ydl.process_ie_result(cached_info, download=True)
-            else:
-                info = ydl.extract_info(cleaned_url, download=True)
-            filepath = Path(ydl.prepare_filename(info))
+        clients = [None]
+        if is_youtube_url(cleaned_url):
+            clients.extend(['web_embedded', 'android_vr'])
+
+        last_error = None
+        for client in clients:
+            attempt_options = _youtube_client_options(options, client) if client else options
+            try:
+                with yt_dlp.YoutubeDL(attempt_options) as ydl:
+                    cached_info = _cached_video_info(cleaned_url) if client is None else None
+                    if cached_info:
+                        info = ydl.process_ie_result(cached_info, download=True)
+                    else:
+                        info = ydl.extract_info(cleaned_url, download=True)
+                    filepath = Path(ydl.prepare_filename(info))
+                break
+            except Exception as exc:
+                last_error = exc
+                if client == clients[-1] or not _is_youtube_client_access_failure(exc):
+                    raise
+        else:
+            raise last_error or DownloadError('The download failed unexpectedly.')
     except Exception as exc:
         raise DownloadError(_download_error_message(exc)) from exc
     else:

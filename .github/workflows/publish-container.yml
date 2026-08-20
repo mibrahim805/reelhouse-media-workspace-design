@@ -8,9 +8,22 @@ on:
       - .github/workflows/publish-container.yml
       - .dockerignore
       - Dockerfile
+      - app/**
       - backend/**
+      - components/**
       - deploy/**
-      - frontend/**
+      - hooks/**
+      - lib/**
+      - providers/**
+      - public/**
+      - services/**
+      - types/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - next.config.mjs
+      - postcss.config.mjs
+      - tsconfig.json
   workflow_dispatch:
 
 permissions:

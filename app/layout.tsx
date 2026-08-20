@@ -1,42 +1,40 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import { DownloadProvider } from '@/components/download-store'
 import { AppShell } from '@/components/app-shell'
+import { MediaProvider } from '@/components/media-state'
+import { MiniPlayer } from '@/components/player/mini-player'
+import { LibraryProvider } from '@/components/library-store'
+import { ThemeProvider } from '@/components/theme-provider'
 import './globals.css'
 
-const geistSans = Geist({ subsets: ['latin'], variable: '--font-geist-sans' })
-const geistMono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-geist-mono',
-})
-
 export const metadata: Metadata = {
-  title: 'Reelhouse — Media Workspace',
-  description:
-    'Search, watch, and download videos in one focused media workspace. YouTube workspace, direct link downloader, and a persistent download manager.',
-  generator: 'v0.app',
+  title: 'Reelhouse — Your Media, Anywhere',
+  description: 'Search, watch, and download videos in one focused media workspace. YouTube search, direct link downloader, and a persistent download manager.',
 }
 
 export const viewport: Viewport = {
   colorScheme: 'dark',
-  themeColor: '#2b2b30',
+  themeColor: '#090909',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
 }
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`dark bg-background ${geistSans.variable} ${geistMono.variable}`}
-    >
+    <html lang="en" className="dark bg-[#090909]">
       <body className="font-sans antialiased">
-        <DownloadProvider>
-          <AppShell>{children}</AppShell>
-        </DownloadProvider>
+        <ThemeProvider>
+          <DownloadProvider>
+            <LibraryProvider>
+              <MediaProvider>
+                <AppShell>{children}</AppShell>
+                <MiniPlayer />
+              </MediaProvider>
+            </LibraryProvider>
+          </DownloadProvider>
+        </ThemeProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

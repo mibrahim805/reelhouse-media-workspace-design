@@ -1,5 +1,5 @@
 import { Suspense } from 'react'
-import { DownloaderView } from '@/components/downloader-view'
+import { DownloaderView } from '@/components/screens/downloader/downloader-screen'
 
 export default function DownloaderPage() {
   return (

@@ -31,9 +31,12 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.reelhouse.downloader.util.UrlValidator
 import java.io.ByteArrayInputStream
+import java.io.FilterInputStream
+import java.io.InputStream
 import java.net.URI
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 
 /**
@@ -108,7 +111,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             setDownloadListener { url, _, _, _, _ ->
-                if (url.startsWith(LOCAL_RESULT_SCHEME)) {
+                if (url.startsWith(LOCAL_RESULT_SCHEME) || localMediaId(Uri.parse(url)) != null) {
                     showSavedMessage(Uri.parse(url))
                 } else if (url.startsWith("http://") || url.startsWith("https://")) {
                     enqueueExternalDownload(Uri.parse(url))
@@ -270,6 +273,9 @@ class MainActivity : ComponentActivity() {
             request: WebResourceRequest,
         ): WebResourceResponse? {
             val uri = request.url
+            if (localMediaId(uri) != null) {
+                return localMediaResponse(uri, request.requestHeaders["Range"])
+            }
             if (
                 uri.scheme == "https" &&
                 uri.host == URI(webBaseUrl).host &&
@@ -310,7 +316,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showSavedMessage(uri: Uri) {
-        val id = uri.host ?: uri.lastPathSegment.orEmpty()
+        val id = localMediaId(uri) ?: uri.host ?: uri.lastPathSegment.orEmpty()
         lifecycleScope.launch {
             val item = withContext(Dispatchers.IO) {
                 (application as ReelhouseApp).database.downloadDao().getById(id)
@@ -322,6 +328,117 @@ class MainActivity : ComponentActivity() {
                 "Already saved to $location",
                 Toast.LENGTH_LONG,
             ).show()
+        }
+    }
+
+    private fun localMediaId(uri: Uri): String? {
+        if (uri.scheme == LOCAL_RESULT_SCHEME) {
+            return (uri.host ?: uri.lastPathSegment)?.takeIf(String::isNotBlank)
+        }
+        if (uri.scheme != "https" || uri.host != URI(webBaseUrl).host) return null
+        val prefix = "/api/backend/android-media/"
+        return uri.path.orEmpty()
+            .takeIf { it.startsWith(prefix) }
+            ?.removePrefix(prefix)
+            ?.substringBefore('/')
+            ?.takeIf(String::isNotBlank)
+    }
+
+    private fun localMediaResponse(uri: Uri, rangeHeader: String?): WebResourceResponse {
+        val id = localMediaId(uri)
+            ?: return localMediaError(404, "Not found")
+        val item = runBlocking(Dispatchers.IO) {
+            (application as ReelhouseApp).database.downloadDao().getById(id)
+        } ?: return localMediaError(404, "Not found")
+        val contentUri = item.contentUri?.let(Uri::parse)
+            ?: return localMediaError(404, "Not found")
+        val descriptor = contentResolver.openAssetFileDescriptor(contentUri, "r")
+            ?: return localMediaError(404, "Not found")
+        val total = item.fileSizeBytes.takeIf { it > 0L }
+            ?: descriptor.length.takeIf { it > 0L }
+            ?: return localMediaError(416, "Range not satisfiable")
+        val requestedRange = parseByteRange(rangeHeader, total)
+        if (rangeHeader != null && requestedRange == null) {
+            descriptor.close()
+            return localMediaError(
+                416,
+                "Range not satisfiable",
+                mapOf("Content-Range" to "bytes */$total"),
+            )
+        }
+        val start = requestedRange?.first ?: 0L
+        val end = requestedRange?.last ?: total - 1L
+        val input = descriptor.createInputStream()
+        skipFully(input, start)
+        val length = end - start + 1L
+        val headers = linkedMapOf(
+            "Accept-Ranges" to "bytes",
+            "Content-Length" to length.toString(),
+            "Cache-Control" to "no-store",
+        )
+        if (requestedRange != null) headers["Content-Range"] = "bytes $start-$end/$total"
+        return WebResourceResponse(
+            item.mimeType.ifBlank { "application/octet-stream" },
+            null,
+            if (requestedRange == null) 200 else 206,
+            if (requestedRange == null) "OK" else "Partial Content",
+            headers,
+            LimitedInputStream(input, length),
+        )
+    }
+
+    private fun parseByteRange(value: String?, total: Long): LongRange? {
+        if (value == null) return null
+        val match = RANGE_PATTERN.matchEntire(value.trim()) ?: return null
+        val start = match.groupValues[1].toLongOrNull() ?: return null
+        val requestedEnd = match.groupValues[2].toLongOrNull() ?: (total - 1L)
+        if (start < 0L || start >= total || requestedEnd < start) return null
+        return start..requestedEnd.coerceAtMost(total - 1L)
+    }
+
+    private fun skipFully(input: InputStream, bytes: Long) {
+        var remaining = bytes
+        while (remaining > 0L) {
+            val skipped = input.skip(remaining)
+            if (skipped > 0L) {
+                remaining -= skipped
+            } else if (input.read() == -1) {
+                break
+            } else {
+                remaining--
+            }
+        }
+    }
+
+    private fun localMediaError(
+        status: Int,
+        reason: String,
+        headers: Map<String, String> = emptyMap(),
+    ) = WebResourceResponse(
+        "text/plain",
+        "UTF-8",
+        status,
+        reason,
+        headers,
+        ByteArrayInputStream(reason.encodeToByteArray()),
+    )
+
+    private class LimitedInputStream(
+        input: InputStream,
+        private var remaining: Long,
+    ) : FilterInputStream(input) {
+        override fun read(): Int {
+            if (remaining <= 0L) return -1
+            val value = super.read()
+            if (value >= 0) remaining--
+            return value
+        }
+
+        override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
+            if (remaining <= 0L) return -1
+            val count = super.read(buffer, offset, minOf(length.toLong(), remaining).toInt())
+            if (count > 0) remaining -= count
+            return count
         }
     }
 
@@ -344,6 +461,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val BRIDGE_NAME = "ReelhouseAndroid"
         private const val LOCAL_RESULT_SCHEME = "reelhouse-local"
+        private val RANGE_PATTERN = Regex("bytes=(\\d+)-(\\d*)", RegexOption.IGNORE_CASE)
 
         private val LOCAL_FETCH_SCRIPT = """
             (() => {

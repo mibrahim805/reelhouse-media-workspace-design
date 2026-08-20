@@ -17,7 +17,8 @@ import {
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { QualityDialog } from '@/components/quality-dialog'
-import { QUALITIES } from '@/lib/mock-data'
+import { fetchMediaInfo, type MediaInfo, type QualityOption } from '@/lib/backend-api'
+import { DownloadConfirmation } from '@/components/download-confirmation'
 import { cn } from '@/lib/utils'
 
 type Platform = {
@@ -35,14 +36,6 @@ const PLATFORMS: Platform[] = [
   { id: 'facebook', label: 'Facebook', icon: Video, hint: 'facebook.com/watch/…' },
 ]
 
-type Preview = {
-  title: string
-  channel: string
-  duration: string
-  source: string
-  thumbnail: string
-}
-
 function isValidUrl(value: string) {
   try {
     const u = new URL(value.trim())
@@ -51,25 +44,6 @@ function isValidUrl(value: string) {
     return false
   }
 }
-
-function detectSource(url: string, platform: string) {
-  if (platform !== 'auto') {
-    return PLATFORMS.find((p) => p.id === platform)?.label ?? 'Source'
-  }
-  const u = url.toLowerCase()
-  if (u.includes('youtu')) return 'YouTube'
-  if (u.includes('instagram')) return 'Instagram'
-  if (u.includes('tiktok')) return 'TikTok'
-  if (u.includes('facebook') || u.includes('fb.watch')) return 'Facebook'
-  return 'Web'
-}
-
-const THUMBS = [
-  '/thumbnails/travel.png',
-  '/thumbnails/music.png',
-  '/thumbnails/nature.png',
-  '/thumbnails/design.png',
-]
 
 export function DownloaderView() {
   const params = useSearchParams()
@@ -80,9 +54,11 @@ export function DownloaderView() {
   const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>(
     'idle',
   )
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const [quality, setQuality] = useState('1080p')
+  const [preview, setPreview] = useState<MediaInfo | null>(null)
+  const [quality, setQuality] = useState('')
+  const [error, setError] = useState('')
   const [dialogOpen, setDialogOpen] = useState(false)
+  const [pendingQuality, setPendingQuality] = useState<QualityOption | null>(null)
 
   // Prefill from home page ?url=
   useEffect(() => {
@@ -90,26 +66,25 @@ export function DownloaderView() {
     if (initial) setUrl(initial)
   }, [params])
 
-  function fetchPreview() {
+  async function fetchPreview() {
     if (!isValidUrl(url)) {
       setStatus('error')
       setPreview(null)
+      setError('Enter a valid URL starting with http:// or https://')
       return
     }
     setStatus('loading')
     setPreview(null)
-    setTimeout(() => {
-      const source = detectSource(url, platform)
-      setPreview({
-        title: 'Imported clip — ' + source + ' source',
-        channel: source + ' · @creator',
-        duration: '06:12',
-        source,
-        thumbnail: THUMBS[Math.floor(Math.random() * THUMBS.length)],
-      })
-      setQuality('1080p')
+    setError('')
+    try {
+      const media = await fetchMediaInfo(url)
+      setPreview(media)
+      setQuality(media.qualities[0]?.value || 'best')
       setStatus('ready')
-    }, 800)
+    } catch (cause) {
+      setStatus('error')
+      setError(cause instanceof Error ? cause.message : 'Metadata extraction failed.')
+    }
   }
 
   async function pasteFromClipboard() {
@@ -123,20 +98,29 @@ export function DownloaderView() {
 
   function confirmDownload(q: string, size: string) {
     if (!preview) return
+    const selected = preview.qualities.find(x => x.value === q) || {value:'best',label:'Best available',extension:'mp4',filesize:null,size}
+    setPendingQuality(selected)
+  }
+
+  function startConfirmedDownload() {
+    if (!preview || !pendingQuality) return
     startDownload({
       title: preview.title,
       channel: preview.channel,
       thumbnail: preview.thumbnail,
-      quality: q,
-      size,
-      source: preview.source,
+      quality: pendingQuality.label,
+      qualityValue: pendingQuality.value,
+      size: pendingQuality.size,
+      source: preview.platform,
+      sourceUrl: preview.sourceUrl,
     })
+    setPendingQuality(null)
   }
 
   const recent = downloads.slice(0, 5)
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-3 py-5 sm:px-5">
+    <div className="mx-auto w-full max-w-[1100px] px-4 pb-28 pt-5 sm:px-5 md:pb-8">
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -240,7 +224,7 @@ export function DownloaderView() {
             {status === 'error' && (
               <p className="mt-2 flex items-center gap-1.5 text-xs text-destructive">
                 <AlertCircle className="size-3.5" />
-                Enter a valid URL starting with http:// or https://
+                {error}
               </p>
             )}
           </section>
@@ -287,7 +271,7 @@ export function DownloaderView() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="inline-flex items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-medium text-success">
-                      <Check className="size-3" /> Detected · {preview.source}
+                      <Check className="size-3" /> Detected · {preview.platform}
                     </span>
                     <p className="mt-1.5 line-clamp-2 text-sm font-medium text-foreground">
                       {preview.title}
@@ -299,18 +283,18 @@ export function DownloaderView() {
                 </div>
 
                 {/* Quality pills */}
-                {preview.source === 'YouTube' ? <div>
+                {preview.qualities.length ? <div>
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">
                     Quality
                   </p>
                   <div className="flex flex-wrap gap-1.5">
-                    {QUALITIES.map((q) => (
+                    {preview.qualities.map((q) => (
                       <button
-                        key={q.label}
-                        onClick={() => setQuality(q.label)}
+                        key={q.value}
+                        onClick={() => setQuality(q.value)}
                         className={cn(
                           'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
-                          quality === q.label
+                          quality === q.value
                             ? 'border-primary/60 bg-primary/10 text-primary'
                             : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
                         )}
@@ -331,14 +315,14 @@ export function DownloaderView() {
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <button
                     onClick={() => {
-                      const q = QUALITIES.find((x) => x.label === quality)
-                      confirmDownload(preview.source === 'YouTube' ? quality : 'best', preview.source === 'YouTube' ? q?.size ?? '420 MB' : 'Automatic')
+                      const q = preview.qualities.find((x) => x.value === quality)
+                      confirmDownload(q?.value || 'best', q?.size || 'Estimated size')
                     }}
                     className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <Download className="size-4" /> Start download
                   </button>
-                  {preview.source === 'YouTube' && <button
+                  {preview.qualities.length > 0 && <button
                     onClick={() => setDialogOpen(true)}
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
                   >
@@ -398,12 +382,12 @@ export function DownloaderView() {
                         'shrink-0 text-[11px] font-medium tabular-nums',
                         d.status === 'completed'
                           ? 'text-success'
-                          : 'text-primary',
+                          : d.status === 'failed' || d.status === 'interrupted' ? 'text-destructive' : 'text-primary',
                       )}
                     >
                       {d.status === 'completed'
                         ? 'Done'
-                        : `${Math.round(d.progress)}%`}
+                        : d.status === 'failed' ? 'Failed' : d.status === 'interrupted' ? 'Offline' : `${Math.round(d.progress)}%`}
                     </span>
                   </div>
                 ))
@@ -446,13 +430,15 @@ export function DownloaderView() {
                 title: preview.title,
                 channel: preview.channel,
                 thumbnail: preview.thumbnail,
-                source: preview.source,
+                source: preview.platform,
+                qualities: preview.qualities,
               }
             : null
         }
         onClose={() => setDialogOpen(false)}
         onConfirm={confirmDownload}
       />
+      <DownloadConfirmation media={preview} quality={pendingQuality} onClose={() => setPendingQuality(null)} onStart={startConfirmedDownload} />
     </div>
   )
 }

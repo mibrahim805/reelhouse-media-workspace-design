@@ -19,7 +19,7 @@ from google.oauth2 import id_token
 
 from .forms import DownloadForm
 from .models import SearchHistory
-from .jobs import get_job, start_download_job
+from .jobs import cancel_download_job, get_job, start_download_job
 from .services import DownloadError, extract_shared_url, get_video_info, search_youtube_videos
 
 
@@ -258,6 +258,15 @@ def start_download(request):
 
     job_id = start_download_job(form.cleaned_data['url'], quality)
     return JsonResponse({'ok': True, 'job_id': job_id})
+
+
+@csrf_exempt
+@require_POST
+def cancel_download(request):
+    job_id = str(_request_data(request).get('job_id', '')).strip()
+    if not job_id or not cancel_download_job(job_id):
+        return JsonResponse({'ok': False, 'error': 'Download job was not found.'}, status=404)
+    return JsonResponse({'ok': True})
 
 
 def download_progress(request, job_id):

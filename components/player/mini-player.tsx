@@ -1,0 +1,73 @@
+'use client'
+
+import Link from 'next/link'
+import { useCallback, useEffect, useRef } from 'react'
+import { Pause, Play, X } from 'lucide-react'
+import { usePathname } from 'next/navigation'
+import { useMedia } from '@/components/media-state'
+import { LocalAudioPlayerAdapter, type LocalAudioPlayerAdapterHandle } from '@/components/player/adapters/local-audio-player-adapter'
+import { LocalVideoPlayerAdapter, type LocalVideoPlayerAdapterHandle } from '@/components/player/adapters/local-video-player-adapter'
+import { YoutubePlayerAdapter, type YoutubePlayerAdapterHandle } from '@/components/player/adapters/youtube-player-adapter'
+
+function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) {
+  if (source.type === 'youtube') return `/watch/${encodeURIComponent(source.videoId)}`
+  return source.type === 'local-audio' ? `/music/${encodeURIComponent(source.id)}` : `/player/${encodeURIComponent(source.id)}`
+}
+
+export function MiniPlayer() {
+  const media = useMedia()
+  const { playing, setDuration, setPlaying, setPosition, setStatus, registerControls, clearControls, play, pause, close } = media
+  const pathname = usePathname()
+  const source = media.source
+  const videoRef = useRef<LocalVideoPlayerAdapterHandle>(null)
+  const audioRef = useRef<LocalAudioPlayerAdapterHandle>(null)
+  const youtubeRef = useRef<YoutubePlayerAdapterHandle>(null)
+  const playingRef = useRef(playing)
+  useEffect(() => { playingRef.current = playing }, [playing])
+  const isFullPlayer = pathname.startsWith('/watch/') || pathname.startsWith('/player/') || pathname.startsWith('/music/')
+  const sourceType = source?.type
+  const sourceKey = source ? source.type === 'youtube' ? source.videoId : source.id : ''
+  const onReady = useCallback((duration: number) => { setDuration(duration); if (playingRef.current) void (sourceType === 'youtube' ? youtubeRef.current : sourceType === 'local-video' ? videoRef.current : audioRef.current)?.play() }, [setDuration, sourceType])
+  const onPlay = useCallback(() => setPlaying(true), [setPlaying])
+  const onPause = useCallback(() => setPlaying(false), [setPlaying])
+  const onEnded = useCallback(() => setPlaying(false), [setPlaying])
+  const onProgress = useCallback((position: number, duration: number) => { setPosition(position); if (duration) setDuration(duration) }, [setDuration, setPosition])
+  const onError = useCallback(() => setStatus('error'), [setStatus])
+
+  useEffect(() => {
+    if (!source || isFullPlayer) return
+    const controls = source.type === 'youtube' ? youtubeRef.current : source.type === 'local-video' ? videoRef.current : audioRef.current
+    if (controls) registerControls(controls)
+    return () => clearControls()
+  }, [clearControls, isFullPlayer, registerControls, source, sourceKey])
+
+  if (!source || isFullPlayer) return null
+
+  const title = source.title || media.current?.title || 'Now playing'
+  const artwork = source.type === 'youtube' ? source.thumbnail : source.type === 'local-audio' ? source.artwork : source.thumbnail
+
+  const miniEngine = source.type === 'youtube' ? <YoutubePlayerAdapter ref={youtubeRef} videoId={source.videoId} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : source.type === 'local-video' ? <LocalVideoPlayerAdapter ref={videoRef} src={source.src} poster={source.thumbnail} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : <LocalAudioPlayerAdapter ref={audioRef} src={source.src} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} />
+
+  return (
+    <aside className="fixed inset-x-3 bottom-[72px] z-40 mx-auto flex h-16 max-w-xl items-center gap-3 overflow-hidden rounded-2xl border border-[#292929] bg-[#151515]/95 px-2 shadow-2xl backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-96" aria-label="Mini player">
+      {source.type === 'local-video' ? (
+        <div className="h-12 w-20 shrink-0 overflow-hidden rounded-xl">{miniEngine}</div>
+      ) : (
+        <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-xl bg-[#1d1d1d]">
+          <div className={source.type === 'local-audio' ? 'absolute size-px overflow-hidden opacity-0' : 'size-full'}>{miniEngine}</div>
+          {artwork ? <img src={artwork} alt="" className="size-full object-cover" /> : <div className="flex size-full items-center justify-center text-xs font-bold text-primary">RH</div>}
+        </div>
+      )}
+      <Link href={playerHref(source)} className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold text-white">{title}</p>
+        <p className="truncate text-xs text-[#a3a3a3]">{source.type === 'youtube' ? source.channel || 'YouTube' : source.type === 'local-audio' ? source.artist || 'Audio' : source.channel || 'Downloaded video'}</p>
+      </Link>
+      <button onClick={() => playing ? pause() : play()} className="flex size-9 items-center justify-center rounded-full border border-[#292929] text-white hover:bg-[#1d1d1d]" aria-label={playing ? 'Pause' : 'Play'}>
+        {playing ? <Pause className="size-4 fill-current" /> : <Play className="size-4 fill-current" />}
+      </button>
+      <button onClick={close} className="flex size-9 items-center justify-center rounded-full border border-[#292929] text-[#a3a3a3] hover:bg-[#1d1d1d] hover:text-white" aria-label="Close">
+        <X className="size-4" />
+      </button>
+    </aside>
+  )
+}
