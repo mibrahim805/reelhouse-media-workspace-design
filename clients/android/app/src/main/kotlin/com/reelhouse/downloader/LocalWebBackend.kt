@@ -1,6 +1,10 @@
 package com.reelhouse.downloader
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
+import android.os.Build
+import android.provider.MediaStore
 import androidx.core.content.ContextCompat
 import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.download.DownloadRequest
@@ -28,6 +32,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -120,6 +125,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 path == "preparation-status" -> preparationStatus(body)
                 path == "youtube-search" -> search(body)
                 path == "youtube-topic" -> topic(body)
+                path == "local-media" -> localMedia()
                 path == "start-download" -> startDownload(body)
                 path == "cancel-download" -> cancelDownload(body)
                 path.startsWith("progress/") -> progress(path.substringAfter("progress/"))
@@ -251,6 +257,98 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         Log.d(TAG, "operation=$operationId phase=search_finish durationMs=${elapsed(started)}")
         return 200 to response
     }
+
+    private suspend fun localMedia(): Pair<Int, JsonObject> = withContext(Dispatchers.IO) {
+        val permissionRequired = !hasMediaPermission()
+        val completed = dao.getCompletedDownloads().first().filter { it.status == DownloadEntity.Status.COMPLETE && !it.contentUri.isNullOrBlank() }
+        200 to buildJsonObject {
+            put("ok", true)
+            put("permissionRequired", permissionRequired)
+            put("downloads", buildJsonArray { completed.forEach { add(downloadMediaJson(it)) } })
+            if (permissionRequired) {
+                put("videos", buildJsonArray {})
+                put("music", buildJsonArray {})
+            } else {
+                put("videos", deviceVideoArray())
+                put("music", deviceAudioArray())
+            }
+        }
+    }
+
+    private fun hasMediaPermission(): Boolean {
+        val permissions = if (Build.VERSION.SDK_INT >= 33) {
+            listOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
+        } else {
+            listOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        return permissions.all { ContextCompat.checkSelfPermission(app, it) == PackageManager.PERMISSION_GRANTED }
+    }
+
+    private fun downloadMediaJson(item: DownloadEntity) = buildJsonObject {
+        put("id", item.id)
+        put("title", item.title)
+        put("channel", item.uploader)
+        put("thumbnail", item.thumbnail)
+        put("fileUrl", "/api/backend/android-media/${item.id}")
+        put("filename", item.savedDisplayName.ifBlank { "${item.title}.${item.fileExtension}" })
+        put("size", item.fileSizeFormatted)
+        put("source", "download")
+        put("mediaType", if (item.isAudioOnly) "audio" else "video")
+        put("qualityValue", if (item.isAudioOnly) "audio" else "best")
+        put("status", "completed")
+        put("startedAt", item.completedAt ?: item.createdAt)
+    }
+
+    private fun deviceVideoArray() = buildJsonArray {
+        val projection = arrayOf(MediaStore.Video.Media._ID, MediaStore.Video.Media.DISPLAY_NAME, MediaStore.Video.Media.DURATION, MediaStore.Video.Media.SIZE, MediaStore.Video.Media.DATE_ADDED, MediaStore.Video.Media.MIME_TYPE)
+        app.contentResolver.query(MediaStore.Video.Media.EXTERNAL_CONTENT_URI, projection, null, null, "${MediaStore.Video.Media.DATE_ADDED} DESC")?.use { cursor ->
+            val id = cursor.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
+            val name = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
+            val size = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
+            val added = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
+            val mime = cursor.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
+            while (cursor.moveToNext()) {
+                val mediaId = cursor.getLong(id)
+                add(deviceMediaJson("video", mediaId, cursor.getString(name), cursor.getLong(size), cursor.getLong(added), cursor.getString(mime), false))
+            }
+        }
+    }
+
+    private fun deviceAudioArray() = buildJsonArray {
+        val projection = arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.DISPLAY_NAME, MediaStore.Audio.Media.TITLE, MediaStore.Audio.Media.ARTIST, MediaStore.Audio.Media.SIZE, MediaStore.Audio.Media.DATE_ADDED, MediaStore.Audio.Media.MIME_TYPE)
+        app.contentResolver.query(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, "${MediaStore.Audio.Media.DATE_ADDED} DESC")?.use { cursor ->
+            val id = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val title = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
+            val name = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
+            val artist = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
+            val size = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
+            val added = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
+            val mime = cursor.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
+            while (cursor.moveToNext()) {
+                val mediaId = cursor.getLong(id)
+                val display = cursor.getString(title).takeIf { it.isNotBlank() && it != "<unknown>" } ?: cursor.getString(name)
+                add(deviceMediaJson("audio", mediaId, display, cursor.getLong(size), cursor.getLong(added), cursor.getString(mime), true, cursor.getString(artist)))
+            }
+        }
+    }
+
+    private fun deviceMediaJson(collection: String, id: Long, title: String, size: Long, added: Long, mime: String?, audio: Boolean, artist: String? = null) = buildJsonObject {
+        put("id", "device-$collection-$id")
+        put("title", title.ifBlank { "Untitled" })
+        put("channel", artist.orEmpty())
+        put("thumbnail", "")
+        put("fileUrl", "/api/backend/android-device-media/$collection/$id")
+        put("filename", title)
+        put("size", formatBytes(size))
+        put("source", "device")
+        put("mediaType", if (audio) "audio" else "video")
+        put("qualityValue", if (audio) "audio" else "best")
+        put("status", "completed")
+        put("startedAt", added * 1000L)
+        put("mimeType", mime.orEmpty())
+    }
+
+    private fun formatBytes(bytes: Long): String = if (bytes >= 1024L * 1024L) "%.1f MB".format(bytes / (1024.0 * 1024.0)) else "%.0f KB".format(bytes / 1024.0)
 
     private suspend fun loadSearch(query: String, limit: Int, operationId: String): List<MediaInfo> {
         val key = "search:${query.trim().replace(Regex("\\s+"), " ").lowercase()}:limit:$limit"

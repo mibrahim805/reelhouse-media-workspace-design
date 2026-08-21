@@ -10,6 +10,7 @@ import { OnlineVideoCard, type OnlineVideoDownloadState } from '@/components/med
 import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { searchYouTube, type YoutubeSearchVideo } from '@/lib/backend-api'
 import { addRecentSearch, normalizeRecentSearches, readRecentSearches, writeRecentSearches } from '@/lib/recent-searches'
+import { useNetworkStatus } from '@/lib/network-status'
 import type { OnlineVideo } from '@/types/media'
 
 export type OnlineResult = {
@@ -83,9 +84,15 @@ function OnlineSearchPanel({
 }) {
   const [data, setData] = useState<SearchResp | null>(null)
   const [loading, setLoading] = useState(false)
+  const online = useNetworkStatus()
   const abortRef = useRef<AbortController | null>(null)
 
   const fetchResults = useCallback(async (q: string) => {
+    if (!online) {
+      setData({ results: [], nextPageToken: null, totalResults: 0, query: q, error: 'You\'re offline. Connect to the internet to search online videos.' })
+      setLoading(false)
+      return
+    }
     if (abortRef.current) abortRef.current.abort()
     const ctrl = new AbortController()
     abortRef.current = ctrl
@@ -104,7 +111,7 @@ function OnlineSearchPanel({
     } finally {
       setLoading(false)
     }
-  }, [onSearchSuccess])
+  }, [online, onSearchSuccess])
 
   useEffect(() => {
     fetchResults(query)
@@ -174,6 +181,7 @@ export function OnlineSearchScreen() {
   const [recentSearches, setRecentSearches] = useState<string[]>([])
   const inputRef = useRef<HTMLInputElement>(null)
   const download = useOnlineVideoDownload()
+  const online = useNetworkStatus()
 
   // Load recent searches from localStorage
   useEffect(() => {
@@ -262,7 +270,7 @@ export function OnlineSearchScreen() {
                 </div>
               </section>
             )}
-            <section>
+            {online ? <section>
               <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[#a3a3a3]">Trending Searches</h2>
               <div className="space-y-1">
                 {TRENDING_QUERIES.map(q => (
@@ -276,7 +284,7 @@ export function OnlineSearchScreen() {
                   </button>
                 ))}
               </div>
-            </section>
+            </section> : <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-8 text-center"><p className="text-sm font-semibold text-white">You&apos;re offline.</p><p className="mt-1 text-xs text-[#a3a3a3]">Connect to the internet to search online videos.</p></div>}
           </div>
         ) : (
           /* ─── Results ─── */

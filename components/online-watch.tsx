@@ -8,17 +8,10 @@ import { ReelhousePlayer } from '@/components/player/reelhouse-player'
 import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { fetchMediaInfo, searchYouTube, type MediaInfo } from '@/lib/backend-api'
 import type { OnlineVideo } from '@/types/media'
+import { buildRelatedVideoQuery } from '@/lib/related-query'
+import { useNetworkStatus } from '@/lib/network-status'
 
 const RELATED_RESULT_LIMIT = 12
-
-function relatedQuery(title: string) {
-  const stopWords = new Set(['a', 'an', 'and', 'for', 'from', 'in', 'of', 'the', 'to', 'via', 'with'])
-  const words = title
-    .replace(/[^a-zA-Z0-9\s]/g, ' ')
-    .split(/\s+/)
-    .filter(word => word.length > 2 && !stopWords.has(word.toLowerCase()))
-  return words.slice(0, 7).join(' ') || title.trim().slice(0, 80)
-}
 
 function RelatedSkeleton() {
   return <div className="animate-pulse">
@@ -30,6 +23,7 @@ function RelatedSkeleton() {
 
 export function OnlineWatch({ videoId }: { videoId: string }) {
   const { source, openOnline } = useMedia()
+  const online = useNetworkStatus()
   const download = useOnlineVideoDownload()
   const sourceUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
   const [metadata, setMetadata] = useState<MediaInfo | null>(null)
@@ -74,11 +68,16 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
 
     async function load() {
       try {
+        if (!online) {
+          setRelated([])
+          setRelatedError('This video needs an internet connection.')
+          return
+        }
         const current = await fetchMediaInfo(sourceUrl)
         if (cancelled) return
         setMetadata(current)
 
-        const results = await searchYouTube(relatedQuery(current.title), RELATED_RESULT_LIMIT)
+        const results = await searchYouTube(buildRelatedVideoQuery({ title: current.title, channel: current.channel }), RELATED_RESULT_LIMIT)
         if (cancelled) return
         const seen = new Set<string>([videoId])
         setRelated(results.filter(video => {
@@ -95,7 +94,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
 
     void load()
     return () => { cancelled = true }
-  }, [reload, sourceUrl, videoId])
+  }, [online, reload, sourceUrl, videoId])
 
   return <>
     <main className="mx-auto flex h-[calc(100dvh-4.5rem)] w-full max-w-5xl flex-col overflow-hidden px-4 pt-4 sm:px-6 md:h-[calc(100dvh-3.5rem)] md:pb-4">
@@ -107,7 +106,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
       </header>
 
       <div className="shrink-0">
-        <ReelhousePlayer source={playerSource} />
+        {online ? <ReelhousePlayer source={playerSource} /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
       </div>
 
       <div ref={relatedScrollRef} className="mt-4 min-h-0 flex-1 overscroll-contain overflow-y-auto pb-24 [scrollbar-width:auto]">
@@ -127,7 +126,8 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
         <section>
           <div className="grid gap-y-7">
             {loadingRelated && <><RelatedSkeleton /><RelatedSkeleton /><RelatedSkeleton /></>}
-            {!loadingRelated && relatedError && <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center"><p className="text-sm text-[#a3a3a3]">Unable to load related videos.</p><button type="button" onClick={() => setReload(value => value + 1)} className="mt-3 rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">Retry</button></div>}
+            {!online && <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center"><p className="text-sm font-semibold text-white">This video needs an internet connection.</p><p className="mt-1 text-xs text-[#a3a3a3]">Downloaded media remains available from Library.</p></div>}
+            {!loadingRelated && online && relatedError && <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center"><p className="text-sm text-[#a3a3a3]">Unable to load related videos.</p><button type="button" onClick={() => setReload(value => value + 1)} className="mt-3 rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">Retry</button></div>}
             {!loadingRelated && !relatedError && related.length === 0 && <p className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center text-xs text-[#737373]">No related videos found.</p>}
             {!loadingRelated && !relatedError && related.map(video => <OnlineVideoCard key={video.id} video={video} onDownload={download.begin} downloadState={download.getDownloadState(video)} showChannel={false} />)}
           </div>

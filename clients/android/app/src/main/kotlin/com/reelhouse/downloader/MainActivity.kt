@@ -1,13 +1,18 @@
 package com.reelhouse.downloader
 
 import android.annotation.SuppressLint
+import android.Manifest
+import android.content.ContentUris
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.app.DownloadManager
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
+import android.os.Build
+import android.provider.MediaStore
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -54,6 +59,7 @@ class MainActivity : ComponentActivity() {
     private val trustedOrigin = URI(webBaseUrl).let { "${it.scheme}://${it.host}" }
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
+    private var mediaPermissionRequested = false
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -146,6 +152,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         setContentView(contentRoot)
+        applySystemThemeToWebView()
         installSafeContentInsets()
 
         checkBridgeSupport()
@@ -179,6 +186,25 @@ class MainActivity : ComponentActivity() {
         setIntent(intent)
         sharedText(intent)?.let {
             webView.loadUrl("$webBaseUrl/downloader?url=${Uri.encode(it)}")
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applySystemThemeToWebView()
+    }
+
+    private fun applySystemThemeToWebView() {
+        val dark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
+        val color = if (dark) Color.rgb(9, 9, 9) else Color.rgb(245, 245, 247)
+        window.statusBarColor = color
+        window.navigationBarColor = color
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("window.dispatchEvent(new CustomEvent('reelhouse-system-theme',{detail:{dark:$dark}}))", null)
         }
     }
 
@@ -238,6 +264,7 @@ class MainActivity : ComponentActivity() {
                 return@addWebMessageListener
             }
             val requestText = message.data ?: return@addWebMessageListener
+            maybeRequestMediaPermissions(requestText)
             Log.d("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=bridge_request_received thread=${Thread.currentThread().name}")
             lifecycleScope.launch {
                 val response = withContext(Dispatchers.IO) {
@@ -251,6 +278,29 @@ class MainActivity : ComponentActivity() {
             LOCAL_FETCH_SCRIPT,
             allowedOrigins,
         )
+    }
+
+    private fun maybeRequestMediaPermissions(requestText: String) {
+        if (!requestText.contains("/api/backend/local-media") || mediaPermissionRequested || hasMediaPermissions()) return
+        mediaPermissionRequested = true
+        runOnUiThread { requestPermissions(requiredMediaPermissions(), MEDIA_PERMISSION_REQUEST) }
+    }
+
+    private fun requiredMediaPermissions(): Array<String> = if (Build.VERSION.SDK_INT >= 33) {
+        arrayOf(Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_AUDIO)
+    } else {
+        arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+    }
+
+    private fun hasMediaPermissions() = requiredMediaPermissions().all {
+        androidx.core.content.ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == MEDIA_PERMISSION_REQUEST) {
+            webView.evaluateJavascript("window.dispatchEvent(new Event('reelhouse-media-permission'))", null)
+        }
     }
 
     private fun initialUrl(intent: Intent?): String =
@@ -269,6 +319,7 @@ class MainActivity : ComponentActivity() {
     private inner class ReelhouseWebViewClient : WebViewClient() {
         override fun onPageCommitVisible(view: WebView, url: String) {
             dismissNativeSplash()
+            applySystemThemeToWebView()
             super.onPageCommitVisible(view, url)
         }
 
@@ -303,6 +354,9 @@ class MainActivity : ComponentActivity() {
             request: WebResourceRequest,
         ): WebResourceResponse? {
             val uri = request.url
+            if (deviceMediaRef(uri) != null) {
+                return deviceMediaResponse(uri, request.requestHeaders.entries.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value)
+            }
             if (localMediaId(uri) != null) {
                 val range = request.requestHeaders.entries
                     .firstOrNull { it.key.equals("Range", ignoreCase = true) }
@@ -382,6 +436,36 @@ class MainActivity : ComponentActivity() {
             ?.removePrefix(prefix)
             ?.substringBefore('/')
             ?.takeIf(String::isNotBlank)
+    }
+
+    private data class DeviceMediaRef(val collection: String, val id: Long)
+
+    private fun deviceMediaRef(uri: Uri): DeviceMediaRef? {
+        if (uri.scheme != "https" || uri.host != URI(webBaseUrl).host) return null
+        val parts = uri.path.orEmpty().removePrefix("/api/backend/android-device-media/").split('/')
+        if (parts.size != 2 || parts[0] !in setOf("video", "audio")) return null
+        return parts[1].toLongOrNull()?.let { DeviceMediaRef(parts[0], it) }
+    }
+
+    private fun deviceMediaResponse(uri: Uri, rangeHeader: String?): WebResourceResponse {
+        val ref = deviceMediaRef(uri) ?: return localMediaError(404, "Not found")
+        val collection = if (ref.collection == "audio") MediaStore.Audio.Media.EXTERNAL_CONTENT_URI else MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+        val contentUri = ContentUris.withAppendedId(collection, ref.id)
+        val descriptor = contentResolver.openAssetFileDescriptor(contentUri, "r") ?: return localMediaError(404, "Not found")
+        val total = descriptor.length.takeIf { it > 0L } ?: return localMediaError(416, "Range not satisfiable")
+        val requestedRange = parseByteRange(rangeHeader, total)
+        if (rangeHeader != null && requestedRange == null) {
+            descriptor.close()
+            return localMediaError(416, "Range not satisfiable", mapOf("Content-Range" to "bytes */$total"))
+        }
+        val start = requestedRange?.first ?: 0L
+        val end = requestedRange?.last ?: total - 1L
+        val input = descriptor.createInputStream()
+        skipFully(input, start)
+        val length = end - start + 1L
+        val headers = linkedMapOf("Accept-Ranges" to "bytes", "Content-Length" to length.toString(), "Cache-Control" to "no-store")
+        if (requestedRange != null) headers["Content-Range"] = "bytes $start-$end/$total"
+        return WebResourceResponse(contentResolver.getType(contentUri) ?: if (ref.collection == "audio") "audio/mpeg" else "video/mp4", null, if (requestedRange == null) 200 else 206, if (requestedRange == null) "OK" else "Partial Content", headers, LimitedInputStream(input, length))
     }
 
     private fun localMediaResponse(uri: Uri, rangeHeader: String?): WebResourceResponse {
@@ -509,6 +593,7 @@ class MainActivity : ComponentActivity() {
     companion object {
         private const val BRIDGE_NAME = "ReelhouseAndroid"
         private const val LOCAL_RESULT_SCHEME = "reelhouse-local"
+        private const val MEDIA_PERMISSION_REQUEST = 7001
         private val RANGE_PATTERN = Regex("bytes=(\\d+)-(\\d*)", RegexOption.IGNORE_CASE)
 
         private val LOCAL_FETCH_SCRIPT = """

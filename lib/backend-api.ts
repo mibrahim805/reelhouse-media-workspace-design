@@ -4,6 +4,8 @@ export type { QualityOption } from '@/lib/quality-preferences'
 export type MediaInfo = { sourceUrl: string; title: string; channel: string; duration: string; thumbnail: string; platform: string; qualities: QualityOption[]; embedUrl: string; canEmbed: boolean }
 export type DownloadResult = { title: string; filename: string; fileUrl: string; filesizeMb: number; sourceUrl: string }
 export type BackendJob = { status: 'queued'|'downloading'|'processing'|'complete'|'error'|'canceled'; percent: number; speed?: number|null; eta?: number|null; error?: string|null; result?: DownloadResult|null }
+export type LocalMediaItem = { id: string; title: string; channel: string; thumbnail: string; fileUrl: string; filename: string; size: string; source: 'download'|'device'; mediaType: 'video'|'audio'; qualityValue?: string; status: 'completed'; startedAt: number }
+export type LocalMediaResponse = { permissionRequired: boolean; downloads: LocalMediaItem[]; videos: LocalMediaItem[]; music: LocalMediaItem[] }
 export type { OnlineVideo } from '@/types/media'
 import type { OnlineVideo } from '@/types/media'
 export type YoutubeSearchVideo = OnlineVideo
@@ -50,3 +52,4 @@ export async function fetchBackendProgress(jobId:string):Promise<BackendJob>{
   const raw=job.result as Record<string,unknown>|null|undefined
   return {status:(job.status||'queued') as BackendJob['status'],percent:Number(job.percent||0),speed:job.speed as number|null|undefined,eta:job.eta as number|null|undefined,error:job.error as string|null|undefined,result:raw?{title:String(raw.title||''),filename:String(raw.filename||'download'),fileUrl:fileUrl(String(raw.file_url||'')),filesizeMb:Number(raw.filesize_mb||0),sourceUrl:String(raw.source_url||'')}:null}
 }
+export async function fetchLocalMedia(): Promise<LocalMediaResponse> { return get<LocalMediaResponse>('local-media') }

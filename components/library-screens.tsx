@@ -13,6 +13,13 @@ import { useLibrary } from '@/components/library-store'
 const isAudio = (d: DownloadItem) =>
   /\.(mp3|m4a|aac|wav|ogg)$/i.test(d.filename || '') || d.qualityValue === 'audio'
 
+function useAllLocalMedia() {
+  const { downloads } = useDownloads()
+  const { localMedia } = useLibrary()
+  const items = [...downloads.filter(d => d.status === 'completed'), ...localMedia.downloads, ...localMedia.videos, ...localMedia.music] as unknown as DownloadItem[]
+  return items.filter((item, index, list) => list.findIndex(other => other.id === item.id) === index)
+}
+
 function Shell({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-3xl px-4 pb-28 pt-5 sm:px-5">{children}</main>
 }
@@ -96,22 +103,22 @@ function MediaRow({ item, remove }: { item: DownloadItem; remove?: () => void })
 
 /* ── 21 Library Hub ── */
 export function LibraryHub() {
-  const { downloads } = useDownloads()
-  const { favorites, playlists, history } = useLibrary()
-  const completed = downloads.filter(d => d.status === 'completed')
+  const completed = useAllLocalMedia()
+  const { favorites, playlists, history, localMedia, refreshLocalMedia } = useLibrary()
   const videos = completed.filter(d => !isAudio(d))
   const music = completed.filter(isAudio)
   return (
     <Shell>
       <Head
         title="Library"
-        subtitle="Your downloaded media"
+        subtitle={localMedia.permissionRequired ? 'Allow device media access to see videos and music on this phone.' : 'Downloaded and device media'}
         action={
           <Link href="/search?scope=library" className="flex size-9 items-center justify-center rounded-full border border-[#292929] bg-[#151515] text-[#a3a3a3] hover:text-white">
             <Search className="size-4" />
           </Link>
         }
       />
+      {localMedia.permissionRequired && <div className="mb-5 rounded-2xl border border-primary/30 bg-primary/10 p-4"><p className="text-sm font-semibold text-white">Allow device media access</p><p className="mt-1 text-xs text-[#a3a3a3]">Allow my yt to access videos and music on this device so they can appear in your Library. Downloaded app media remains available.</p><button type="button" onClick={refreshLocalMedia} className="mt-3 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white">Check permission again</button></div>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <LibTile href="/library/videos" icon={<Video />} title="Videos" value={videos.length} />
         <LibTile href="/library/music" icon={<Music2 />} title="Music" value={music.length} />
@@ -154,8 +161,7 @@ function LibTile({ href, icon, title, value }: { href: string; icon: React.React
 
 /* ── 21 Video Library ── */
 export function VideoLibrary() {
-  const { downloads } = useDownloads()
-  const items = downloads.filter(d => d.status === 'completed' && !isAudio(d))
+  const items = useAllLocalMedia().filter(d => !isAudio(d))
   const [sort, setSort] = useState('recent')
   const sorted = useMemo(
     () => [...items].sort((a, b) =>
@@ -193,8 +199,7 @@ export function VideoLibrary() {
 
 /* ── 20 Music Library ── */
 export function MusicLibrary() {
-  const { downloads } = useDownloads()
-  const items = downloads.filter(d => d.status === 'completed' && isAudio(d))
+  const items = useAllLocalMedia().filter(isAudio)
   return (
     <Shell>
       <Head title="Music" subtitle="Downloaded audio files" back />

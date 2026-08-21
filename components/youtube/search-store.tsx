@@ -6,7 +6,9 @@ import {
   useContext,
   useMemo,
   useState,
+  useEffect,
 } from 'react'
+import { addRecentSearch, readRecentSearches, writeRecentSearches } from '@/lib/recent-searches'
 
 type SearchContextValue = {
   recent: string[]
@@ -16,24 +18,23 @@ type SearchContextValue = {
 
 const SearchContext = createContext<SearchContextValue | null>(null)
 
-const SEED = [
-  'next.js tutorial',
-  'ambient focus music',
-  'fresh pasta recipe',
-  'remote island travel',
-]
-
 export function SearchProvider({ children }: { children: React.ReactNode }) {
-  const [recent, setRecent] = useState<string[]>(SEED)
+  const [recent, setRecent] = useState<string[]>([])
+
+  useEffect(() => setRecent(readRecentSearches()), [])
 
   const addRecent = useCallback((term: string) => {
     const t = term.trim()
     if (!t) return
-    setRecent((prev) => [t, ...prev.filter((r) => r.toLowerCase() !== t.toLowerCase())].slice(0, 8))
+    setRecent(addRecentSearch(t))
   }, [])
 
   const removeRecent = useCallback((term: string) => {
-    setRecent((prev) => prev.filter((r) => r !== term))
+    setRecent((prev) => {
+      const next = prev.filter((r) => r.toLocaleLowerCase() !== term.toLocaleLowerCase())
+      writeRecentSearches(next)
+      return next
+    })
   }, [])
 
   const value = useMemo(

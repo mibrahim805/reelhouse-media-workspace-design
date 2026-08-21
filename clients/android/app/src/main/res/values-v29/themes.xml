@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyYt" parent="android:style/Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/my_yt_background</item>
+        <item name="android:navigationBarColor">@color/my_yt_background</item>
+        <item name="android:windowBackground">@color/my_yt_background</item>
+        <item name="android:fontFamily">sans</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

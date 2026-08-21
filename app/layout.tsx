@@ -6,6 +6,7 @@ import { MediaProvider } from '@/components/media-state'
 import { MiniPlayer } from '@/components/player/mini-player'
 import { LibraryProvider } from '@/components/library-store'
 import { ThemeProvider } from '@/components/theme-provider'
+import { OfflineRuntime } from '@/components/offline-runtime'
 import { APP_BRAND } from '@/lib/app-brand'
 import './globals.css'
 
@@ -24,9 +25,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark bg-[#090909]">
+    <html lang="en" className="bg-[#090909]">
       <body className="font-sans antialiased">
         <ThemeProvider>
+          <OfflineRuntime />
           <DownloadProvider>
             <LibraryProvider>
               <MediaProvider>
