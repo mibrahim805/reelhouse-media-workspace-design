@@ -420,7 +420,13 @@ class MainActivity : ComponentActivity() {
             request: android.webkit.WebResourceRequest,
             error: android.webkit.WebResourceError,
         ) {
-            if (request.isForMainFrame) dismissNativeSplash()
+            if (request.isForMainFrame) {
+                dismissNativeSplash()
+                // The network can disappear after the initial capability
+                // check but before Railway returns the document. Keep the
+                // cold-start path local instead of leaving a blank WebView.
+                runOnUiThread { showOfflineShell() }
+            }
             super.onReceivedError(view, request, error)
         }
 
