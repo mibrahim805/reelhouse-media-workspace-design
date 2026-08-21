@@ -1,4 +1,6 @@
-export type QualityOption = { value: string; label: string; extension: string; filesize: number | null; size: string }
+import { normalizeQualityOptions, normalizeQualityValue, type QualityOption } from '@/lib/quality-preferences'
+
+export type { QualityOption } from '@/lib/quality-preferences'
 export type MediaInfo = { sourceUrl: string; title: string; channel: string; duration: string; thumbnail: string; platform: string; qualities: QualityOption[]; embedUrl: string; canEmbed: boolean }
 export type DownloadResult = { title: string; filename: string; fileUrl: string; filesizeMb: number; sourceUrl: string }
 export type BackendJob = { status: 'queued'|'downloading'|'processing'|'complete'|'error'|'canceled'; percent: number; speed?: number|null; eta?: number|null; error?: string|null; result?: DownloadResult|null }
@@ -20,7 +22,7 @@ function fileUrl(path:string) { return path ? `/api/backend/${path.replace(/^\//
 
 export async function fetchMediaInfo(url:string):Promise<MediaInfo> {
   const {video} = await post<{video:Record<string,unknown>}>('fetch-info',{url})
-  const qualities = ((video.qualities || []) as Array<Record<string,unknown>>).map(q=>({value:String(q.value||'best'),label:String(q.label||q.value||'Best'),extension:String(q.extension||'mp4'),filesize:typeof q.filesize==='number'?q.filesize:null,size:String(q.filesize_label||'Unknown size')}))
+  const qualities = normalizeQualityOptions((video.qualities || []) as Array<Record<string,unknown>>)
   return {sourceUrl:String(video.source_url||url),title:String(video.title||'Untitled video'),channel:String(video.channel||'Unknown channel'),duration:String(video.duration||'Unknown duration'),thumbnail:String(video.thumbnail||''),platform:String(video.platform||'Video'),qualities,embedUrl:String(video.embed_url||''),canEmbed:Boolean(video.can_embed)}
 }
 function normalizeYoutubeVideo(video: Record<string, unknown>): YoutubeSearchVideo {
@@ -41,7 +43,7 @@ export async function fetchYouTubeTopic(topic='All'):Promise<{topic:string;query
   const data = await post<{topic:string;query:string;videos:Array<Record<string,unknown>>}>('youtube-topic',{topic})
   return {topic:data.topic,query:data.query,videos:data.videos.map(normalizeYoutubeVideo)}
 }
-export async function startBackendDownload(url:string,quality:string){const data=await post<{job_id:string}>('start-download',{url,quality});return data.job_id}
+export async function startBackendDownload(url:string,quality:string){const data=await post<{job_id:string}>('start-download',{url,quality:normalizeQualityValue(quality)});return data.job_id}
 export async function cancelBackendDownload(jobId:string){await post<Record<string,never>>('cancel-download',{job_id:jobId})}
 export async function fetchBackendProgress(jobId:string):Promise<BackendJob>{
   const {job}=await get<{job:Record<string,unknown>}>(`progress/${jobId}`)

@@ -16,18 +16,30 @@ function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) 
 
 export function MiniPlayer() {
   const media = useMedia()
-  const { playing, setDuration, setPlaying, setPosition, setStatus, registerControls, clearControls, play, pause, close } = media
+  const { playing, position, volume, muted, playbackRate, setDuration, setPlaying, setPosition, setStatus, registerControls, clearControls, play, pause, close } = media
   const pathname = usePathname()
   const source = media.source
   const videoRef = useRef<LocalVideoPlayerAdapterHandle>(null)
   const audioRef = useRef<LocalAudioPlayerAdapterHandle>(null)
   const youtubeRef = useRef<YoutubePlayerAdapterHandle>(null)
-  const playingRef = useRef(playing)
-  useEffect(() => { playingRef.current = playing }, [playing])
+  const sessionRef = useRef({ playing, position, volume, muted, playbackRate })
+  useEffect(() => { sessionRef.current = { playing, position, volume, muted, playbackRate } }, [muted, playbackRate, playing, position, volume])
   const isFullPlayer = pathname.startsWith('/watch/') || pathname.startsWith('/player/') || pathname.startsWith('/music/')
   const sourceType = source?.type
   const sourceKey = source ? source.type === 'youtube' ? source.videoId : source.id : ''
-  const onReady = useCallback((duration: number) => { setDuration(duration); if (playingRef.current) void (sourceType === 'youtube' ? youtubeRef.current : sourceType === 'local-video' ? videoRef.current : audioRef.current)?.play() }, [setDuration, sourceType])
+  const onReady = useCallback((duration: number) => {
+    const controls = sourceType === 'youtube' ? youtubeRef.current : sourceType === 'local-video' ? videoRef.current : audioRef.current
+    const session = sessionRef.current
+    setDuration(duration)
+    if (controls) {
+      controls.setVolume(session.volume)
+      controls.setMuted(session.muted)
+      controls.setPlaybackRate(session.playbackRate)
+      if (session.position > 0 && Number.isFinite(session.position)) controls.seekTo(Math.min(session.position, duration || session.position))
+      if (session.playing) void controls.play()
+      else controls.pause()
+    }
+  }, [setDuration, sourceType])
   const onPlay = useCallback(() => setPlaying(true), [setPlaying])
   const onPause = useCallback(() => setPlaying(false), [setPlaying])
   const onEnded = useCallback(() => setPlaying(false), [setPlaying])
@@ -38,8 +50,16 @@ export function MiniPlayer() {
     if (!source || isFullPlayer) return
     const controls = source.type === 'youtube' ? youtubeRef.current : source.type === 'local-video' ? videoRef.current : audioRef.current
     if (controls) registerControls(controls)
-    return () => clearControls()
-  }, [clearControls, isFullPlayer, registerControls, source, sourceKey])
+    return () => {
+      if (!controls) return
+      const currentTime = controls.getCurrentTime()
+      const duration = controls.getDuration()
+      if (Number.isFinite(currentTime)) setPosition(currentTime)
+      if (Number.isFinite(duration) && duration > 0) setDuration(duration)
+      setPlaying(controls.isPlaying())
+      clearControls(controls)
+    }
+  }, [clearControls, isFullPlayer, registerControls, setDuration, setPlaying, setPosition, source, sourceKey, sourceType])
 
   if (!source || isFullPlayer) return null
 

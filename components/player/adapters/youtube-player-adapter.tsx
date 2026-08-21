@@ -4,7 +4,7 @@ import { useEffect, useImperativeHandle, useRef, forwardRef } from 'react'
 import type { PlayerCommands } from '@/types/player'
 
 type YoutubeApi = { Player: new (element: HTMLElement, options: Record<string, unknown>) => YoutubeInstance }
-type YoutubeInstance = { playVideo: () => void; pauseVideo: () => void; seekTo: (seconds: number, allowSeekAhead: boolean) => void; setVolume: (volume: number) => void; mute: () => void; unMute: () => void; setPlaybackRate: (rate: number) => void; getCurrentTime: () => number; getDuration: () => number; destroy: () => void }
+type YoutubeInstance = { playVideo: () => void; pauseVideo: () => void; seekTo: (seconds: number, allowSeekAhead: boolean) => void; setVolume: (volume: number) => void; mute: () => void; unMute: () => void; setPlaybackRate: (rate: number) => void; getCurrentTime: () => number; getDuration: () => number; getPlayerState: () => number; destroy: () => void }
 type YoutubeWindow = Window & { YT?: YoutubeApi; onYouTubeIframeAPIReady?: () => void }
 let apiPromise: Promise<YoutubeApi> | null = null
 
@@ -41,6 +41,10 @@ export const YoutubePlayerAdapter = forwardRef<YoutubePlayerAdapterHandle, {
     play: () => playerRef.current?.playVideo(),
     pause: () => playerRef.current?.pauseVideo(),
     seek: seconds => { const player = playerRef.current; if (player && typeof player.getCurrentTime === 'function') player.seekTo(Math.max(0, player.getCurrentTime() + seconds), true) },
+    seekTo: seconds => playerRef.current?.seekTo(Math.max(0, seconds), true),
+    getCurrentTime: () => playerRef.current?.getCurrentTime() || 0,
+    getDuration: () => playerRef.current?.getDuration() || 0,
+    isPlaying: () => playerRef.current?.getPlayerState?.() === 1,
     setVolume: volume => playerRef.current?.setVolume(Math.round(volume * 100)),
     setMuted: muted => muted ? playerRef.current?.mute() : playerRef.current?.unMute(),
     setPlaybackRate: rate => playerRef.current?.setPlaybackRate(rate),

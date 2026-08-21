@@ -1,8 +1,9 @@
 from pathlib import Path
 import json
+import mimetypes
 
 from django.conf import settings
-from django.http import FileResponse, Http404, JsonResponse
+from django.http import FileResponse, Http404, HttpResponse, JsonResponse
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
@@ -289,8 +290,75 @@ def downloaded_file(request, file_path):
     if not requested_file.is_file():
         raise Http404('Downloaded file was not found.')
 
-    return FileResponse(
-        requested_file.open('rb'),
+    size = requested_file.stat().st_size
+    byte_range = _byte_range(request.headers.get('Range'), size)
+    if byte_range is False:
+        return HttpResponse(
+            'Requested range is not satisfiable.',
+            status=416,
+            headers={'Content-Range': f'bytes */{size}'},
+        )
+
+    start, end = byte_range or (0, size - 1)
+    stream = _LimitedFile(requested_file.open('rb'), start, end - start + 1)
+    response = FileResponse(
+        stream,
+        status=206 if byte_range else 200,
         as_attachment=True,
         filename=requested_file.name,
+        content_type=mimetypes.guess_type(requested_file.name)[0] or 'application/octet-stream',
     )
+    response['Accept-Ranges'] = 'bytes'
+    response['Content-Length'] = str(end - start + 1)
+    if byte_range:
+        response['Content-Range'] = f'bytes {start}-{end}/{size}'
+    return response
+
+
+def _byte_range(value, size):
+    """Return an inclusive byte range, or False for a malformed range."""
+    if not value:
+        return None
+    if size <= 0:
+        return False
+    if not value.lower().startswith('bytes='):
+        return False
+    raw = value[6:].strip()
+    if ',' in raw:
+        return False
+    try:
+        start_text, end_text = raw.split('-', 1)
+        if not start_text:
+            suffix = int(end_text)
+            if suffix <= 0:
+                return False
+            return max(0, size - suffix), size - 1
+        start = int(start_text)
+        if start < 0 or start >= size:
+            return False
+        end = size - 1 if not end_text else min(int(end_text), size - 1)
+        if end < start:
+            return False
+        return start, end
+    except (TypeError, ValueError):
+        return False
+
+
+class _LimitedFile:
+    """File-like view used so a 206 response cannot stream past its range."""
+
+    def __init__(self, stream, start, length):
+        self.stream = stream
+        self.remaining = length
+        self.stream.seek(start)
+
+    def read(self, size=-1):
+        if self.remaining <= 0:
+            return b''
+        requested = self.remaining if size is None or size < 0 else min(size, self.remaining)
+        chunk = self.stream.read(requested)
+        self.remaining -= len(chunk)
+        return chunk
+
+    def close(self):
+        self.stream.close()

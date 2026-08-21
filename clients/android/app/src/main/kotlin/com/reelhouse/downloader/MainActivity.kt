@@ -304,7 +304,10 @@ class MainActivity : ComponentActivity() {
         ): WebResourceResponse? {
             val uri = request.url
             if (localMediaId(uri) != null) {
-                return localMediaResponse(uri, request.requestHeaders["Range"])
+                val range = request.requestHeaders.entries
+                    .firstOrNull { it.key.equals("Range", ignoreCase = true) }
+                    ?.value
+                return localMediaResponse(uri, range)
             }
             if (
                 uri.scheme == "https" &&
@@ -427,8 +430,16 @@ class MainActivity : ComponentActivity() {
     private fun parseByteRange(value: String?, total: Long): LongRange? {
         if (value == null) return null
         val match = RANGE_PATTERN.matchEntire(value.trim()) ?: return null
-        val start = match.groupValues[1].toLongOrNull() ?: return null
-        val requestedEnd = match.groupValues[2].toLongOrNull() ?: (total - 1L)
+        val startValue = match.groupValues[1].toLongOrNull()
+        val endValue = match.groupValues[2].toLongOrNull()
+        if (startValue == null) {
+            val suffixLength = endValue ?: return null
+            if (suffixLength <= 0L) return null
+            val start = (total - suffixLength).coerceAtLeast(0L)
+            return start..(total - 1L)
+        }
+        val start = startValue
+        val requestedEnd = endValue ?: (total - 1L)
         if (start < 0L || start >= total || requestedEnd < start) return null
         return start..requestedEnd.coerceAtMost(total - 1L)
     }

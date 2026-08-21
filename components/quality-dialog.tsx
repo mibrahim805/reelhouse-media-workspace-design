@@ -1,8 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Check, Download, Music, Video, X } from 'lucide-react'
-import type { QualityOption } from '@/lib/backend-api'
+import { normalizeQualityOptions, normalizeQualityValue, resolvePreferredQuality, shouldInitializeQualitySelection, type QualityOption } from '@/lib/quality-preferences'
 import { cn } from '@/lib/utils'
 
 export type QualityTarget = {
@@ -10,25 +10,41 @@ export type QualityTarget = {
   channel: string
   thumbnail: string
   source: string
+  sourceUrl?: string
   qualities?: QualityOption[]
 }
 
 export function QualityDialog({
   open,
+  initialQuality = 'best',
   target,
   onClose,
   onConfirm,
 }: {
   open: boolean
+  initialQuality?: string
   target: QualityTarget | null
   onClose: () => void
   onConfirm: (quality: string, size: string) => void
 }) {
   const [selected, setSelected] = useState('')
+  const initializedIdentity = useRef('')
+
+  const options = useMemo(() => normalizeQualityOptions(target?.qualities || []), [target?.qualities])
+  const targetIdentity = target?.sourceUrl || target?.title || ''
 
   useEffect(() => {
-    if (open) setSelected(target?.qualities?.[0]?.value || 'best')
-  }, [open, target])
+    if (!open) {
+      initializedIdentity.current = ''
+      return
+    }
+    if (!shouldInitializeQualitySelection(initializedIdentity.current, targetIdentity)) return
+
+    const preferred = normalizeQualityValue(initialQuality)
+    const next = options.length ? resolvePreferredQuality(options, preferred) : 'best'
+    setSelected(next)
+    initializedIdentity.current = targetIdentity
+  }, [initialQuality, open, options, targetIdentity])
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -40,8 +56,9 @@ export function QualityDialog({
 
   if (!open || !target) return null
 
-  const options = target.qualities?.length ? target.qualities : [{value:'best',label:'Best available',extension:'mp4',filesize:null,size:'Estimated size'}]
-  const chosen = options.find((q) => q.value === selected) ?? options[0]
+  const displayOptions = options.length ? options : [{value:'best',label:'Best available',extension:'mp4',filesize:null,size:'Estimated size'}]
+  const fallbackValue = resolvePreferredQuality(displayOptions, 'ask')
+  const chosen = displayOptions.find((q) => q.value === selected) ?? displayOptions.find(q => q.value === fallbackValue) ?? displayOptions[displayOptions.length - 1]
 
   return (
     <div
@@ -85,7 +102,7 @@ export function QualityDialog({
             Select quality
           </p>
           <div className="max-h-[46vh] space-y-1 overflow-y-auto px-1 pb-1">
-            {options.map((q) => {
+            {displayOptions.map((q) => {
               const isAudio = q.value === 'audio'
               const active = selected === q.value
               return (

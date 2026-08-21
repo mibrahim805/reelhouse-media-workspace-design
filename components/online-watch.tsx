@@ -39,7 +39,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
   const [reload, setReload] = useState(0)
   const relatedScrollRef = useRef<HTMLDivElement>(null)
 
-  const title = metadata?.title || 'YouTube video'
+  const title = metadata?.title || ''
   const onlineVideo = useMemo<OnlineVideo>(() => ({
     id: videoId,
     title,
@@ -47,7 +47,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
     duration: metadata?.duration || '',
     thumbnail: metadata?.thumbnail || '',
     sourceUrl: metadata?.sourceUrl || sourceUrl,
-  }), [metadata?.duration, metadata?.sourceUrl, metadata?.thumbnail, sourceUrl, title, videoId])
+  }), [metadata?.channel, metadata?.duration, metadata?.sourceUrl, metadata?.thumbnail, sourceUrl, title, videoId])
   const downloadState = download.getDownloadState(onlineVideo)
   const playerSource = useMemo(() => ({ type: 'youtube' as const, videoId, title }), [title, videoId])
 
@@ -58,6 +58,10 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
   useEffect(() => {
     if (source?.type !== 'youtube' || source.videoId !== videoId) {
       openOnline({ type: 'youtube', videoId, title })
+    } else if (title && source.title !== title) {
+      // Update the session metadata after fetch-info resolves without
+      // recreating or resetting the active player.
+      openOnline({ ...source, title })
     }
   }, [openOnline, source, title, videoId])
 
@@ -99,7 +103,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
         <a href="/search" className="flex size-10 items-center justify-center rounded-full text-[#a3a3a3] hover:bg-[#151515] hover:text-white" aria-label="Back">
           <span aria-hidden="true" className="text-2xl leading-none">‹</span>
         </a>
-        <h1 className="truncate text-sm font-semibold text-white">{title}</h1>
+        {title && <h1 className="truncate text-sm font-semibold text-white">{title}</h1>}
       </header>
 
       <div className="shrink-0">

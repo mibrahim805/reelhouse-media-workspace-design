@@ -482,6 +482,37 @@ class DownloadedFileTests(SimpleTestCase):
             )
             self.assertIn('attachment;', response['Content-Disposition'])
 
+    def test_serves_a_requested_byte_range(self):
+        with TemporaryDirectory() as directory:
+            video = Path(directory) / 'demo-video.mp4'
+            video.write_bytes(b'0123456789')
+
+            with override_settings(MEDIA_ROOT=directory):
+                response = self.client.get(
+                    reverse('downloaded_file', kwargs={'file_path': video.name}),
+                    HTTP_RANGE='bytes=3-6',
+                )
+
+            self.assertEqual(response.status_code, 206)
+            self.assertEqual(b''.join(response.streaming_content), b'3456')
+            self.assertEqual(response['Accept-Ranges'], 'bytes')
+            self.assertEqual(response['Content-Range'], 'bytes 3-6/10')
+            self.assertEqual(response['Content-Length'], '4')
+
+    def test_rejects_an_invalid_byte_range(self):
+        with TemporaryDirectory() as directory:
+            video = Path(directory) / 'demo-video.mp4'
+            video.write_bytes(b'0123456789')
+
+            with override_settings(MEDIA_ROOT=directory):
+                response = self.client.get(
+                    reverse('downloaded_file', kwargs={'file_path': video.name}),
+                    HTTP_RANGE='bytes=20-30',
+                )
+
+            self.assertEqual(response.status_code, 416)
+            self.assertEqual(response['Content-Range'], 'bytes */10')
+
     def test_missing_download_returns_not_found(self):
         with TemporaryDirectory() as directory:
             with override_settings(MEDIA_ROOT=directory):

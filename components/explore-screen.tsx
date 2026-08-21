@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { useMedia } from '@/components/media-state'
+import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { cn } from '@/lib/utils'
 import type { OnlineResult } from '@/components/search-screens'
 
@@ -19,16 +20,10 @@ function Shell({ children }: { children: React.ReactNode }) {
   return <main className="w-full pb-28">{children}</main>
 }
 
-function OnlineVideoCard({ result }: { result: OnlineResult }) {
-  const { startDownload, setPanelOpen } = useDownloads()
+function OnlineVideoCard({ result, onDownload }: { result: OnlineResult; onDownload: () => void }) {
   function handleDownload(e: React.MouseEvent) {
     e.preventDefault()
-    startDownload({
-      title: result.title, channel: result.channel, thumbnail: result.thumbnail,
-      quality: 'Best available', qualityValue: 'best', size: 'Unknown',
-      source: 'YouTube', sourceUrl: result.sourceUrl,
-    })
-    setPanelOpen(true)
+    onDownload()
   }
   return (
     <Link href={`/watch/${result.videoId}`} className="group min-w-0 shrink-0 snap-start">
@@ -77,7 +72,7 @@ function LocalVideoCard({ item }: { item: ReturnType<typeof useDownloads>['downl
   )
 }
 
-function OnlineRail({ title, results }: { title: string; results: OnlineResult[] }) {
+function OnlineRail({ title, results, onDownload }: { title: string; results: OnlineResult[]; onDownload: (result: OnlineResult) => void }) {
   if (!results.length) return null
   return (
     <section className="mt-8">
@@ -90,7 +85,7 @@ function OnlineRail({ title, results }: { title: string; results: OnlineResult[]
       <div className="no-scrollbar flex snap-x snap-mandatory gap-3 overflow-x-auto px-4">
         {results.slice(0, 10).map(r => (
           <div key={r.id} className="w-[75vw] max-w-[300px] sm:w-[260px]">
-            <OnlineVideoCard result={r} />
+            <OnlineVideoCard result={r} onDownload={() => onDownload(r)} />
           </div>
         ))}
       </div>
@@ -158,6 +153,7 @@ const CATEGORIES = ['Trending', 'Videos', 'Music', 'Gaming', 'Travel', 'Tech', '
 /* ─── Main Explore Screen (07) ─── */
 export function ExploreScreen() {
   const { downloads } = useDownloads()
+  const download = useOnlineVideoDownload()
   const completed = downloads.filter(d => d.status === 'completed')
   const isAudio = (d: typeof completed[0]) => /\.(mp3|m4a|aac|wav|ogg)$/i.test(d.filename || '') || d.qualityValue === 'audio'
   const videos = completed.filter(d => !isAudio(d))
@@ -200,6 +196,17 @@ export function ExploreScreen() {
     category === 'Music' ? music_online :
     trending
   )
+
+  function handleDownload(result: OnlineResult) {
+    void download.begin({
+      id: result.videoId,
+      title: result.title,
+      channel: result.channel,
+      duration: result.duration || '',
+      thumbnail: result.thumbnail,
+      sourceUrl: result.sourceUrl,
+    })
+  }
 
   return (
     <Shell>
@@ -261,9 +268,9 @@ export function ExploreScreen() {
           {trending[0] && <FeaturedHero result={trending[0]} />}
 
           {/* Online rails */}
-          <OnlineRail title="Trending Today" results={trending.slice(1)} />
-          <OnlineRail title="Gaming Highlights" results={gaming} />
-          <OnlineRail title="Music & Audio" results={music_online} />
+          <OnlineRail title="Trending Today" results={trending.slice(1)} onDownload={handleDownload} />
+          <OnlineRail title="Gaming Highlights" results={gaming} onDownload={handleDownload} />
+          <OnlineRail title="Music & Audio" results={music_online} onDownload={handleDownload} />
 
           {/* Category grid when a specific cat is selected */}
           {category !== 'Trending' && categoryResults.length > 0 && (
@@ -271,7 +278,7 @@ export function ExploreScreen() {
               <h2 className="mb-4 text-[17px] font-bold text-white">{category}</h2>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
                 {categoryResults.slice(0, 8).map(r => (
-                  <OnlineVideoCard key={r.id} result={r} />
+                  <OnlineVideoCard key={r.id} result={r} onDownload={() => handleDownload(r)} />
                 ))}
               </div>
             </section>
@@ -285,6 +292,7 @@ export function ExploreScreen() {
       )}
 
       <div className="h-4" />
+      {download.dialogs}
     </Shell>
   )
 }

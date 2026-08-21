@@ -16,8 +16,10 @@ import {
   Video,
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
+import { useLibrary } from '@/components/library-store'
 import { QualityDialog } from '@/components/quality-dialog'
 import { fetchMediaInfo, type MediaInfo, type QualityOption } from '@/lib/backend-api'
+import { normalizeQualityValue, resolvePreferredQuality } from '@/lib/quality-preferences'
 import { DownloadConfirmation } from '@/components/download-confirmation'
 import { cn } from '@/lib/utils'
 
@@ -48,6 +50,7 @@ function isValidUrl(value: string) {
 export function DownloaderView() {
   const params = useSearchParams()
   const { startDownload, downloads, setPanelOpen } = useDownloads()
+  const { preferences, rememberVideoQuality } = useLibrary()
 
   const [platform, setPlatform] = useState('auto')
   const [url, setUrl] = useState('')
@@ -79,7 +82,7 @@ export function DownloaderView() {
     try {
       const media = await fetchMediaInfo(url)
       setPreview(media)
-      setQuality(media.qualities[0]?.value || 'best')
+      setQuality(resolvePreferredQuality(media.qualities, preferences.defaultVideoQuality, preferences.rememberQuality ? preferences.rememberedVideoQuality : null))
       setStatus('ready')
     } catch (cause) {
       setStatus('error')
@@ -98,12 +101,15 @@ export function DownloaderView() {
 
   function confirmDownload(q: string, size: string) {
     if (!preview) return
-    const selected = preview.qualities.find(x => x.value === q) || {value:'best',label:'Best available',extension:'mp4',filesize:null,size}
+    const canonicalQuality = normalizeQualityValue(q)
+    const selected = preview.qualities.find(x => x.value === canonicalQuality) || {value:'best',label:'Best available',extension:'mp4',filesize:null,size}
+    setQuality(selected.value)
     setPendingQuality(selected)
   }
 
   function startConfirmedDownload() {
     if (!preview || !pendingQuality) return
+    rememberVideoQuality(pendingQuality.value)
     startDownload({
       title: preview.title,
       channel: preview.channel,
@@ -291,7 +297,7 @@ export function DownloaderView() {
                     {preview.qualities.map((q) => (
                       <button
                         key={q.value}
-                        onClick={() => setQuality(q.value)}
+                        onClick={() => { const value = normalizeQualityValue(q.value); setQuality(value) }}
                         className={cn(
                           'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
                           quality === q.value
@@ -424,13 +430,15 @@ export function DownloaderView() {
 
       <QualityDialog
         open={dialogOpen}
-        target={
+          initialQuality={quality}
+          target={
           preview
             ? {
                 title: preview.title,
                 channel: preview.channel,
                 thumbnail: preview.thumbnail,
                 source: preview.platform,
+                sourceUrl: preview.sourceUrl,
                 qualities: preview.qualities,
               }
             : null
