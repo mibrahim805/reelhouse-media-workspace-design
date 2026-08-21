@@ -1,8 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Reelhouse" parent="android:Theme.Material.NoActionBar">
-        <item name="android:statusBarColor">@color/reelhouse_background</item>
-        <item name="android:navigationBarColor">@color/reelhouse_background</item>
-        <item name="android:windowBackground">@color/reelhouse_background</item>
+    <style name="Theme.MyYt" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/my_yt_background</item>
+        <item name="android:navigationBarColor">@color/my_yt_background</item>
+        <item name="android:windowBackground">@color/my_yt_background</item>
+        <item name="android:fontFamily">sans</item>
+    </style>
+
+    <style name="Theme.MyYt.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/my_yt_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_launcher_foreground</item>
+        <item name="postSplashScreenTheme">@style/Theme.MyYt</item>
     </style>
 </resources>

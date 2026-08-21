@@ -22,6 +22,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var contentRoot: FrameLayout
     private lateinit var webView: WebView
     private lateinit var localBackend: LocalWebBackend
+    private var nativeSplash: View? = null
     private val webBaseUrl = BuildConfig.REELHOUSE_WEB_BASE_URL.trimEnd('/')
     private val trustedOrigin = URI(webBaseUrl).let { "${it.scheme}://${it.host}" }
     private var fullscreenView: View? = null
@@ -55,6 +57,7 @@ class MainActivity : ComponentActivity() {
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         Log.i("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=activity_start")
         // Use one edge-to-edge model on every supported Android version, then
@@ -128,6 +131,19 @@ class MainActivity : ComponentActivity() {
                     ViewGroup.LayoutParams.MATCH_PARENT,
                 ),
             )
+            nativeSplash = layoutInflater.inflate(
+                R.layout.native_splash,
+                this,
+                false,
+            ).also { splash ->
+                addView(
+                    splash,
+                    FrameLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                    ),
+                )
+            }
         }
         setContentView(contentRoot)
         installSafeContentInsets()
@@ -251,6 +267,20 @@ class MainActivity : ComponentActivity() {
         }
 
     private inner class ReelhouseWebViewClient : WebViewClient() {
+        override fun onPageCommitVisible(view: WebView, url: String) {
+            dismissNativeSplash()
+            super.onPageCommitVisible(view, url)
+        }
+
+        override fun onReceivedError(
+            view: WebView,
+            request: android.webkit.WebResourceRequest,
+            error: android.webkit.WebResourceError,
+        ) {
+            if (request.isForMainFrame) dismissNativeSplash()
+            super.onReceivedError(view, request, error)
+        }
+
         override fun shouldOverrideUrlLoading(
             view: WebView,
             request: WebResourceRequest,
@@ -293,6 +323,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
             return null
+        }
+    }
+
+    private fun dismissNativeSplash() {
+        nativeSplash?.let { splash ->
+            (splash.parent as? ViewGroup)?.removeView(splash)
+            nativeSplash = null
         }
     }
 
@@ -448,7 +485,7 @@ class MainActivity : ComponentActivity() {
             ?: "reelhouse-video.mp4"
         val request = DownloadManager.Request(uri)
             .setTitle(name)
-            .setDescription("Reelhouse download")
+            .setDescription("${getString(R.string.app_name)} download")
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(
                 Environment.DIRECTORY_DOWNLOADS,

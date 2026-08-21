@@ -6,6 +6,7 @@ import { Download, Home, Library, Play, UserRound, Tv } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
+import { APP_BRAND } from '@/lib/app-brand'
 
 const NAV = [
   { href: '/',          label: 'Home',      icon: Home },
@@ -60,7 +61,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary">
                 <Play className="size-4 fill-white text-white" />
               </span>
-              <span className="text-[15px] font-bold tracking-tight text-white">Reelhouse</span>
+              <span className="text-[15px] font-bold tracking-tight text-white">{APP_BRAND.name}</span>
             </Link>
 
             {/* Nav links */}

@@ -10,6 +10,7 @@ import {
 import { useDownloads, type DownloadItem } from '@/components/download-store'
 import { useLibrary } from '@/components/library-store'
 import { useTheme, type ThemePreference } from '@/components/theme-provider'
+import { APP_BRAND } from '@/lib/app-brand'
 
 function Shell({ children }: { children: React.ReactNode }) {
   return <main className="mx-auto w-full max-w-3xl px-4 pb-28 pt-5 sm:px-5">{children}</main>
@@ -70,12 +71,12 @@ export function ProfileHub() {
         <SettingRow href="/storage" icon={<HardDrive />} label="Storage" />
         <SettingRow onClick={() => setThemeOpen(true)} icon={<Palette />} label="Appearance" value={themeLabel(theme)} />
         <SettingRow href="/history" icon={<Shield />} label="Privacy & History" />
-        <SettingRow onClick={() => setAboutOpen(true)} icon={<Info />} label="About" value="Reelhouse" />
+        <SettingRow onClick={() => setAboutOpen(true)} icon={<Info />} label="About" value={APP_BRAND.name} />
       </div>
 
       {themeOpen && (
         <ProfileDialog title="Appearance" onClose={() => setThemeOpen(false)}>
-          <p className="text-sm leading-6 text-[#a3a3a3]">Choose how Reelhouse should follow your display preference.</p>
+          <p className="text-sm leading-6 text-[#a3a3a3]">Choose how {APP_BRAND.name} should follow your display preference.</p>
           <div className="mt-4 space-y-2">
             {(['system', 'light', 'dark'] as ThemePreference[]).map(option => (
               <button
@@ -98,17 +99,21 @@ export function ProfileHub() {
       )}
 
       {aboutOpen && (
-        <ProfileDialog title="About Reelhouse" onClose={() => setAboutOpen(false)}>
+        <ProfileDialog title={`About ${APP_BRAND.name}`} onClose={() => setAboutOpen(false)}>
           <div className="flex items-center gap-3">
             <span className="flex size-11 items-center justify-center rounded-2xl bg-primary text-white">
               <Play className="size-5 fill-current" />
             </span>
             <div>
-              <p className="font-semibold text-white">Reelhouse</p>
-              <p className="text-xs text-[#a3a3a3]">Your media, anywhere.</p>
+              <p className="font-semibold text-white">{APP_BRAND.name}</p>
+              <p className="text-xs text-[#a3a3a3]">Version {APP_BRAND.version}</p>
             </div>
           </div>
-          <p className="mt-4 text-sm leading-6 text-[#a3a3a3]">Search, watch, download, and manage your media in one place.</p>
+          <p className="mt-4 text-sm leading-6 text-[#a3a3a3]">{APP_BRAND.name} is a modern media discovery, playback, and download application.</p>
+          <div className="mt-5 border-t border-[#292929] pt-4">
+            <p className="text-xs uppercase tracking-wide text-[#73737d]">Developed by</p>
+            <p className="mt-1 text-sm font-semibold text-white">{APP_BRAND.author}</p>
+          </div>
         </ProfileDialog>
       )}
     </Shell>
@@ -132,8 +137,8 @@ function themeDescription(theme: ThemePreference) {
   return theme === 'system'
     ? 'Follow your device appearance.'
     : theme === 'light'
-      ? 'Use a bright Reelhouse workspace.'
-      : 'Use the dark Reelhouse workspace.'
+      ? `Use a bright ${APP_BRAND.name} workspace.`
+      : `Use the dark ${APP_BRAND.name} workspace.`
 }
 
 function SettingRow({ href, onClick, icon, label, value }: { href?: string; onClick?: () => void; icon: React.ReactNode; label: string; value?: string }) {

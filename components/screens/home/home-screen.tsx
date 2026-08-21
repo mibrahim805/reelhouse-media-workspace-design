@@ -43,9 +43,9 @@ export function HomeScreen() {
   return (
     <main className="mx-auto w-full max-w-[1240px] overflow-hidden px-4 pb-32 sm:px-6 md:pb-12">
       <header className="flex h-16 items-center justify-between">
-        <Link href="/" className="flex items-center gap-2" aria-label="Reelhouse home">
+        <Link href="/" className="flex items-center gap-2" aria-label="my yt home">
           <span className="flex size-8 items-center justify-center rounded-[10px] bg-primary shadow-[0_0_22px_rgba(139,92,246,.25)]"><Play className="size-4 fill-white text-white" /></span>
-          <span className="text-[18px] font-bold tracking-[-.03em] text-white">Reelhouse</span>
+          <span className="text-[18px] font-bold tracking-[-.03em] text-white">my yt</span>
         </Link>
         <Link href="/search" className="flex size-11 items-center justify-center rounded-full text-[#a3a3a3] hover:bg-[#151515] hover:text-white" aria-label="Search online videos"><Search className="size-[19px]" /></Link>
       </header>

@@ -79,7 +79,7 @@ class DownloadNotification(private val context: Context) {
         val label = if (jobCount == 1) "1 download active or queued"
             else "$jobCount downloads active or queued"
         return NotificationCompat.Builder(context, CHANNEL_ID)
-            .setContentTitle("Reelhouse downloads")
+            .setContentTitle(context.getString(R.string.app_name) + " downloads")
             .setContentText(label)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)

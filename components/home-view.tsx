@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { useDownloads, type DownloadItem } from '@/components/download-store'
 import { useMedia } from '@/components/media-state'
+import { APP_BRAND } from '@/lib/app-brand'
 
 const QUICK_SOURCES = [
   { id: 'yt',  label: 'YouTube',   color: '#FF0000', hint: 'youtube.com' },
@@ -56,7 +57,7 @@ export function HomeView() {
           <span className="flex size-8 items-center justify-center rounded-xl bg-primary">
             <Play className="size-4 fill-white text-white" />
           </span>
-          <span className="text-[18px] font-bold tracking-tight text-white">Reelhouse</span>
+          <span className="text-[18px] font-bold tracking-tight text-white">{APP_BRAND.name}</span>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex size-9 items-center justify-center rounded-full border border-[#292929] bg-[#151515] text-[#a3a3a3] hover:text-white" aria-label="Notifications">

@@ -69,6 +69,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,6 +85,7 @@ import com.reelhouse.downloader.AnalysisState
 import com.reelhouse.downloader.AppViewModel
 import com.reelhouse.downloader.BuildConfig
 import com.reelhouse.downloader.EngineUpdateState
+import com.reelhouse.downloader.R
 import com.reelhouse.downloader.SettingsState
 import com.reelhouse.downloader.data.DownloadEntity
 import com.reelhouse.downloader.media.FormatInfo
@@ -321,7 +323,7 @@ private fun HomeScreen(
             onDetailsReady()
         }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Reelhouse") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) }) { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
@@ -908,7 +910,7 @@ private fun SectionTitle(title: String) {
     Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 }
 
-private const val LICENSE_TEXT = """Reelhouse Android uses youtubedl-android and its FFmpeg module under GPL-3.0. yt-dlp is distributed under The Unlicense. FFmpeg and its enabled components retain their respective LGPL/GPL-compatible licences. AndroidX, Jetpack Compose, Kotlin, Coil, Room, and kotlinx.coroutines/serialization retain their respective Apache 2.0 licences.
+private const val LICENSE_TEXT = """my yt Android uses youtubedl-android and its FFmpeg module under GPL-3.0. yt-dlp is distributed under The Unlicense. FFmpeg and its enabled components retain their respective LGPL/GPL-compatible licences. AndroidX, Jetpack Compose, Kotlin, Coil, Room, and kotlinx.coroutines/serialization retain their respective Apache 2.0 licences.
 
 The complete dependency notices and corresponding source obligations must accompany any distributed APK. Project sources and exact dependency versions are the authoritative record. youtubedl-android: https://github.com/yausername/youtubedl-android · yt-dlp: https://github.com/yt-dlp/yt-dlp · FFmpeg: https://ffmpeg.org"""
 
@@ -918,7 +920,7 @@ Do not use it to bypass copyright restrictions, subscriptions, DRM, authenticati
 
 The Home downloader passes media URLs only to the embedded local yt-dlp runtime. Its extraction, downloading, and FFmpeg processing occur on this Android device using its network connection. Thumbnail images are loaded directly from the source URL returned by yt-dlp.
 
-The YouTube workspace sends public search terms and video requests directly from this device through the embedded local yt-dlp runtime. Metadata extraction, quality selection, downloading, and FFmpeg processing occur on this Android device using its network connection. The custom watch screen loads YouTube's official embedded player for online playback. YouTube receives the network requests required for these features; the Reelhouse server is not part of the Android media path.
+The YouTube workspace sends public search terms and video requests directly from this device through the embedded local yt-dlp runtime. Metadata extraction, quality selection, downloading, and FFmpeg processing occur on this Android device using its network connection. The custom watch screen loads YouTube's official embedded player for online playback. YouTube receives the network requests required for these features; the my yt server is not part of the Android media path.
 
 Download-engine updates occur only after an explicit action. The app fetches the official yt-dlp stable release and verifies the component against that release's SHA-256 manifest before installation. Extraction can still break when source platforms change.
 

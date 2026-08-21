@@ -3,29 +3,14 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Play triangle icon representing media download -->
-    <group
-        android:translateX="27"
-        android:translateY="27">
-        <path
-            android:fillColor="#FFF45152"
-            android:pathData="M27,4.4L27,49.6C27,52.2 24.1,53.8 21.9,52.4L0.9,39.6C-1.3,38.2 -1.3,35.8 0.9,34.4L8,30V24L0.9,19.6C-1.3,18.2 -1.3,15.8 0.9,14.4L21.9,1.6C24.1,0.2 27,1.8 27,4.4Z" />
-        <path
-            android:fillColor="#FFFF8A80"
-            android:pathData="M54,4.4L54,49.6C54,52.2 51.1,53.8 48.9,52.4L30,39.6V14.4L48.9,1.6C51.1,0.2 54,1.8 54,4.4Z" />
-        <!-- Down arrow representing download -->
-        <path
-            android:fillColor="#00000000"
-            android:pathData="M22,30L27,35L32,30M27,35L27,20"
-            android:strokeWidth="2.5"
-            android:strokeColor="#FFFFFFFF"
-            android:strokeLineCap="round"
-            android:strokeLineJoin="round" />
-        <path
-            android:fillColor="#00000000"
-            android:pathData="M20,38L34,38"
-            android:strokeWidth="2.5"
-            android:strokeColor="#FFFFFFFF"
-            android:strokeLineCap="round" />
-    </group>
+    <!-- Original my yt mark: a crimson media tile with a white play cutout. -->
+    <path
+        android:fillColor="#FFD31346"
+        android:pathData="M26,12L82,12A14,14 0,0 1,96 26L96,82A14,14 0,0 1,82 96L26,96A14,14 0,0 1,12 82L12,26A14,14 0,0 1,26 12Z" />
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M47,32C44.2,30.2 40.5,32.2 40.5,35.5L40.5,72.5C40.5,75.8 44.2,77.8 47,76L76,57.5C78.6,55.8 78.6,52.2 76,50.5L47,32Z" />
+    <path
+        android:fillColor="#FFFFAFC0"
+        android:pathData="M28,25L37,25A3,3 0,0 1,40 28L40,31A3,3 0,0 1,37 34L28,34A3,3 0,0 1,25 31L25,28A3,3 0,0 1,28 25Z" />
 </vector>

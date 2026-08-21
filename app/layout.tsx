@@ -6,10 +6,11 @@ import { MediaProvider } from '@/components/media-state'
 import { MiniPlayer } from '@/components/player/mini-player'
 import { LibraryProvider } from '@/components/library-store'
 import { ThemeProvider } from '@/components/theme-provider'
+import { APP_BRAND } from '@/lib/app-brand'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Reelhouse — Your Media, Anywhere',
+  title: `${APP_BRAND.name} — Your Media, Anywhere`,
   description: 'Search, watch, and download videos in one focused media workspace. YouTube search, direct link downloader, and a persistent download manager.',
 }
 

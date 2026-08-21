@@ -60,6 +60,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.reelhouse.downloader.R
 import com.reelhouse.downloader.youtube.BackendDownloadPhase
 import com.reelhouse.downloader.youtube.BackendVideo
 import com.reelhouse.downloader.youtube.YouTubeState
@@ -76,7 +78,7 @@ fun YouTubeWorkspaceScreen(
 ) {
     var query by rememberSaveable { mutableStateOf("") }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("Reelhouse YouTube") }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("${stringResource(R.string.app_name)} YouTube") }) }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
