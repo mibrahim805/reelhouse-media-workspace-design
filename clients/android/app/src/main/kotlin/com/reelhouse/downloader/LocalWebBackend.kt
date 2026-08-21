@@ -213,19 +213,24 @@ class LocalWebBackend(private val app: ReelhouseApp) {
                 put("video", backendVideoInfoJson(remote, url))
             }
         }
+        if (BuildConfig.USE_LOCAL_FORMAT_EXTRACTION_FALLBACK) {
+            Log.w(TAG, "backend=$backendInstanceId formats_source=local_extraction url=$url")
+            val media = runCatching { loadInfo(url, requestId) }
+                .onSuccess { Log.i(TAG, "backend=$backendInstanceId operation=$requestId info_source=local_ytdlp title=${it.title.take(120)}") }
+                .onFailure { Log.w(TAG, "backend=$backendInstanceId operation=$requestId info_source=local_ytdlp failed=${it.message}") }
+                .getOrNull()
+            if (media != null) {
+                return 200 to buildJsonObject {
+                    put("ok", true)
+                    put("video", mediaJson(media, url, includeQualities = true))
+                }
+            }
+        }
         if (BuildConfig.USE_PRESET_FORMAT_FALLBACK) {
             Log.i(TAG, "backend=$backendInstanceId formats_source=preset_fallback url=$url")
             return 200 to buildJsonObject {
                 put("ok", true)
                 put("video", presetVideoInfoJson(url))
-            }
-        }
-        if (BuildConfig.USE_LOCAL_FORMAT_EXTRACTION_FALLBACK) {
-            Log.w(TAG, "backend=$backendInstanceId formats_source=local_extraction url=$url")
-            val media = loadInfo(url, requestId)
-            return 200 to buildJsonObject {
-                put("ok", true)
-                put("video", mediaJson(media, url, includeQualities = false))
             }
         }
         Log.w(TAG, "backend=$backendInstanceId formats_source=backend unavailable url=$url")
@@ -868,7 +873,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private fun presetVideoInfoJson(sourceUrl: String): JsonObject = buildJsonObject {
         val videoId = YouTubeUrls.videoId(sourceUrl).orEmpty()
         put("id", videoId)
-        put("title", "YouTube video")
+        // This is only an emergency quality fallback. Never present the old
+        // generic "YouTube video" label as if it were real metadata.
+        put("title", videoId.ifBlank { "Untitled video" })
         put("channel", "YouTube")
         put("duration", "Unknown duration")
         put("thumbnail", videoId.takeIf { it.isNotBlank() }?.let { "https://i.ytimg.com/vi/$it/hqdefault.jpg" }.orEmpty())

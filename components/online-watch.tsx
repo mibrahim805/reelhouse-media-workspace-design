@@ -8,7 +8,7 @@ import { ReelhousePlayer } from '@/components/player/reelhouse-player'
 import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { fetchMediaInfo, searchYouTube, type MediaInfo } from '@/lib/backend-api'
 import type { OnlineVideo } from '@/types/media'
-import { buildRelatedVideoQuery } from '@/lib/related-query'
+import { buildRelatedVideoQuery, filterRelatedVideos, hasUsableRelatedTitle } from '@/lib/related-query'
 import { useNetworkStatus } from '@/lib/network-status'
 
 const RELATED_RESULT_LIMIT = 12
@@ -33,7 +33,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
   const [reload, setReload] = useState(0)
   const relatedScrollRef = useRef<HTMLDivElement>(null)
 
-  const title = metadata?.title || ''
+  const title = hasUsableRelatedTitle(metadata?.title) ? metadata!.title : ''
   const onlineVideo = useMemo<OnlineVideo>(() => ({
     id: videoId,
     title,
@@ -77,14 +77,15 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
         if (cancelled) return
         setMetadata(current)
 
-        const results = await searchYouTube(buildRelatedVideoQuery({ title: current.title, channel: current.channel }), RELATED_RESULT_LIMIT)
+        const relatedVideo = { title: current.title, channel: current.channel }
+        const query = hasUsableRelatedTitle(current.title) ? buildRelatedVideoQuery(relatedVideo) : ''
+        if (!query) {
+          setRelatedError('Related videos are unavailable until this video metadata is loaded.')
+          return
+        }
+        const results = await searchYouTube(query, RELATED_RESULT_LIMIT)
         if (cancelled) return
-        const seen = new Set<string>([videoId])
-        setRelated(results.filter(video => {
-          if (!video.id || seen.has(video.id)) return false
-          seen.add(video.id)
-          return true
-        }).slice(0, 10))
+        setRelated(filterRelatedVideos(results, videoId, relatedVideo, 10))
       } catch (error) {
         if (!cancelled) setRelatedError(error instanceof Error ? error.message : 'Unable to load related videos.')
       } finally {
@@ -98,13 +99,6 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
 
   return <>
     <main className="mx-auto flex h-[calc(100dvh-4.5rem)] w-full max-w-5xl flex-col overflow-hidden px-4 pt-4 sm:px-6 md:h-[calc(100dvh-3.5rem)] md:pb-4">
-      <header className="mb-4 flex min-h-10 shrink-0 items-center gap-3">
-        <a href="/search" className="flex size-10 items-center justify-center rounded-full text-[#a3a3a3] hover:bg-[#151515] hover:text-white" aria-label="Back">
-          <span aria-hidden="true" className="text-2xl leading-none">‹</span>
-        </a>
-        {title && <h1 className="truncate text-sm font-semibold text-white">{title}</h1>}
-      </header>
-
       <div className="shrink-0">
         {online ? <ReelhousePlayer source={playerSource} /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
       </div>

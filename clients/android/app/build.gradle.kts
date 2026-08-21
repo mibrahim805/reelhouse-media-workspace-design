@@ -31,7 +31,7 @@ android {
         buildConfigField("String", "PERF_BUILD_ID", "\"network-preflight-fix-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
-        buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "false")
+        buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_DOWNLOAD_FALLBACK", "true")
 
         buildConfigField(

@@ -9,6 +9,9 @@ import android.app.DownloadManager
 import android.content.pm.ActivityInfo
 import android.graphics.Color
 import android.net.Uri
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Environment
 import android.os.Build
@@ -27,6 +30,7 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
+import androidx.compose.ui.platform.ComposeView
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -36,6 +40,9 @@ import androidx.lifecycle.lifecycleScope
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.reelhouse.downloader.util.UrlValidator
+import com.reelhouse.downloader.util.NetworkUtil
+import com.reelhouse.downloader.ui.ReelhouseRoot
+import com.reelhouse.downloader.ui.theme.ReelhouseTheme
 import java.io.ByteArrayInputStream
 import java.io.FilterInputStream
 import java.io.InputStream
@@ -60,6 +67,9 @@ class MainActivity : ComponentActivity() {
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var mediaPermissionRequested = false
+    private var offlineShell: ComposeView? = null
+    private var offlineShellShown = false
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -157,7 +167,12 @@ class MainActivity : ComponentActivity() {
 
         checkBridgeSupport()
         installLocalBackendBridge()
-        webView.loadUrl(initialUrl(intent))
+        if (NetworkUtil.isOnline(this)) {
+            webView.loadUrl(initialUrl(intent))
+        } else {
+            showOfflineShell()
+        }
+        registerNetworkRecovery()
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -165,6 +180,8 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     if (fullscreenView != null) {
                         exitFullscreen()
+                    } else if (offlineShellShown) {
+                        finish()
                     } else {
                         // Let transient web UI (such as the Home quality dialog)
                         // consume Back before changing the WebView history.
@@ -184,8 +201,12 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        sharedText(intent)?.let {
-            webView.loadUrl("$webBaseUrl/downloader?url=${Uri.encode(it)}")
+        sharedText(intent)?.let { sharedUrl ->
+            if (offlineShellShown) {
+                Toast.makeText(this, "Connect to the internet to analyze a new link.", Toast.LENGTH_LONG).show()
+            } else {
+                webView.loadUrl("$webBaseUrl/downloader?url=${Uri.encode(sharedUrl)}")
+            }
         }
     }
 
@@ -209,6 +230,9 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        networkCallback?.let { callback ->
+            (getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager)?.unregisterNetworkCallback(callback)
+        }
         exitFullscreen()
         webView.apply {
             stopLoading()
@@ -216,6 +240,63 @@ class MainActivity : ComponentActivity() {
             destroy()
         }
         super.onDestroy()
+    }
+
+    /**
+     * Railway is still the online web frontend, but it must not be the only
+     * thing that can render on a cold start. The Android project already has
+     * a native local-media shell; use that existing shell until a network is
+     * available, then hand the activity back to the unchanged WebView app.
+     */
+    private fun showOfflineShell() {
+        if (offlineShellShown) return
+        offlineShellShown = true
+        dismissNativeSplash()
+        webView.visibility = View.GONE
+        val shell = ComposeView(this).apply {
+            setContent {
+                ReelhouseTheme {
+                    ReelhouseRoot(
+                        AppViewModel(application as ReelhouseApp),
+                    )
+                }
+            }
+        }
+        offlineShell = shell
+        contentRoot.addView(
+            shell,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ),
+        )
+        ViewCompat.requestApplyInsets(contentRoot)
+    }
+
+    private fun showOnlineWebApp() {
+        if (!offlineShellShown || isFinishing) return
+        offlineShellShown = false
+        offlineShell?.let { shell ->
+            shell.disposeComposition()
+            contentRoot.removeView(shell)
+        }
+        offlineShell = null
+        webView.visibility = View.VISIBLE
+        webView.loadUrl(initialUrl(intent))
+        ViewCompat.requestApplyInsets(contentRoot)
+    }
+
+    private fun registerNetworkRecovery() {
+        val connectivity = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                val capabilities = connectivity.getNetworkCapabilities(network) ?: return
+                if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
+                runOnUiThread { showOnlineWebApp() }
+            }
+        }
+        networkCallback = callback
+        connectivity.registerDefaultNetworkCallback(callback)
     }
 
     private fun checkBridgeSupport() {
@@ -248,6 +329,17 @@ class MainActivity : ComponentActivity() {
                 maxOf(safe.bottom, keyboard.bottom),
             )
             webView.layoutParams = layout
+            offlineShell?.layoutParams = FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ).also { shellLayout ->
+                shellLayout.setMargins(
+                    safe.left,
+                    safe.top,
+                    safe.right,
+                    maxOf(safe.bottom, keyboard.bottom),
+                )
+            }
             windowInsets
         }
         ViewCompat.requestApplyInsets(contentRoot)
