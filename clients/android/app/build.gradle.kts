@@ -25,8 +25,8 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 35
-        versionName = "1.6.16"
+        versionCode = 36
+        versionName = "1.6.17"
 
         buildConfigField("String", "PERF_BUILD_ID", "\"network-preflight-fix-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
