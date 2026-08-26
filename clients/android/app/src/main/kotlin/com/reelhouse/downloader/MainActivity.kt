@@ -167,12 +167,11 @@ class MainActivity : ComponentActivity() {
 
         checkBridgeSupport()
         installLocalBackendBridge()
-        if (NetworkUtil.isOnline(this)) {
-            webView.loadUrl(initialUrl(intent))
-        } else {
-            showOfflineShell()
+        showOfflineShell()
+        
+        sharedText(intent)?.let { sharedUrl ->
+            // Pass shared URL to local AppViewModel if launched via SHARE intent
         }
-        registerNetworkRecovery()
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -180,18 +179,8 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     if (fullscreenView != null) {
                         exitFullscreen()
-                    } else if (offlineShellShown) {
-                        finish()
                     } else {
-                        // Let transient web UI (such as the Home quality dialog)
-                        // consume Back before changing the WebView history.
-                        webView.evaluateJavascript(
-                            "window.__reelhouseHandleBack ? window.__reelhouseHandleBack() : false",
-                        ) { handled ->
-                            if (handled != "true") {
-                                if (webView.canGoBack()) webView.goBack() else finish()
-                            }
-                        }
+                        finish()
                     }
                 }
             },
@@ -201,13 +190,6 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        sharedText(intent)?.let { sharedUrl ->
-            if (offlineShellShown) {
-                Toast.makeText(this, "Connect to the internet to analyze a new link.", Toast.LENGTH_LONG).show()
-            } else {
-                webView.loadUrl("$webBaseUrl/downloader?url=${Uri.encode(sharedUrl)}")
-            }
-        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -273,31 +255,7 @@ class MainActivity : ComponentActivity() {
         ViewCompat.requestApplyInsets(contentRoot)
     }
 
-    private fun showOnlineWebApp() {
-        if (!offlineShellShown || isFinishing) return
-        offlineShellShown = false
-        offlineShell?.let { shell ->
-            shell.disposeComposition()
-            contentRoot.removeView(shell)
-        }
-        offlineShell = null
-        webView.visibility = View.VISIBLE
-        webView.loadUrl(initialUrl(intent))
-        ViewCompat.requestApplyInsets(contentRoot)
-    }
 
-    private fun registerNetworkRecovery() {
-        val connectivity = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                val capabilities = connectivity.getNetworkCapabilities(network) ?: return
-                if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
-                runOnUiThread { showOnlineWebApp() }
-            }
-        }
-        networkCallback = callback
-        connectivity.registerDefaultNetworkCallback(callback)
-    }
 
     private fun checkBridgeSupport() {
         check(WebViewFeature.isFeatureSupported(WebViewFeature.WEB_MESSAGE_LISTENER)) {
