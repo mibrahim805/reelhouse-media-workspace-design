@@ -14,13 +14,15 @@ import {
   MonitorPlay,
   Music2,
   Video,
+  WifiOff,
 } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { useLibrary } from '@/components/library-store'
 import { QualityDialog } from '@/components/quality-dialog'
-import { fetchMediaInfo, type MediaInfo, type QualityOption } from '@/lib/backend-api'
+import { fetchMediaInfo, type MediaInfo, type QualityOption, BackendOfflineError } from '@/lib/backend-api'
 import { normalizeQualityValue, resolvePreferredQuality } from '@/lib/quality-preferences'
 import { DownloadConfirmation } from '@/components/download-confirmation'
+import { useNetworkStatus } from '@/lib/network-status'
 import { cn } from '@/lib/utils'
 
 type Platform = {
@@ -51,6 +53,7 @@ export function DownloaderView() {
   const params = useSearchParams()
   const { startDownload, downloads, setPanelOpen } = useDownloads()
   const { preferences, rememberVideoQuality } = useLibrary()
+  const online = useNetworkStatus()
 
   const [platform, setPlatform] = useState('auto')
   const [url, setUrl] = useState('')
@@ -70,6 +73,12 @@ export function DownloaderView() {
   }, [params])
 
   async function fetchPreview() {
+    if (!online) {
+      setStatus('error')
+      setPreview(null)
+      setError('No internet connection. Connect to analyze and download videos.')
+      return
+    }
     if (!isValidUrl(url)) {
       setStatus('error')
       setPreview(null)
@@ -86,7 +95,11 @@ export function DownloaderView() {
       setStatus('ready')
     } catch (cause) {
       setStatus('error')
-      setError(cause instanceof Error ? cause.message : 'Metadata extraction failed.')
+      if (cause instanceof BackendOfflineError) {
+        setError('Download service is offline. Make sure the backend is running.')
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Metadata extraction failed.')
+      }
     }
   }
 
@@ -216,15 +229,18 @@ export function DownloaderView() {
               </div>
               <button
                 onClick={fetchPreview}
-                disabled={status === 'loading'}
-                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70"
+                disabled={status === 'loading' || !online}
+                title={!online ? 'No internet connection' : undefined}
+                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {status === 'loading' ? (
                   <Loader2 className="size-4 animate-spin" />
+                ) : !online ? (
+                  <WifiOff className="size-4" />
                 ) : (
                   <Eye className="size-4" />
                 )}
-                Fetch
+                {!online ? 'Offline' : 'Fetch'}
               </button>
             </div>
             {status === 'error' && (

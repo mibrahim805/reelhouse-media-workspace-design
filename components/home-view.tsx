@@ -5,10 +5,11 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Bell, CheckCircle2, ChevronRight, Download,
-  Link2, Play, Search, Sparkles
+  Link2, Play, Search, Sparkles, WifiOff
 } from 'lucide-react'
 import { useDownloads, type DownloadItem } from '@/components/download-store'
 import { useMedia } from '@/components/media-state'
+import { useNetworkStatus } from '@/lib/network-status'
 import { APP_BRAND } from '@/lib/app-brand'
 
 const QUICK_SOURCES = [
@@ -27,16 +28,20 @@ export function HomeView() {
   const [discoverConfigured, setDiscoverConfigured] = useState<boolean | null>(null)
   const { downloads, activeCount, completedCount } = useDownloads()
   const { open } = useMedia()
+  const online = useNetworkStatus()
 
   useEffect(() => {
+    if (!online) { setDiscoverConfigured(false); return }
     fetch('/api/search?type=trending&maxResults=8')
       .then(r => r.json())
       .then(data => {
+        // SW returns {error:'offline'} when network is down
+        if (data.error === 'offline') { setDiscoverConfigured(false); return }
         setDiscover(data.results || [])
         setDiscoverConfigured(Boolean(data.configured))
       })
       .catch(() => setDiscoverConfigured(false))
-  }, [])
+  }, [online])
 
   const completed = downloads.filter(d => d.status === 'completed')
   const active    = downloads.filter(d => ['queued','downloading','processing'].includes(d.status))
@@ -94,9 +99,15 @@ export function HomeView() {
           </div>
           <button
             onClick={analyze}
-            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90"
+            disabled={!online}
+            title={!online ? 'No internet connection' : undefined}
+            className="mt-3 w-full rounded-xl bg-primary py-3 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Analyze &amp; Download
+            {online ? 'Analyze & Download' : (
+              <span className="flex items-center justify-center gap-2">
+                <WifiOff className="size-4" /> Offline — connect to download
+              </span>
+            )}
           </button>
         </div>
       </section>

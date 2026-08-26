@@ -10,11 +10,22 @@ export type { OnlineVideo } from '@/types/media'
 import type { OnlineVideo } from '@/types/media'
 export type YoutubeSearchVideo = OnlineVideo
 
+/**
+ * Thrown when the service worker intercepts an API call but the backend
+ * (Django) is unreachable. Callers can `instanceof BackendOfflineError`
+ * to show a graceful "offline" UI instead of a generic error message.
+ */
+export class BackendOfflineError extends Error {
+  constructor() { super('Backend is offline. Connect to start downloads.') }
+}
+
 type Envelope<T> = T & { ok: boolean; error?: string }
 async function read<T>(response: Response): Promise<Envelope<T>> {
   const text = await response.text()
   let data: Envelope<T>
   try { data = JSON.parse(text) as Envelope<T> } catch { throw new Error(response.status === 502 ? 'Backend unavailable. Check that Django is running.' : 'The backend returned an invalid response.') }
+  // Service worker offline stub — raise a typed error so UI can handle gracefully
+  if (data.error === 'backend_offline') throw new BackendOfflineError()
   if (!response.ok || !data.ok) throw new Error(data.error || `Request failed (${response.status}).`)
   return data
 }

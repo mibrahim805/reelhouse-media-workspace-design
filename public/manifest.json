@@ -1,0 +1,40 @@
+{
+  "name": "Reelhouse",
+  "short_name": "Reelhouse",
+  "description": "Search, watch, and download videos. Your media, anywhere.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "categories": ["entertainment", "multimedia"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Search",
+      "short_name": "Search",
+      "description": "Search for videos online",
+      "url": "/search",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Library",
+      "short_name": "Library",
+      "description": "Your downloaded media",
+      "url": "/library",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ]
+}
