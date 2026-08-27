@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger
  *
  * Displays an ongoing notification with progress.
  * Downloads run on IO dispatcher, never on the main thread.
- * All media traffic goes directly from the phone to the source — never through Railway.
+ * All media traffic goes directly from the phone to the source — never through Kubeletto.
  */
 class DownloadService : Service() {
 

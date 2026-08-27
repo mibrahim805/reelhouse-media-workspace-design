@@ -4,7 +4,25 @@ Reelhouse is a focused media workspace for discovering, previewing, and saving
 videos. This repository packages the Next.js frontend and Django/yt-dlp backend
 as one Docker application.
 
-## Deploy on Railway
+## Current deployment: Kubeletto
+
+The production service is deployed from the public image below:
+
+```text
+ghcr.io/mibrahim805/reelhouse-media-workspace-design:latest
+```
+
+Use container port `8080` with public access enabled. The current public URL is:
+
+```text
+https://reelhouse.kubeletto.app
+```
+
+The Android client loads this Kubeletto frontend in a WebView. Its
+origin-scoped bridge handles backend API requests locally, so video playback
+uses the hosted UI while media extraction and downloads run on the phone.
+
+## Legacy Railway deployment
 
 Railway automatically uses the root `Dockerfile` and `railway.json`. The
 frontend and backend run in one service, so do not create separate services or
@@ -30,7 +48,7 @@ downloads can optionally be stored as the secret variable
 After deployment, the Android ARM64 APK is available directly at:
 
 ```text
-https://reelhouse-media-workspace-design-production.up.railway.app/api/app-download/android
+https://reelhouse.kubeletto.app/api/app-download/android
 ```
 
 Open that URL on an ARM64 Android phone, install the downloaded APK, and allow
@@ -48,7 +66,7 @@ starts with a 30-day, $5 trial and then provides $1 of monthly usage, with
 state can disappear on restart or redeploy, and large downloads can fill the
 disk. Keep `REELHOUSE_MAX_CONCURRENT_DOWNLOADS=1` on this tier.
 
-## Free hosted deployment (no card)
+## Deprecated ClawCloud deployment
 
 Deploy the published Docker image with **ClawCloud Run**. Its Free Plan does not
 require a credit card and provides a stable public HTTPS address. A GitHub

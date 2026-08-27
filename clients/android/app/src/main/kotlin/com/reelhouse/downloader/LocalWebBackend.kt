@@ -203,8 +203,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         }
 
         val remote = if (BuildConfig.USE_BACKEND_FORMAT_EXTRACTION) runCatching { remoteBackend.info(url) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway qualities=${it.qualities.size}") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=railway failed=${it.message}") }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=kubeletto qualities=${it.qualities.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$requestId info_source=kubeletto failed=${it.message}") }
             .getOrNull() else null
         if (remote != null && remote.qualities.isNotEmpty()) {
             Log.i(TAG, "backend=$backendInstanceId formats_source=backend key=${YouTubeUrls.videoId(url).orEmpty()}")
@@ -244,8 +244,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start query=${query.take(120)}")
         val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway results=${it.size}") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway failed=${it.message}") }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto results=${it.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto failed=${it.message}") }
             .getOrNull()
         val response = if (!remoteVideos.isNullOrEmpty()) {
             buildJsonObject {
@@ -407,8 +407,8 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start topic=$topic")
         val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway results=${it.size}") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=railway failed=${it.message}") }
+            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto results=${it.size}") }
+            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto failed=${it.message}") }
             .getOrNull()
         val videos = remoteVideos?.takeIf { it.isNotEmpty() }?.let { backendVideoArray(it) }
             ?: mediaArray(loadSearch(query, 8, operationId))

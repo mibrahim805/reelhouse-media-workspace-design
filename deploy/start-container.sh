@@ -7,7 +7,7 @@ APP_ROOT="${APP_ROOT:-/app}"
 GUNICORN_THREADS="${GUNICORN_THREADS:-2}"
 
 # Both processes run in this container. Always send server-side API requests
-# over loopback instead of routing them through the public Railway domain.
+# over loopback instead of routing them through the public Kubeletto domain.
 REELHOUSE_INTERNAL_BACKEND_URL="http://127.0.0.1:${BACKEND_PORT}"
 export REELHOUSE_INTERNAL_BACKEND_URL
 

@@ -616,7 +616,7 @@ private fun DetailsScreen(
         AlertDialog(
             onDismissRequest = { confirming = false },
             title = { Text("Start download?") },
-            text = { Text("The source will send media directly to this phone. Railway is not contacted.\n\n${filenamePreview(media, outputFormat)}") },
+            text = { Text("The source will send media directly to this phone. Kubeletto is not contacted.\n\n${filenamePreview(media, outputFormat)}") },
             confirmButton = {
                 Button(onClick = {
                     confirming = false

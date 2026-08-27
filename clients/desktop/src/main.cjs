@@ -13,7 +13,7 @@ const { spawn } = require('node:child_process')
 
 const DEFAULT_SERVER_URL =
   process.env.REELHOUSE_SERVER_URL ||
-  'https://reelhouse-media-workspace-design-production.up.railway.app'
+  'https://reelhouse.kubeletto.app'
 const LEGACY_SERVER_URLS = new Set([
   'https://pajamas-hexagon-equation.ngrok-free.dev',
 ])

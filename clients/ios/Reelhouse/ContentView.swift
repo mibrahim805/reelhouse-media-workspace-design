@@ -8,5 +8,5 @@ struct ContentView: View {
 }
 
 enum ReelhouseConfiguration {
-    static let serverURL = "https://reelhouse-media-workspace-design-production.up.railway.app"
+    static let serverURL = "https://reelhouse.kubeletto.app"
 }

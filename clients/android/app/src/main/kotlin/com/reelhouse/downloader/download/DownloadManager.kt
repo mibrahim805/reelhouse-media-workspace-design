@@ -27,7 +27,7 @@ import java.util.concurrent.ConcurrentHashMap
  * Downloads execute entirely on the device:
  *   User's phone → yt-dlp (embedded) → source server → phone storage
  *
- * Railway is NEVER contacted. No proxy. No server-side processing.
+ * Kubeletto is NEVER contacted for media. No proxy. No server-side processing.
  */
 class DownloadManager(
     private val context: Context,

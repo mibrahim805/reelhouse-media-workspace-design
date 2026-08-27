@@ -55,7 +55,7 @@ import kotlinx.coroutines.withContext
 /**
  * Android renders the production web frontend unchanged. A document-start,
  * origin-bound bridge replaces only the `/api/backend/…` fetches with the embedded
- * device backend, so media extraction and downloads never use Railway.
+ * device backend, so media extraction and downloads never use Kubeletto.
  */
 class MainActivity : ComponentActivity() {
     private lateinit var contentRoot: FrameLayout
@@ -167,11 +167,12 @@ class MainActivity : ComponentActivity() {
 
         checkBridgeSupport()
         installLocalBackendBridge()
-        showOfflineShell()
-        
-        sharedText(intent)?.let { sharedUrl ->
-            // Pass shared URL to local AppViewModel if launched via SHARE intent
+        if (NetworkUtil.isOnline(this)) {
+            webView.loadUrl(initialUrl(intent))
+        } else {
+            showOfflineShell()
         }
+        registerNetworkRecovery()
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -179,8 +180,18 @@ class MainActivity : ComponentActivity() {
                 override fun handleOnBackPressed() {
                     if (fullscreenView != null) {
                         exitFullscreen()
-                    } else {
+                    } else if (offlineShellShown) {
                         finish()
+                    } else {
+                        // Let transient web UI (such as the Home quality dialog)
+                        // consume Back before changing the WebView history.
+                        webView.evaluateJavascript(
+                            "window.__reelhouseHandleBack ? window.__reelhouseHandleBack() : false",
+                        ) { handled ->
+                            if (handled != "true") {
+                                if (webView.canGoBack()) webView.goBack() else finish()
+                            }
+                        }
                     }
                 }
             },
@@ -190,6 +201,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        sharedText(intent)?.let { sharedUrl ->
+            if (offlineShellShown) {
+                Toast.makeText(this, "Connect to the internet to analyze a new link.", Toast.LENGTH_LONG).show()
+            } else {
+                webView.loadUrl("$webBaseUrl/downloader?url=${Uri.encode(sharedUrl)}")
+            }
+        }
     }
 
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
@@ -225,7 +243,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Railway is still the online web frontend, but it must not be the only
+     * Kubeletto is the online web frontend, but it must not be the only
      * thing that can render on a cold start. The Android project already has
      * a native local-media shell; use that existing shell until a network is
      * available, then hand the activity back to the unchanged WebView app.
@@ -253,6 +271,32 @@ class MainActivity : ComponentActivity() {
             ),
         )
         ViewCompat.requestApplyInsets(contentRoot)
+    }
+
+    private fun showOnlineWebApp() {
+        if (!offlineShellShown || isFinishing) return
+        offlineShellShown = false
+        offlineShell?.let { shell ->
+            shell.disposeComposition()
+            contentRoot.removeView(shell)
+        }
+        offlineShell = null
+        webView.visibility = View.VISIBLE
+        webView.loadUrl(initialUrl(intent))
+        ViewCompat.requestApplyInsets(contentRoot)
+    }
+
+    private fun registerNetworkRecovery() {
+        val connectivity = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                val capabilities = connectivity.getNetworkCapabilities(network) ?: return
+                if (!capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)) return
+                runOnUiThread { showOnlineWebApp() }
+            }
+        }
+        networkCallback = callback
+        connectivity.registerDefaultNetworkCallback(callback)
     }
 
 
@@ -381,7 +425,7 @@ class MainActivity : ComponentActivity() {
             if (request.isForMainFrame) {
                 dismissNativeSplash()
                 // The network can disappear after the initial capability
-                // check but before Railway returns the document. Keep the
+                // check but before Kubeletto returns the document. Keep the
                 // cold-start path local instead of leaving a blank WebView.
                 runOnUiThread { showOfflineShell() }
             }

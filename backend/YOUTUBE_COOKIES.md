@@ -26,7 +26,7 @@ YTDLP_COOKIE_FILE=/path/to/cookies.txt python3 manage.py runserver 127.0.0.1:801
 
 Do not share or commit cookies. They can contain account session data.
 
-## Hosted container (Railway)
+## Hosted container (Kubeletto)
 
 The deployed container cannot read cookies from the browser on your own
 computer. Export Netscape-format cookies and add their complete contents as a

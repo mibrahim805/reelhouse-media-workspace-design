@@ -25,9 +25,9 @@ The hosted Reelhouse backend is not part of the Android media path.
    `Movies/Reelhouse` / `Music/Reelhouse`. Android 7–9 uses the app-specific
    external media directory to avoid requesting storage permission.
 
-The Android project is not built into the Railway deployment: the root
+The Android project is not built into the Kubeletto deployment: the root
 `.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
-directory. Railway serves the frontend pages/assets to the WebView, while an
+directory. Kubeletto serves the frontend pages/assets to the WebView, while an
 origin-bound Android bridge prevents backend media API requests from leaving
 the device.
 

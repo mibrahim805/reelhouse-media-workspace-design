@@ -10,14 +10,16 @@ Android downloader, and a native Swift iPhone/iPad client.
 | Android | Native Kotlin `.apk` | `Download/Reelhouse` on Android 10+ |
 | iPhone / iPad | Native Swift app | `Files > On My iPhone/iPad > Reelhouse` |
 
-The desktop clients connect directly to the production Railway deployment:
+The desktop clients connect directly to the production Kubeletto deployment:
 
 ```text
-https://reelhouse-media-workspace-design-production.up.railway.app
+https://reelhouse.kubeletto.app
 ```
 
-The Android app does not use Railway for extraction or downloads. It runs
-yt-dlp and FFmpeg locally on the phone.
+The Android app loads the production Kubeletto frontend in a WebView, while its
+origin-scoped bridge handles backend API requests with the bundled yt-dlp and
+FFmpeg engine locally on the phone. Video playback remains in the hosted UI;
+media downloads do not pass through Kubeletto.
 
 The Windows and Linux Electron clients load the same production frontend as the
 website, so YouTube-only quality selection and automatic best-available quality

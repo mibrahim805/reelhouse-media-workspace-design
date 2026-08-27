@@ -43,7 +43,7 @@ class MediaExtractor(private val context: Context) {
 
     /**
      * Extracts metadata and available formats for a URL.
-     * Runs entirely on the device — no Railway server contact.
+     * Runs entirely on the device — no Kubeletto server contact.
      */
     suspend fun extractInfo(url: String): MediaInfo = withContext(Dispatchers.IO) {
         val call = nextCall()

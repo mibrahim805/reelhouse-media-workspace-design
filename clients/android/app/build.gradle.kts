@@ -25,10 +25,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 36
-        versionName = "1.6.17"
+        versionCode = 37
+        versionName = "1.6.18"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"network-preflight-fix-v1\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"kubeletto-webview-hybrid-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "true")
@@ -37,7 +37,7 @@ android {
         buildConfigField(
             "String",
             "REELHOUSE_WEB_BASE_URL",
-            "\"https://reelhouse-media-workspace-design-production.up.railway.app\"",
+            "\"https://reelhouse.kubeletto.app\"",
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
