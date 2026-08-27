@@ -19,29 +19,48 @@ export function ReelhousePlayer({ source, autoPlay = false }: { source: PlayerSo
   const surfaceRef = useRef<HTMLDivElement>(null)
   const clickTimer = useRef<number | null>(null)
   const adapter = source.type === 'youtube' ? youtubeRef : source.type === 'local-video' ? videoRef : audioRef
+  const sourceId = source.type === 'youtube' ? source.videoId : source.id
   const sessionRef = useRef({ playing, position, volume, muted, playbackRate })
+  const positionRef = useRef(position)
+  const restoredSourceRef = useRef<string | null>(null)
   useEffect(() => { sessionRef.current = { playing, position, volume, muted, playbackRate } }, [muted, playbackRate, playing, position, volume])
+  useEffect(() => { positionRef.current = position }, [position])
 
   const onReady = useCallback((length: number) => {
     const controls = adapter.current
     const session = sessionRef.current
+    const startingPosition = positionRef.current
     setDuration(length)
     if (controls) {
       controls.setVolume(session.volume)
       controls.setMuted(session.muted)
       controls.setPlaybackRate(session.playbackRate)
-      if (session.position > 0 && Number.isFinite(session.position)) controls.seekTo(Math.min(session.position, length || session.position))
+      if (startingPosition > 0 && Number.isFinite(startingPosition)) {
+        controls.seekTo(Math.min(startingPosition, length || startingPosition))
+        restoredSourceRef.current = sourceId
+      }
       if (session.playing) void controls.play()
       else controls.pause()
     }
     setStatus('ready')
-  }, [adapter, setDuration, setStatus])
+  }, [adapter, setDuration, setStatus, sourceId])
   const onPlay = useCallback(() => setPlaying(true), [setPlaying])
   const onPause = useCallback(() => setPlaying(false), [setPlaying])
   const onEnded = useCallback(() => { setPlaying(false); setStatus('ended') }, [setPlaying, setStatus])
   const onProgress = useCallback((nextPosition: number, length: number) => { setPosition(nextPosition); if (length) setDuration(length) }, [setDuration, setPosition])
   const onError = useCallback(() => setStatus('error'), [setStatus])
-  const sourceId = source.type === 'youtube' ? source.videoId : source.id
+  useEffect(() => {
+    restoredSourceRef.current = null
+  }, [sourceId])
+
+  useEffect(() => {
+    const controls = adapter.current
+    if (!controls || position <= 0 || restoredSourceRef.current === sourceId) return
+    const length = controls.getDuration()
+    controls.seekTo(Math.min(position, length || position))
+    restoredSourceRef.current = sourceId
+  }, [adapter, position, sourceId])
+
   useEffect(() => {
     const controls = adapter.current
     if (controls) registerControls(controls)

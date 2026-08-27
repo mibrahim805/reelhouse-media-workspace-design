@@ -8,6 +8,7 @@ import { useMedia } from '@/components/media-state'
 import { LocalAudioPlayerAdapter, type LocalAudioPlayerAdapterHandle } from '@/components/player/adapters/local-audio-player-adapter'
 import { LocalVideoPlayerAdapter, type LocalVideoPlayerAdapterHandle } from '@/components/player/adapters/local-video-player-adapter'
 import { YoutubePlayerAdapter, type YoutubePlayerAdapterHandle } from '@/components/player/adapters/youtube-player-adapter'
+import type { PlayerCommands } from '@/types/player'
 
 function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) {
   if (source.type === 'youtube') return `/watch/${encodeURIComponent(source.videoId)}`
@@ -22,6 +23,7 @@ export function MiniPlayer() {
   const videoRef = useRef<LocalVideoPlayerAdapterHandle>(null)
   const audioRef = useRef<LocalAudioPlayerAdapterHandle>(null)
   const youtubeRef = useRef<YoutubePlayerAdapterHandle>(null)
+  const activeControlsRef = useRef<PlayerCommands | null>(null)
   const sessionRef = useRef({ playing, position, volume, muted, playbackRate })
   useEffect(() => { sessionRef.current = { playing, position, volume, muted, playbackRate } }, [muted, playbackRate, playing, position, volume])
   const isFullPlayer = pathname.startsWith('/watch/') || pathname.startsWith('/player/') || pathname.startsWith('/music/')
@@ -46,10 +48,22 @@ export function MiniPlayer() {
   const onProgress = useCallback((position: number, duration: number) => { setPosition(position); if (duration) setDuration(duration) }, [setDuration, setPosition])
   const onError = useCallback(() => setStatus('error'), [setStatus])
 
+  const capturePosition = useCallback(() => {
+    const controls = activeControlsRef.current
+    if (!controls) return
+    const currentTime = controls.getCurrentTime()
+    const duration = controls.getDuration()
+    if (Number.isFinite(currentTime)) setPosition(currentTime)
+    if (Number.isFinite(duration) && duration > 0) setDuration(duration)
+  }, [setDuration, setPosition])
+
   useEffect(() => {
     if (!source || isFullPlayer) return
     const controls = source.type === 'youtube' ? youtubeRef.current : source.type === 'local-video' ? videoRef.current : audioRef.current
-    if (controls) registerControls(controls)
+    if (controls) {
+      activeControlsRef.current = controls
+      registerControls(controls)
+    }
     return () => {
       if (!controls) return
       const currentTime = controls.getCurrentTime()
@@ -57,6 +71,7 @@ export function MiniPlayer() {
       if (Number.isFinite(currentTime)) setPosition(currentTime)
       if (Number.isFinite(duration) && duration > 0) setDuration(duration)
       setPlaying(controls.isPlaying())
+      if (activeControlsRef.current === controls) activeControlsRef.current = null
       clearControls(controls)
     }
   }, [clearControls, isFullPlayer, registerControls, setDuration, setPlaying, setPosition, source, sourceKey, sourceType])
@@ -78,7 +93,7 @@ export function MiniPlayer() {
           {artwork ? <img src={artwork} alt="" className="size-full object-cover" /> : <div className="flex size-full items-center justify-center text-xs font-bold text-primary">RH</div>}
         </div>
       )}
-      <Link href={playerHref(source)} className="min-w-0 flex-1">
+      <Link href={playerHref(source)} onClick={capturePosition} className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{title}</p>
         <p className="truncate text-xs text-[#a3a3a3]">{source.type === 'youtube' ? source.channel || 'YouTube' : source.type === 'local-audio' ? source.artist || 'Audio' : source.channel || 'Downloaded video'}</p>
       </Link>
