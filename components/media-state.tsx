@@ -27,6 +27,7 @@ type MediaState = {
   setVolume(value: number): void
   setMuted(value: boolean): void
   setPlaybackRate(value: number): void
+  setQuality(value: string): void
   setStatus(value: PlayerStatus): void
   registerControls(controls: PlayerCommands): void
   clearControls(expected?: PlayerCommands): void
@@ -236,6 +237,10 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
     controlsRef.current?.setPlaybackRate(next)
   }, [])
 
+  const setQuality = useCallback((value: string) => {
+    controlsRef.current?.setQuality?.(value)
+  }, [])
+
   const registerControls = useCallback((next: PlayerCommands) => {
     controlsRef.current = next
     setControls(next)
@@ -272,8 +277,8 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo(() => ({
     current, source, playing, position, duration, volume, lastNonZeroVolume, muted, playbackRate, status,
     miniPlayerVisible: Boolean(source), open, openOnline, close, setPlaying, setPosition, setDuration, setVolume,
-    setMuted, setPlaybackRate, setStatus, registerControls, clearControls, play, pause, seek,
-  }), [clearControls, close, current, duration, lastNonZeroVolume, muted, open, openOnline, pause, playbackRate, play, playing, position, registerControls, seek, setMuted, setPlaybackRate, setPlaying, setPosition, setVolume, source, status, volume])
+    setMuted, setPlaybackRate, setQuality, setStatus, registerControls, clearControls, play, pause, seek,
+  }), [clearControls, close, current, duration, lastNonZeroVolume, muted, open, openOnline, pause, playbackRate, play, playing, position, registerControls, seek, setMuted, setPlaybackRate, setPlaying, setPosition, setQuality, setVolume, source, status, volume])
 
   return <MediaContext.Provider value={value}>{children}</MediaContext.Provider>
 }

@@ -36,5 +36,6 @@ export type PlayerCommands = {
   setVolume: (volume: number) => void
   setMuted: (muted: boolean) => void
   setPlaybackRate: (rate: number) => void
+  setQuality?: (quality: string) => void
   fullscreen?: () => void
 }
