@@ -7,6 +7,7 @@ import { LocalAudioPlayerAdapter, type LocalAudioPlayerAdapterHandle } from '@/c
 import { LocalVideoPlayerAdapter, type LocalVideoPlayerAdapterHandle } from '@/components/player/adapters/local-video-player-adapter'
 import { YoutubePlayerAdapter, type YoutubePlayerAdapterHandle } from '@/components/player/adapters/youtube-player-adapter'
 import { PlayerControls } from '@/components/player/player-controls'
+import { clearResumePosition, readResumePosition } from '@/components/player/resume-position'
 import { usePlayerKeyboard } from '@/components/player/hooks/use-player-keyboard'
 import type { PlayerSource } from '@/types/player'
 
@@ -19,7 +20,7 @@ export function ReelhousePlayer({ source, autoPlay = false }: { source: PlayerSo
   const surfaceRef = useRef<HTMLDivElement>(null)
   const clickTimer = useRef<number | null>(null)
   const adapter = source.type === 'youtube' ? youtubeRef : source.type === 'local-video' ? videoRef : audioRef
-  const sourceId = source.type === 'youtube' ? source.videoId : source.id
+  const sourceId = `${source.type}:${source.type === 'youtube' ? source.videoId : source.id}`
   const sessionRef = useRef({ playing, position, volume, muted, playbackRate })
   const positionRef = useRef(position)
   const restoredSourceRef = useRef<string | null>(null)
@@ -29,7 +30,8 @@ export function ReelhousePlayer({ source, autoPlay = false }: { source: PlayerSo
   const onReady = useCallback((length: number) => {
     const controls = adapter.current
     const session = sessionRef.current
-    const startingPosition = positionRef.current
+    const savedPosition = readResumePosition(sourceId)
+    const startingPosition = savedPosition > 0 ? savedPosition : positionRef.current
     setDuration(length)
     if (controls) {
       controls.setVolume(session.volume)
@@ -38,6 +40,7 @@ export function ReelhousePlayer({ source, autoPlay = false }: { source: PlayerSo
       if (startingPosition > 0 && Number.isFinite(startingPosition)) {
         controls.seekTo(Math.min(startingPosition, length || startingPosition))
         restoredSourceRef.current = sourceId
+        clearResumePosition(sourceId)
       }
       if (session.playing) void controls.play()
       else controls.pause()
@@ -55,10 +58,13 @@ export function ReelhousePlayer({ source, autoPlay = false }: { source: PlayerSo
 
   useEffect(() => {
     const controls = adapter.current
-    if (!controls || position <= 0 || restoredSourceRef.current === sourceId) return
+    const savedPosition = readResumePosition(sourceId)
+    const targetPosition = savedPosition > 0 ? savedPosition : position
+    if (!controls || targetPosition <= 0 || restoredSourceRef.current === sourceId) return
     const length = controls.getDuration()
-    controls.seekTo(Math.min(position, length || position))
+    controls.seekTo(Math.min(targetPosition, length || targetPosition))
     restoredSourceRef.current = sourceId
+    clearResumePosition(sourceId)
   }, [adapter, position, sourceId])
 
   useEffect(() => {

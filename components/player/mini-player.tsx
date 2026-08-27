@@ -8,6 +8,7 @@ import { useMedia } from '@/components/media-state'
 import { LocalAudioPlayerAdapter, type LocalAudioPlayerAdapterHandle } from '@/components/player/adapters/local-audio-player-adapter'
 import { LocalVideoPlayerAdapter, type LocalVideoPlayerAdapterHandle } from '@/components/player/adapters/local-video-player-adapter'
 import { YoutubePlayerAdapter, type YoutubePlayerAdapterHandle } from '@/components/player/adapters/youtube-player-adapter'
+import { saveResumePosition } from '@/components/player/resume-position'
 import type { PlayerCommands } from '@/types/player'
 
 function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) {
@@ -28,7 +29,7 @@ export function MiniPlayer() {
   useEffect(() => { sessionRef.current = { playing, position, volume, muted, playbackRate } }, [muted, playbackRate, playing, position, volume])
   const isFullPlayer = pathname.startsWith('/watch/') || pathname.startsWith('/player/') || pathname.startsWith('/music/')
   const sourceType = source?.type
-  const sourceKey = source ? source.type === 'youtube' ? source.videoId : source.id : ''
+  const sourceKey = source ? `${source.type}:${source.type === 'youtube' ? source.videoId : source.id}` : ''
   const onReady = useCallback((duration: number) => {
     const controls = sourceType === 'youtube' ? youtubeRef.current : sourceType === 'local-video' ? videoRef.current : audioRef.current
     const session = sessionRef.current
@@ -53,9 +54,12 @@ export function MiniPlayer() {
     if (!controls) return
     const currentTime = controls.getCurrentTime()
     const duration = controls.getDuration()
-    if (Number.isFinite(currentTime)) setPosition(currentTime)
+    if (Number.isFinite(currentTime)) {
+      setPosition(currentTime)
+      saveResumePosition(sourceKey, currentTime)
+    }
     if (Number.isFinite(duration) && duration > 0) setDuration(duration)
-  }, [setDuration, setPosition])
+  }, [setDuration, setPosition, sourceKey])
 
   useEffect(() => {
     if (!source || isFullPlayer) return
@@ -68,7 +72,10 @@ export function MiniPlayer() {
       if (!controls) return
       const currentTime = controls.getCurrentTime()
       const duration = controls.getDuration()
-      if (Number.isFinite(currentTime)) setPosition(currentTime)
+      if (Number.isFinite(currentTime)) {
+        setPosition(currentTime)
+        saveResumePosition(sourceKey, currentTime)
+      }
       if (Number.isFinite(duration) && duration > 0) setDuration(duration)
       setPlaying(controls.isPlaying())
       if (activeControlsRef.current === controls) activeControlsRef.current = null
