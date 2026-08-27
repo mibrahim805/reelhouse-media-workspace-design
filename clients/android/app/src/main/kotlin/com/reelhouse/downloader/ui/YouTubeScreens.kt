@@ -208,8 +208,8 @@ fun YouTubeWatchScreen(
     onDismissDownload: () -> Unit,
 ) {
     val video = state.selectedVideo
-    var playing by rememberSaveable(video?.id) { mutableStateOf(false) }
-    LaunchedEffect(video?.id) { playing = false }
+    var playing by rememberSaveable(video?.id) { mutableStateOf(true) }
+    LaunchedEffect(video?.id) { playing = true }
 
     Scaffold(
         topBar = {

@@ -125,7 +125,7 @@ export function WatchView({ videoId }: { videoId: string }) {
     async function loadVideo() {
       setLoading(true)
       setError('')
-      setPlaying(false)
+      setPlaying(true)
       setPlayerControlsVisible(true)
       setSuccess('')
 

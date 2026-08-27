@@ -22,7 +22,7 @@ function RelatedSkeleton() {
 }
 
 export function OnlineWatch({ videoId }: { videoId: string }) {
-  const { source, openOnline } = useMedia()
+  const { source, openOnline, setPlaying } = useMedia()
   const online = useNetworkStatus()
   const download = useOnlineVideoDownload()
   const sourceUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
@@ -57,7 +57,10 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
       // recreating or resetting the active player.
       openOnline({ ...source, title })
     }
-  }, [openOnline, source, title, videoId])
+    // Selecting a video is an explicit user action. Start the hosted player
+    // immediately instead of waiting for a second click on Play.
+    setPlaying(true)
+  }, [openOnline, setPlaying, source, title, videoId])
 
   useEffect(() => {
     let cancelled = false
@@ -100,7 +103,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
   return <>
     <main className="mx-auto flex h-[calc(100dvh-4.5rem)] w-full max-w-5xl flex-col overflow-hidden px-4 pt-4 sm:px-6 md:h-[calc(100dvh-3.5rem)] md:pb-4">
       <div className="shrink-0">
-        {online ? <ReelhousePlayer source={playerSource} /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
+        {online ? <ReelhousePlayer source={playerSource} autoPlay /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
       </div>
 
       <div ref={relatedScrollRef} className="mt-4 min-h-0 flex-1 overscroll-contain overflow-y-auto pb-24 [scrollbar-width:auto]">
