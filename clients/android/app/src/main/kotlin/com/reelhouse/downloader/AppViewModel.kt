@@ -264,7 +264,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun retryDownload(item: DownloadEntity) {
         val request = DownloadRequest(
-            id = UUID.randomUUID().toString(),
+            // Keep the original job ID so yt-dlp uses the same deterministic
+            // temporary output path and the existing partial file can resume.
+            id = item.id,
             url = item.url,
             mediaInfo = MediaInfo(
                 id = item.sourceId,

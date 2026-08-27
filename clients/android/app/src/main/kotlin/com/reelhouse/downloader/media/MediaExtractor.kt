@@ -221,6 +221,9 @@ class MediaExtractor(private val context: Context) {
         addOption("--no-playlist")
         addOption("--no-warnings")
         addOption("--no-config")
+        // Keep yt-dlp's .part file across transient network failures so a
+        // retry continues from the last downloaded byte.
+        addOption("--continue")
         addOption("--retries", "3")
         addOption("--fragment-retries", "3")
         addOption("--socket-timeout", "30")

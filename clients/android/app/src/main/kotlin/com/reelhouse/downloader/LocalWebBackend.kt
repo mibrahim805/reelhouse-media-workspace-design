@@ -576,22 +576,23 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     }
 
     private suspend fun resetFinishedPreparationDownload(key: String, operationId: String) {
-        val previousJobId = synchronized(preparationStates) {
-            preparationStates[key]
-                ?.takeIf { it.downloadStarted }
-                ?.pendingJobId
-        } ?: return
+        val currentState = synchronized(preparationStates) { preparationStates[key] } ?: return
+        val previousJobId = currentState.pendingJobId ?: return
         val previousJob = dao.getById(previousJobId) ?: return
         if (!DownloadRetryPolicy.isFinished(previousJob.status)) return
+        val canResume = previousJob.status == DownloadEntity.Status.FAILED &&
+            previousJob.errorType == ErrorClassifier.ErrorType.NETWORK_ERROR.name
 
         val reset = synchronized(preparationStates) {
             val current = preparationStates[key]
-            if (current?.pendingJobId != previousJobId || !current.downloadStarted) {
+            if (current?.pendingJobId != previousJobId) {
                 false
             } else {
                 preparationStates[key] = current.copy(
                     pendingQuality = null,
-                    pendingJobId = null,
+                    // A network failure keeps the job ID. The download
+                    // manager will then reuse the same .part file.
+                    pendingJobId = previousJobId.takeIf { canResume },
                     error = null,
                     downloadStarted = false,
                 )
@@ -603,7 +604,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
             Log.i(
                 TAG,
                 "backend=$backendInstanceId operation=$operationId event=DOWNLOAD_RETRY_STATE_RESET " +
-                    "key=$key previousJob=$previousJobId previousStatus=${previousJob.status}",
+                    "key=$key previousJob=$previousJobId previousStatus=${previousJob.status} resume=$canResume",
             )
         }
     }

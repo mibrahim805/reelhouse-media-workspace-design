@@ -55,6 +55,9 @@ class DownloadManager(
             activeUrls.remove(request.url)
             return false
         }
+        val previous = dao.getById(request.id)?.takeIf {
+            it.url == request.url && it.status != DownloadEntity.Status.COMPLETE
+        }
 
         val extension = if (request.isAudioOnly) {
             when {
@@ -69,7 +72,14 @@ class DownloadManager(
             "${request.mediaInfo.title} [${request.mediaInfo.id}].$extension"
         )
 
-        val entity = DownloadEntity(
+        val entity = previous?.copy(
+            status = DownloadEntity.Status.QUEUED,
+            errorMessage = null,
+            errorType = null,
+            completedAt = null,
+            speedBytesPerSec = 0L,
+            etaSeconds = 0L,
+        ) ?: DownloadEntity(
             id = request.id,
             url = request.url,
             sourceId = request.mediaInfo.id,
@@ -89,12 +99,16 @@ class DownloadManager(
         )
 
         try {
-            if (existing == null) {
-                dao.insert(entity)
+            if (previous != null) {
+                dao.update(entity)
             } else {
+                dao.insert(entity)
+            }
+            if (previous != null) {
                 Log.i(
                     "ReelhousePerf",
-                    "event=BACKGROUND_DOWNLOAD_RESUMED job=${request.id} previousStatus=${existing.status}",
+                    "event=DOWNLOAD_RETRY_RESUMED job=${request.id} previousStatus=${previous.status} " +
+                        "downloadedBytes=${previous.downloadedBytes} progress=${previous.progress}",
                 )
             }
             _activeDownloadIds.value = _activeDownloadIds.value + request.id
@@ -152,12 +166,23 @@ class DownloadManager(
                 "Wi-Fi-only downloads are enabled. Connect to Wi-Fi and retry."
             }
             fileManager.requireDownloadCapacity(request.expectedBytes)
+            val previous = dao.getById(request.id)
+            val partialBytes = findPartialBytes(tempPath)
+            val startingDownloaded = maxOf(previous?.downloadedBytes ?: 0L, partialBytes)
+            val startingTotal = maxOf(previous?.totalBytes ?: 0L, request.expectedBytes)
+            val fileProgress = if (startingTotal > 0L) {
+                startingDownloaded.toFloat() / startingTotal.toFloat()
+            } else {
+                0f
+            }
+            val startingProgress = maxOf(previous?.progress ?: 0f, fileProgress, 0.01f)
+                .coerceIn(0.01f, 0.99f)
             dao.updateProgress(
                 id = request.id,
                 status = DownloadEntity.Status.DOWNLOADING,
-                progress = 0.01f,
-                downloaded = 0,
-                total = 0,
+                progress = startingProgress,
+                downloaded = startingDownloaded,
+                total = startingTotal,
                 speed = 0,
                 eta = 0,
             )
@@ -284,7 +309,14 @@ class DownloadManager(
                 errorType = errorType.name,
                 completedAt = System.currentTimeMillis(),
             )
-            cleanupTempFile(tempPath)
+            if (errorType == ErrorClassifier.ErrorType.NETWORK_ERROR) {
+                Log.i(
+                    "ReelhousePerf",
+                    "event=DOWNLOAD_PARTIAL_PRESERVED job=${request.id} partialBytes=${findPartialBytes(tempPath)}",
+                )
+            } else {
+                cleanupTempFile(tempPath)
+            }
 
             if (completionNotificationsEnabled()) {
                 notification.showFailedNotification(
@@ -360,6 +392,20 @@ class DownloadManager(
         } catch (_: Exception) {
             // Best-effort cleanup
         }
+    }
+
+    private fun findPartialBytes(path: String): Long {
+        val base = File(path)
+        val parent = base.parentFile ?: return 0L
+        val stem = outputStem(base)
+        return parent.listFiles()
+            ?.filter { file ->
+                file.isFile &&
+                    (file.name.endsWith(".part") || file.name.endsWith(".ytdl")) &&
+                    (file.name.startsWith("$stem.") || file.name == "${base.name}.part")
+            }
+            ?.sumOf { it.length() }
+            ?: 0L
     }
 
     private fun outputStem(file: File): String =
