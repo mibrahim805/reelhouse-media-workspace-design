@@ -1,7 +1,7 @@
 import { normalizeQualityOptions, normalizeQualityValue, type QualityOption } from '@/lib/quality-preferences'
 
 export type { QualityOption } from '@/lib/quality-preferences'
-export type MediaInfo = { sourceUrl: string; title: string; channel: string; duration: string; thumbnail: string; platform: string; qualities: QualityOption[]; embedUrl: string; canEmbed: boolean }
+export type MediaInfo = { sourceUrl: string; title: string; channel: string; duration: string; thumbnail: string; platform: string; qualities: QualityOption[]; embedUrl: string; canEmbed: boolean; category?: string; description?: string; tags?: string[] }
 export type DownloadResult = { title: string; filename: string; fileUrl: string; filesizeMb: number; sourceUrl: string }
 export type BackendJob = { status: 'queued'|'downloading'|'processing'|'complete'|'error'|'canceled'; percent: number; speed?: number|null; eta?: number|null; error?: string|null; result?: DownloadResult|null }
 export type LocalMediaItem = { id: string; title: string; channel: string; thumbnail: string; fileUrl: string; filename: string; size: string; source: 'download'|'device'; mediaType: 'video'|'audio'; qualityValue?: string; status: 'completed'; startedAt: number }
@@ -36,7 +36,7 @@ function fileUrl(path:string) { return path ? `/api/backend/${path.replace(/^\//
 export async function fetchMediaInfo(url:string):Promise<MediaInfo> {
   const {video} = await post<{video:Record<string,unknown>}>('fetch-info',{url})
   const qualities = normalizeQualityOptions((video.qualities || []) as Array<Record<string,unknown>>)
-  return {sourceUrl:String(video.source_url||url),title:String(video.title||'Untitled video'),channel:String(video.channel||'Unknown channel'),duration:String(video.duration||'Unknown duration'),thumbnail:String(video.thumbnail||''),platform:String(video.platform||'Video'),qualities,embedUrl:String(video.embed_url||''),canEmbed:Boolean(video.can_embed)}
+  return {sourceUrl:String(video.source_url||url),title:String(video.title||'Untitled video'),channel:String(video.channel||'Unknown channel'),duration:String(video.duration||'Unknown duration'),thumbnail:String(video.thumbnail||''),platform:String(video.platform||'Video'),qualities,embedUrl:String(video.embed_url||''),canEmbed:Boolean(video.can_embed),category:String(video.category||''),description:String(video.description||''),tags:Array.isArray(video.tags) ? video.tags.map(String) : []}
 }
 function normalizeYoutubeVideo(video: Record<string, unknown>): YoutubeSearchVideo {
   return {

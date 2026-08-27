@@ -378,6 +378,9 @@ def _video_payload(info, cleaned_url):
         'can_embed': can_embed,
         'platform': platform_label(cleaned_url, info.get('extractor_key') or ''),
         'webpage_url': info.get('webpage_url') or cleaned_url,
+        'category': (info.get('categories') or [info.get('genre') or ''])[0],
+        'description': info.get('description') or '',
+        'tags': [str(tag) for tag in (info.get('tags') or [])[:40] if tag],
         'qualities': qualities,
     }
 

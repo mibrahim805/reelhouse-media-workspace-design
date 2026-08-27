@@ -10,6 +10,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.float
 import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
@@ -325,6 +326,9 @@ class MediaExtractor(private val context: Context) {
             platform = obj.str("extractor_key").ifBlank {
                 obj.str("extractor").ifBlank { "Video" }
             },
+            category = obj["categories"]?.jsonArray?.firstOrNull()?.jsonPrimitive?.contentOrNull
+                ?: obj.str("genre"),
+            tags = obj["tags"]?.jsonArray?.mapNotNull { it.jsonPrimitive.contentOrNull }.orEmpty(),
             webpageUrl = obj.str("webpage_url"),
             formats = formats,
         )

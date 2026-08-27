@@ -5,4 +5,7 @@ export type OnlineVideo = {
   duration: string
   thumbnail: string
   sourceUrl: string
+  category?: string
+  description?: string
+  tags?: string[]
 }

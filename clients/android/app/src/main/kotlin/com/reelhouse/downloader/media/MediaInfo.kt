@@ -12,6 +12,8 @@ data class MediaInfo(
     val duration: Long = 0L,
     val thumbnail: String = "",
     val platform: String = "",
+    val category: String = "",
+    val tags: List<String> = emptyList(),
     @SerialName("webpage_url")
     val webpageUrl: String = "",
     val formats: List<FormatInfo> = emptyList(),

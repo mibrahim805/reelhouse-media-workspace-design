@@ -11,7 +11,7 @@ import type { OnlineVideo } from '@/types/media'
 import { buildRelatedVideoQuery, filterRelatedVideos, hasUsableRelatedTitle } from '@/lib/related-query'
 import { useNetworkStatus } from '@/lib/network-status'
 
-const RELATED_RESULT_LIMIT = 12
+const RELATED_RESULT_LIMIT = 20
 
 function RelatedSkeleton() {
   return <div className="animate-pulse">
@@ -80,7 +80,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
         if (cancelled) return
         setMetadata(current)
 
-        const relatedVideo = { title: current.title, channel: current.channel }
+        const relatedVideo = { title: current.title, channel: current.channel, category: current.category, description: current.description, tags: current.tags }
         const query = hasUsableRelatedTitle(current.title) ? buildRelatedVideoQuery(relatedVideo) : ''
         if (!query) {
           setRelatedError('Related videos are unavailable until this video metadata is loaded.')
