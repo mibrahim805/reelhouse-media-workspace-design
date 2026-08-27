@@ -137,7 +137,7 @@ export function filterRelatedVideos<T extends SearchVideo>(videos: T[], currentI
   return videos
     .map((video, index) => {
       const haystack = normalizedWords(`${video.title || ''} ${video.channel || ''}`)
-      const score = terms.reduce((total, term) => total + (haystack.includes(term) ? 1 : 0), 0)
+      const score = terms.reduce((total, term) => total + (haystack.includes(term.toLocaleLowerCase()) ? 1 : 0), 0)
       return { video, index, score, comparable: comparableTitle(video.title) }
     })
     .filter(({ video, comparable }) => Boolean(video.id) && comparable !== currentTitle)
