@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, ChevronRight, Download, HardDrive, Heart,
   Check, Info, ListMusic, Music2, Palette, Play, Shield,
-  Trash2, UserRound, Video, X
+  Trash2, Video, X
 } from 'lucide-react'
 import { useDownloads, type DownloadItem } from '@/components/download-store'
 import { useLibrary } from '@/components/library-store'
@@ -48,16 +48,6 @@ export function ProfileHub() {
   return (
     <Shell>
       <Head title="Profile" subtitle="Local media and app settings" />
-      {/* Avatar card */}
-      <div className="flex items-center gap-4 rounded-3xl border border-[#292929] bg-[#151515] p-5">
-        <span className="flex size-16 items-center justify-center rounded-full bg-primary/15 text-primary">
-          <UserRound className="size-8" />
-        </span>
-        <div>
-          <h2 className="text-lg font-bold text-white">Local Profile</h2>
-          <p className="text-sm text-[#a3a3a3]">No account required</p>
-        </div>
-      </div>
       {/* Stats */}
       <div className="mt-4 grid grid-cols-3 gap-3">
         <StatCard label="Downloads" value={completedCount} />
