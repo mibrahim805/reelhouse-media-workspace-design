@@ -25,9 +25,10 @@ The hosted Reelhouse backend is not part of the Android media path.
    `Movies/Reelhouse` / `Music/Reelhouse`. Android 7–9 uses the app-specific
    external media directory to avoid requesting storage permission.
 
-The Android project is not built into the Kubeletto deployment: the root
-`.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
-directory. Kubeletto serves the frontend pages/assets to the WebView, while an
+The Android project is built by the container publish workflow before the
+Docker image is created. The image includes the ARM64 APK for the download
+endpoint and the version metadata used by the launch-time update check.
+Kubeletto serves the frontend pages/assets to the WebView, while an
 origin-bound Android bridge prevents backend media API requests from leaving
 the device.
 
