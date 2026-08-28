@@ -25,9 +25,10 @@ The hosted Reelhouse backend is not part of the Android media path.
    `Movies/Reelhouse` / `Music/Reelhouse`. Android 7–9 uses the app-specific
    external media directory to avoid requesting storage permission.
 
-The Android project is not built into the Kubeletto deployment: the root
-`.dockerignore` excludes `clients`, and the root Dockerfile does not copy this
-directory. Kubeletto serves the frontend pages/assets to the WebView, while an
+The Android project is built by the container publish workflow before the
+Docker image is created. The image includes the ARM64 APK for the download
+endpoint and the version metadata used by the launch-time update check.
+Kubeletto serves the frontend pages/assets to the WebView, while an
 origin-bound Android bridge prevents backend media API requests from leaving
 the device.
 
@@ -45,9 +46,17 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. This web-shell/local-backend release is version 1.5.3 with `versionCode 15`. An
-installed build is upgrade-compatible only when it is signed with the same
-private signing key.
+client. The current build is version 1.6.20 with `versionCode 39`. An installed
+build is upgrade-compatible only when it is signed with the same private
+signing key.
+
+On launch, the app checks `/api/app-update/android` on the configured Reelhouse
+host. The Android build generates the endpoint's version metadata during
+`assembleDebug`, and the container serves the matching APK. When a higher
+`versionCode` is available, the app offers Update or Cancel, downloads the APK,
+and opens Android's package installer. Increment `versionCode` and update
+`versionName` for every release; the container workflow keeps the metadata and
+APK synchronized automatically.
 
 ## Engine and FFmpeg choice
 
