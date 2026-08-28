@@ -7,6 +7,7 @@ import { LibraryProvider } from '@/components/library-store'
 import { ThemeProvider } from '@/components/theme-provider'
 import { OfflineRuntime } from '@/components/offline-runtime'
 import { OfflineBanner } from '@/components/offline-banner'
+import { AppUpdatePrompt } from '@/components/app-update-prompt'
 import { APP_BRAND } from '@/lib/app-brand'
 import './globals.css'
 
@@ -36,6 +37,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeProvider>
           <OfflineRuntime />
           <OfflineBanner />
+          <AppUpdatePrompt />
           <DownloadProvider>
             <LibraryProvider>
               <MediaProvider>
