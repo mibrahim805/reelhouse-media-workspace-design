@@ -7,10 +7,25 @@ plugins {
 }
 
 val generatedLegalAssets = layout.buildDirectory.dir("generated/reelhouseLegalAssets")
+val generatedAppUpdateMetadata = layout.buildDirectory.file(
+    "generated/reelhouseAppUpdate/app-version.json",
+)
 val copyLegalAssets by tasks.registering(Copy::class) {
     from(rootProject.file("COPYING"))
     from(rootProject.file("NOTICE.md"))
     into(generatedLegalAssets)
+}
+
+val generateAppUpdateMetadata by tasks.registering {
+    outputs.file(generatedAppUpdateMetadata)
+    outputs.upToDateWhen { false }
+    doLast {
+        val output = generatedAppUpdateMetadata.get().asFile
+        output.parentFile.mkdirs()
+        output.writeText(
+            """{"ok":true,"versionCode":${android.defaultConfig.versionCode},"versionName":"${android.defaultConfig.versionName}"}""",
+        )
+    }
 }
 
 android {
@@ -92,6 +107,10 @@ android {
 
 tasks.named("preBuild").configure {
     dependsOn(copyLegalAssets)
+}
+
+tasks.matching { it.name.startsWith("assemble") }.configureEach {
+    finalizedBy(generateAppUpdateMetadata)
 }
 
 dependencies {

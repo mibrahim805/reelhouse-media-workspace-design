@@ -24,6 +24,9 @@ clients
 !clients/android/
 !clients/android/app/
 !clients/android/app/build/
+!clients/android/app/build/generated/
+!clients/android/app/build/generated/reelhouseAppUpdate/
+!clients/android/app/build/generated/reelhouseAppUpdate/app-version.json
 !clients/android/app/build/outputs/
 !clients/android/app/build/outputs/apk/
 !clients/android/app/build/outputs/apk/debug/

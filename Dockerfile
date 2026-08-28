@@ -66,6 +66,7 @@ COPY --from=frontend-build --chown=node:node /app/web/.next/standalone/ /app/fro
 COPY --from=frontend-build --chown=node:node /app/web/.next/static/ /app/frontend/.next/static/
 COPY --from=frontend-build --chown=node:node /app/web/public/ /app/frontend/public/
 COPY --chown=node:node clients/android/app/build/outputs/apk/debug/app-arm64-v8a-debug.apk /app/android/Reelhouse-Android-arm64.apk
+COPY --chown=node:node clients/android/app/build/generated/reelhouseAppUpdate/app-version.json /app/android/app-version.json
 COPY --chown=node:node deploy/start-container.sh /app/deploy/start-container.sh
 
 RUN mkdir -p /data/downloads /data/job-cache /app/android \
