@@ -2,11 +2,8 @@ package com.reelhouse.downloader
 
 import android.annotation.SuppressLint
 import android.Manifest
-import android.app.AlertDialog
-import android.content.BroadcastReceiver
 import android.content.ContentUris
 import android.content.Intent
-import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.app.DownloadManager
 import android.content.pm.ActivityInfo
@@ -16,7 +13,6 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Build
 import android.provider.MediaStore
-import android.provider.Settings
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -32,8 +28,6 @@ import android.widget.FrameLayout
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
-import androidx.core.content.ContextCompat
-import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -43,7 +37,6 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.reelhouse.downloader.util.UrlValidator
 import java.io.ByteArrayInputStream
-import java.io.File
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.URI
@@ -67,23 +60,6 @@ class MainActivity : ComponentActivity() {
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var mediaPermissionRequested = false
-    private var appUpdateDownloadId = INVALID_DOWNLOAD_ID
-    private var pendingInstallerUri: Uri? = null
-    private var appUpdateDialog: AlertDialog? = null
-    private var appUpdateCheckInFlight = false
-    private var updatePermissionDialog: AlertDialog? = null
-    private var updateReceiverRegistered = false
-    private val updatePreferences by lazy {
-        getSharedPreferences("app_update", MODE_PRIVATE)
-    }
-    private val appUpdateDownloadReceiver = object : BroadcastReceiver() {
-        override fun onReceive(context: android.content.Context, intent: Intent) {
-            val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
-            if (downloadId == appUpdateDownloadId) {
-                handleAppUpdateDownload(downloadId)
-            }
-        }
-    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -111,7 +87,7 @@ class MainActivity : ComponentActivity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 allowFileAccess = false
                 allowContentAccess = false
-                userAgentString = "$userAgentString ReelhouseAndroid/${BuildConfig.VERSION_NAME}"
+                userAgentString = "$userAgentString ReelhouseAndroid/${BuildConfig.VERSION_NAME}; code=${BuildConfig.VERSION_CODE}"
             }
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
@@ -178,8 +154,6 @@ class MainActivity : ComponentActivity() {
         setContentView(contentRoot)
         applySystemThemeToWebView()
         installSafeContentInsets()
-        registerAppUpdateReceiver()
-        restoreAppUpdateDownload()
 
         checkBridgeSupport()
         installLocalBackendBridge()
@@ -218,18 +192,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        tryInstallPendingUpdate()
-    }
-
-    override fun onStart() {
-        super.onStart()
-        if (appUpdateDownloadId == INVALID_DOWNLOAD_ID && pendingInstallerUri == null) {
-            checkForAppUpdate()
-        }
-    }
-
     override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
         super.onConfigurationChanged(newConfig)
         applySystemThemeToWebView()
@@ -250,14 +212,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        appUpdateDialog?.dismiss()
-        appUpdateDialog = null
-        updatePermissionDialog?.dismiss()
-        updatePermissionDialog = null
-        if (updateReceiverRegistered) {
-            unregisterReceiver(appUpdateDownloadReceiver)
-            updateReceiverRegistered = false
-        }
         exitFullscreen()
         webView.apply {
             stopLoading()
@@ -265,182 +219,6 @@ class MainActivity : ComponentActivity() {
             destroy()
         }
         super.onDestroy()
-    }
-
-    private fun registerAppUpdateReceiver() {
-        ContextCompat.registerReceiver(
-            this,
-            appUpdateDownloadReceiver,
-            IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),
-            ContextCompat.RECEIVER_NOT_EXPORTED,
-        )
-        updateReceiverRegistered = true
-    }
-
-    private fun restoreAppUpdateDownload() {
-        appUpdateDownloadId = updatePreferences
-            .getLong(KEY_UPDATE_DOWNLOAD_ID, INVALID_DOWNLOAD_ID)
-        if (appUpdateDownloadId == INVALID_DOWNLOAD_ID) return
-
-        val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-        manager.query(DownloadManager.Query().setFilterById(appUpdateDownloadId)).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                clearAppUpdateDownload()
-                return
-            }
-            when (cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))) {
-                DownloadManager.STATUS_SUCCESSFUL -> handleAppUpdateDownload(appUpdateDownloadId)
-                DownloadManager.STATUS_FAILED -> {
-                    Toast.makeText(this, "The app update download failed. Please try again.", Toast.LENGTH_LONG).show()
-                    clearAppUpdateDownload()
-                }
-            }
-        }
-    }
-
-    private fun checkForAppUpdate() {
-        if (appUpdateCheckInFlight || appUpdateDialog?.isShowing == true) return
-        appUpdateCheckInFlight = true
-        lifecycleScope.launch {
-            try {
-                val update = AppUpdateChecker(webBaseUrl).check() ?: return@launch
-                if (
-                    !isFinishing
-                    && !isDestroyed
-                    && appUpdateDownloadId == INVALID_DOWNLOAD_ID
-                    && pendingInstallerUri == null
-                ) {
-                    showAppUpdateDialog(update)
-                }
-            } finally {
-                appUpdateCheckInFlight = false
-            }
-        }
-    }
-
-    private fun showAppUpdateDialog(update: AppUpdateInfo) {
-        if (isFinishing || isDestroyed) return
-        appUpdateDialog = AlertDialog.Builder(this)
-            .setTitle("Update available")
-            .setMessage(
-                "Reelhouse ${update.versionName} is available. Update now to get the latest version?",
-            )
-            .setPositiveButton("Update") { _, _ -> startAppUpdate(update) }
-            .setNegativeButton("Cancel", null)
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun startAppUpdate(update: AppUpdateInfo) {
-        if (appUpdateDownloadId != INVALID_DOWNLOAD_ID) return
-        val updateFile = File(
-            getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: cacheDir,
-            "Reelhouse-update-${update.versionCode}-${System.currentTimeMillis()}.apk",
-        )
-        val request = DownloadManager.Request(
-            Uri.parse("$webBaseUrl/api/app-download/android"),
-        )
-            .setTitle("Reelhouse ${update.versionName}")
-            .setDescription("Downloading app update")
-            .setMimeType(APK_MIME_TYPE)
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(updateFile))
-
-        try {
-            appUpdateDownloadId = (getSystemService(DOWNLOAD_SERVICE) as DownloadManager).enqueue(request)
-            updatePreferences.edit().putLong(KEY_UPDATE_DOWNLOAD_ID, appUpdateDownloadId).apply()
-            Toast.makeText(this, "Downloading Reelhouse update…", Toast.LENGTH_LONG).show()
-        } catch (error: Exception) {
-            clearAppUpdateDownload()
-            Toast.makeText(this, "Could not start the app update download.", Toast.LENGTH_LONG).show()
-            Log.e("ReelhouseUpdate", "Could not enqueue app update", error)
-        }
-    }
-
-    private fun handleAppUpdateDownload(downloadId: Long) {
-        val manager = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
-        manager.query(DownloadManager.Query().setFilterById(downloadId)).use { cursor ->
-            if (!cursor.moveToFirst()) {
-                clearAppUpdateDownload()
-                return
-            }
-            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-            if (status != DownloadManager.STATUS_SUCCESSFUL) {
-                val reason = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))
-                Log.e("ReelhouseUpdate", "App update download failed: reason=$reason")
-                Toast.makeText(this, "The app update download failed. Please try again.", Toast.LENGTH_LONG).show()
-                clearAppUpdateDownload()
-                return
-            }
-        }
-
-        val downloadedUri = manager.getUriForDownloadedFile(downloadId)
-        if (downloadedUri == null) {
-            Toast.makeText(this, "The app update file could not be opened.", Toast.LENGTH_LONG).show()
-            clearAppUpdateDownload()
-            return
-        }
-        pendingInstallerUri = downloadedUri
-        clearAppUpdateDownload()
-        tryInstallPendingUpdate()
-    }
-
-    private fun tryInstallPendingUpdate() {
-        val sourceUri = pendingInstallerUri ?: return
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
-            if (updatePermissionDialog?.isShowing == true) return
-            updatePermissionDialog = AlertDialog.Builder(this)
-                .setTitle("Allow app installation")
-                .setMessage("Android needs permission to install this Reelhouse update. Enable it, then return to continue.")
-                .setPositiveButton("Open settings") { _, _ ->
-                    startActivity(
-                        Intent(
-                            Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                            Uri.parse("package:$packageName"),
-                        ),
-                    )
-                }
-                .setNegativeButton("Cancel") { _, _ -> pendingInstallerUri = null }
-                .create()
-                .also { it.show() }
-            return
-        }
-        updatePermissionDialog?.dismiss()
-        updatePermissionDialog = null
-
-        val installerUri = runCatching {
-            if (sourceUri.scheme == "file") {
-                FileProvider.getUriForFile(
-                    this,
-                    "${BuildConfig.APPLICATION_ID}.files",
-                    File(requireNotNull(sourceUri.path)),
-                )
-            } else {
-                sourceUri
-            }
-        }.getOrNull()
-        if (installerUri == null) {
-            pendingInstallerUri = null
-            Toast.makeText(this, "The app update file could not be opened.", Toast.LENGTH_LONG).show()
-            return
-        }
-
-        val installIntent = Intent(Intent.ACTION_VIEW).apply {
-            setDataAndType(installerUri, APK_MIME_TYPE)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        }
-        try {
-            startActivity(installIntent)
-            pendingInstallerUri = null
-        } catch (error: Exception) {
-            Log.e("ReelhouseUpdate", "Could not open Android package installer", error)
-            Toast.makeText(this, "Android could not open the app installer.", Toast.LENGTH_LONG).show()
-        }
-    }
-
-    private fun clearAppUpdateDownload() {
-        appUpdateDownloadId = INVALID_DOWNLOAD_ID
-        updatePreferences.edit().remove(KEY_UPDATE_DOWNLOAD_ID).apply()
     }
 
     private fun checkBridgeSupport() {
@@ -824,9 +602,6 @@ class MainActivity : ComponentActivity() {
         private const val BRIDGE_NAME = "ReelhouseAndroid"
         private const val LOCAL_RESULT_SCHEME = "reelhouse-local"
         private const val MEDIA_PERMISSION_REQUEST = 7001
-        private const val APK_MIME_TYPE = "application/vnd.android.package-archive"
-        private const val KEY_UPDATE_DOWNLOAD_ID = "download_id"
-        private const val INVALID_DOWNLOAD_ID = -1L
         private val RANGE_PATTERN = Regex("bytes=(\\d+)-(\\d*)", RegexOption.IGNORE_CASE)
 
         private val LOCAL_FETCH_SCRIPT = """

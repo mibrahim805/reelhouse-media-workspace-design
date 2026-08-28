@@ -50,13 +50,13 @@ client. The current build is version 1.6.20 with `versionCode 39`. An installed
 build is upgrade-compatible only when it is signed with the same private
 signing key.
 
-On launch, the app checks `/api/app-update/android` on the configured Reelhouse
-host. The Android build generates the endpoint's version metadata during
-`assembleDebug`, and the container serves the matching APK. When a higher
-`versionCode` is available, the app offers Update or Cancel, downloads the APK,
-and opens Android's package installer. Increment `versionCode` and update
-`versionName` for every release; the container workflow keeps the metadata and
-APK synchronized automatically.
+The hosted frontend checks `/api/app-update/android` when this Android WebView
+opens. It identifies the app from the `ReelhouseAndroid` user-agent marker and
+compares the installed version with the APK metadata generated during
+`assembleDebug`. When a higher version is available, the frontend shows Update
+or Cancel; Update opens the APK download link. Increment `versionCode` and
+update `versionName` for every release; the container workflow keeps the
+metadata and APK synchronized automatically.
 
 ## Engine and FFmpeg choice
 
