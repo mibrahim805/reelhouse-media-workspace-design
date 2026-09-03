@@ -288,8 +288,8 @@ export function HomeScreen() {
 
       {/* ── Greeting Title ── */}
       <div className="relative z-10 mt-5 mb-5 flex items-center gap-3">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
-          Hello, {userName || 'Ibrahim'}
+        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl drop-shadow-md">
+          Hello, <span className="bg-gradient-to-r from-fuchsia-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">{userName || 'Ibrahim'}</span>
         </h1>
         <button
           type="button"
@@ -298,7 +298,7 @@ export function HomeScreen() {
             setIsNameModalOpen(true)
           }}
           aria-label="Edit Name"
-          className="rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white transition-all"
+          className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white transition-all"
         >
           <Pencil className="size-4" />
         </button>

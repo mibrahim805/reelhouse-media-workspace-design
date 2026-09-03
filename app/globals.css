@@ -689,12 +689,55 @@ html.light {
 }
 
 html.light body { background: #f5f5f7; color: #171719; }
+html.light [class*="bg-[#0b0813]"] { background-color: #f3f0f9 !important; }
 html.light [class*="bg-[#090909]"] { background-color: #f5f5f7 !important; }
 html.light [class*="bg-[#151515]"] { background-color: #ffffff !important; }
 html.light [class*="bg-[#1d1d1d]"] { background-color: #ececf0 !important; }
 html.light [class*="border-[#292929]"] { border-color: #dedee5 !important; }
 html.light [class*="text-[#a3a3a3]"] { color: #626269 !important; }
 html.light [class*="text-[#737373]"] { color: #85858d !important; }
-html.light [class~="text-white"] { color: #171719 !important; }
+html.light [class~="text-white"] { color: #171324 !important; }
+
+/* Keep white text on dark buttons, liquid glow buttons, badges, and image overlays */
+html.light .liquid-glow-btn,
+html.light .liquid-glow-btn *,
 html.light [class*="bg-primary"][class~="text-white"],
-html.light [class*="bg-black"][class~="text-white"] { color: #ffffff !important; }
+html.light [class*="bg-black"][class~="text-white"],
+html.light [class*="bg-[#d946ef]"],
+html.light [class*="bg-[#d946ef]"] *,
+html.light button[class*="bg-black"],
+html.light button[class*="bg-black"] *,
+html.light .water-bubble,
+html.light .sliding-liquid-bubble,
+html.light .home-card .pointer-events-none *,
+html.light .home-card button * { color: #ffffff !important; }
+
+/* Crystal Light Liquid Glass System for Light Mode */
+html.light .liquid-glass-card {
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.85) 0%, 
+    rgba(255, 255, 255, 0.6) 40%,
+    rgba(243, 239, 250, 0.75) 100%
+  ), rgba(255, 255, 255, 0.7) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 
+    0 18px 45px -10px rgba(147, 51, 234, 0.15),
+    inset 0 1.5px 2px 0 rgba(255, 255, 255, 1) !important;
+}
+
+html.light .liquid-glass-pill {
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.92) 0%, 
+    rgba(255, 255, 255, 0.78) 100%
+  ) !important;
+  backdrop-filter: blur(24px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(180%) !important;
+  border: 1px solid rgba(217, 70, 239, 0.25) !important;
+  box-shadow: 
+    0 12px 32px rgba(147, 51, 234, 0.12),
+    inset 0 1px 1.5px 0 rgba(255, 255, 255, 1) !important;
+}
