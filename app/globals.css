@@ -247,78 +247,99 @@ html {
 /* Mobile WebViews have less GPU headroom for large filters and composited
    hover effects. Keep the Home artwork, but make its first paint cheap. */
 /* ═══════════════════════════════════════════════
-   LIQUID GLASSMORPHISM DESIGN SYSTEM
+   HIGH-REFLECTIVE LIQUID GLASSMORPHISM SYSTEM
    ═══════════════════════════════════════════════ */
 
 .liquid-glass-card {
-  background: rgba(23, 17, 38, 0.65) !important;
-  backdrop-filter: blur(24px) saturate(160%) !important;
-  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.12) 0%, 
+    rgba(255, 255, 255, 0.03) 100%
+  ), rgba(18, 12, 32, 0.55) !important;
+  backdrop-filter: blur(28px) saturate(200%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(200%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
   box-shadow: 
-    0 8px 32px 0 rgba(0, 0, 0, 0.37),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.25) !important;
+    0 16px 40px -10px rgba(0, 0, 0, 0.65),
+    0 0 30px 0 rgba(217, 70, 239, 0.12),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.45) !important;
 }
 
 .liquid-glass-card:hover {
-  background: rgba(32, 23, 53, 0.78) !important;
-  border-color: rgba(217, 70, 239, 0.45) !important;
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.18) 0%, 
+    rgba(255, 255, 255, 0.05) 100%
+  ), rgba(28, 18, 48, 0.72) !important;
+  border-color: rgba(236, 72, 153, 0.6) !important;
   box-shadow: 
-    0 12px 40px 0 rgba(192, 38, 211, 0.35),
-    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.35) !important;
+    0 20px 50px -10px rgba(217, 70, 239, 0.4),
+    0 0 40px 0 rgba(168, 85, 247, 0.25),
+    inset 0 2px 1.5px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
 .liquid-glass-pill {
-  background: rgba(22, 16, 38, 0.75) !important;
-  backdrop-filter: blur(28px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.15) 0%, 
+    rgba(255, 255, 255, 0.04) 100%
+  ), rgba(15, 10, 28, 0.75) !important;
+  backdrop-filter: blur(32px) saturate(210%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(210%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.28) !important;
   box-shadow: 
-    0 16px 48px -8px rgba(0, 0, 0, 0.65),
-    0 0 24px 0 rgba(192, 38, 211, 0.2),
-    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.35) !important;
+    0 20px 50px -5px rgba(0, 0, 0, 0.8),
+    0 0 32px 0 rgba(217, 70, 239, 0.25),
+    inset 0 2px 1.5px 0 rgba(255, 255, 255, 0.5) !important;
 }
 
 .liquid-glow-btn {
-  background: linear-gradient(135deg, #d946ef 0%, #c026d3 50%, #9333ea 100%) !important;
+  background: linear-gradient(135deg, #ec4899 0%, #d946ef 40%, #8b5cf6 100%) !important;
   box-shadow: 
-    0 4px 24px 0 rgba(192, 38, 211, 0.6),
-    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45) !important;
+    0 6px 28px 0 rgba(236, 72, 153, 0.65),
+    0 0 16px 0 rgba(217, 70, 239, 0.5),
+    inset 0 1.5px 1px 0 rgba(255, 255, 255, 0.6) !important;
 }
 
 .liquid-glass-input {
-  background: rgba(255, 255, 255, 0.08) !important;
-  backdrop-filter: blur(16px) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+  background: linear-gradient(
+    135deg, 
+    rgba(255, 255, 255, 0.1) 0%, 
+    rgba(255, 255, 255, 0.03) 100%
+  ) !important;
+  backdrop-filter: blur(20px) !important;
+  -webkit-backdrop-filter: blur(20px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.24) !important;
+  box-shadow: 
+    inset 0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 1px rgba(255, 255, 255, 0.25) !important;
 }
 
 .liquid-glass-input:focus {
-  border-color: #d946ef !important;
+  border-color: #ec4899 !important;
   box-shadow: 
-    0 0 24px 0 rgba(217, 70, 239, 0.4),
+    0 0 28px 0 rgba(236, 72, 153, 0.5),
     inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
 }
 
 @keyframes float-blob-1 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33% { transform: translate3d(30px, -40px, 0) scale(1.1); }
-  66% { transform: translate3d(-20px, 20px, 0) scale(0.95); }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  33% { transform: translate3d(45px, -55px, 0) scale(1.15) rotate(10deg); }
+  66% { transform: translate3d(-30px, 30px, 0) scale(0.9) rotate(-10deg); }
 }
 
 @keyframes float-blob-2 {
-  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
-  33% { transform: translate3d(-40px, 30px, 0) scale(1.08); }
-  66% { transform: translate3d(25px, -35px, 0) scale(0.92); }
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); }
+  33% { transform: translate3d(-55px, 45px, 0) scale(1.12) rotate(-12deg); }
+  66% { transform: translate3d(35px, -45px, 0) scale(0.88) rotate(8deg); }
 }
 
 .animate-liquid-blob-1 {
-  animation: float-blob-1 14s ease-in-out infinite;
+  animation: float-blob-1 12s ease-in-out infinite;
 }
 
 .animate-liquid-blob-2 {
-  animation: float-blob-2 18s ease-in-out infinite;
+  animation: float-blob-2 15s ease-in-out infinite;
 }
 
 @media (max-width: 767px) {
