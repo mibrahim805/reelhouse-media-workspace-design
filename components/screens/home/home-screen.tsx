@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, Flame, Play, Search, Sparkles, Music2, Download, CheckCircle2, User, Pencil, X } from 'lucide-react'
+import { Bell, Play, Search, Music2, Download, CheckCircle2, User, Pencil, X } from 'lucide-react'
 import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { searchYouTube } from '@/lib/backend-api'
 import { useNetworkStatus } from '@/lib/network-status'
@@ -15,39 +15,47 @@ type Filter = 'all' | 'new' | 'trending' | 'top' | 'downloaded'
 const FEATURED_CARDS = [
   {
     id: 'asap-rocky',
-    query: 'A$AP Rocky',
     artist: 'A$AP Rocky',
     songsCount: '132 songs',
     image: '/images/home/asap_rocky.png',
     badge: '🔥 In Charts',
     tall: true,
+    videoId: 'Kbj2Zmg1776',
+    title: 'A$AP Rocky - Praise The Lord (Da Shine) ft. Skepta',
+    duration: '3:25',
   },
   {
     id: 'kendrick-lamar',
-    query: 'Kendrick Lamar',
     artist: 'Kendrick Lamar',
     songsCount: '98 songs',
     image: '/images/home/kendrick_lamar.png',
     badge: null,
     tall: false,
+    videoId: 'H58vbez_m4E',
+    title: 'Kendrick Lamar - Not Like Us',
+    duration: '4:34',
   },
   {
     id: 'linkin-park',
-    query: 'Linkin Park',
     artist: 'Linkin Park',
     songsCount: '72 songs',
     image: '/images/home/linkin_park.png',
     badge: '🌟 Gold Record',
     tall: false,
+    videoId: 'eVTXPUF4Oz4',
+    title: 'Linkin Park - In The End (Official HD Video)',
+    duration: '3:36',
   },
   {
     id: 'taylor-swift',
-    query: 'Taylor Swift',
     artist: 'Taylor Swift',
     songsCount: '48 songs',
     image: '/images/home/taylor_swift.png',
     badge: null,
     tall: true,
+    videoId: 'ic8j13U_FS8',
+    title: 'Taylor Swift - Cruel Summer (Official Audio)',
+    duration: '2:58',
   },
 ]
 
@@ -69,10 +77,92 @@ function mergeResults(groups: Array<{ query: string; videos: OnlineVideo[] }>) {
   return merged
 }
 
+type FeaturedCard = (typeof FEATURED_CARDS)[number]
+
+function FeaturedVideoCard({
+  card,
+  playing,
+  onPlay,
+  onDownload,
+}: {
+  card: FeaturedCard
+  playing: boolean
+  onPlay: () => void
+  onDownload: () => void
+}) {
+  const aspect = 'aspect-[4/5]'
+
+  return (
+    <article
+      className={`home-card group relative overflow-hidden rounded-3xl border border-white/10 bg-[#171226] ${aspect}`}
+      onClick={() => { if (!playing) onPlay() }}
+    >
+      {playing ? (
+        <iframe
+          src={`https://www.youtube.com/embed/${card.videoId}?playsinline=1&rel=0&modestbranding=1`}
+          title={card.title}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowFullScreen
+          className="size-full border-0"
+        />
+      ) : (
+        <>
+          <img
+            src={card.image}
+            alt={card.artist}
+            className="home-card-image size-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onPlay()
+            }}
+            aria-label={`Play ${card.title}`}
+            className="absolute inset-0 z-10 flex items-center justify-center"
+          >
+            <span className="flex size-12 items-center justify-center rounded-full bg-[#c026d3]/95 text-white shadow-xl shadow-fuchsia-500/40">
+              <Play className="ml-0.5 size-6 fill-white" />
+            </span>
+          </button>
+        </>
+      )}
+
+      {card.badge && (
+        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px] font-medium text-white shadow-md">
+          {card.badge}
+        </div>
+      )}
+
+      <button
+        type="button"
+        onClick={(event) => {
+          event.preventDefault()
+          event.stopPropagation()
+          onDownload()
+        }}
+        aria-label={`Download ${card.artist}`}
+        className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white/80 shadow-lg transition-all hover:border-[#c026d3] hover:bg-[#c026d3] hover:text-white hover:scale-110 active:scale-95"
+      >
+        <Download className="size-4" />
+      </button>
+
+      <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20">
+        <h2 className="text-lg font-bold tracking-tight text-white">{card.artist}</h2>
+        <p className="text-xs text-[#a3a3a3]">{card.songsCount} · {card.duration}</p>
+      </div>
+    </article>
+  )
+}
+
 export function HomeScreen() {
   const online = useNetworkStatus()
   const { downloads, activeCount, setPanelOpen, panelOpen } = useDownloads()
   const [recommendations, setRecommendations] = useState<OnlineVideo[]>([])
+  const [playingFeaturedId, setPlayingFeaturedId] = useState<string | null>(null)
   const [filter, setFilter] = useState<Filter>('all')
   const [userName, setUserName] = useState<string>('')
   const [isNameModalOpen, setIsNameModalOpen] = useState(false)
@@ -124,7 +214,7 @@ export function HomeScreen() {
   }
 
   return (
-    <main className="home-screen relative min-h-screen bg-[#0b0813] text-white px-4 pt-5 pb-24 sm:px-6 md:pb-12 max-w-[1240px] mx-auto overflow-hidden">
+    <main className="home-screen relative min-h-screen bg-[#0b0813] text-white px-4 pt-5 pb-36 sm:px-6 md:pb-16 max-w-[1240px] mx-auto overflow-hidden">
       {/* ── Background Ambient Lighting & Wave Line Graphics ── */}
       <div className="home-glow absolute top-0 right-0 size-[380px] rounded-full bg-purple-600/15 blur-[120px] pointer-events-none" />
       <div className="home-glow absolute top-1/3 left-0 size-[320px] rounded-full bg-fuchsia-600/10 blur-[130px] pointer-events-none" />
@@ -277,214 +367,29 @@ export function HomeScreen() {
       {filter !== 'downloaded' && (
         <section className="relative z-10 mb-10">
           <div className="grid grid-cols-2 gap-3.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
-            {/* 1. A$AP Rocky Card (Tall Left) */}
-            <Link
-              href="/watch/Kbj2Zmg1776"
-              className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[3/4]"
-            >
-              <img
-                src="/images/home/asap_rocky.png"
-                alt="A$AP Rocky"
-                className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-                decoding="async"
+            {FEATURED_CARDS.map(card => (
+              <FeaturedVideoCard
+                key={card.id}
+                card={card}
+                playing={playingFeaturedId === card.id}
+                onPlay={() => setPlayingFeaturedId(card.id)}
+                onDownload={() => download.begin({
+                  id: card.videoId,
+                  title: card.title,
+                  channel: card.artist,
+                  duration: card.duration,
+                  thumbnail: card.image,
+                  sourceUrl: `https://www.youtube.com/watch?v=${card.videoId}`,
+                })}
               />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
-              {/* Badge */}
-              <div className="absolute top-3 left-3 rounded-full bg-black/40 border border-white/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md flex items-center gap-1.5 shadow-md">
-                <Flame className="size-3.5 text-orange-400 fill-orange-400" />
-                In Charts
-              </div>
-              {/* Download Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  download.begin({
-                    id: 'Kbj2Zmg1776',
-                    title: 'A$AP Rocky - Praise The Lord (Da Shine) ft. Skepta',
-                    channel: 'A$AP Rocky',
-                    duration: '3:25',
-                    thumbnail: '/images/home/asap_rocky.png',
-                    sourceUrl: 'https://www.youtube.com/watch?v=Kbj2Zmg1776',
-                  })
-                }}
-                aria-label="Download A$AP Rocky"
-                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
-              >
-                <Download className="size-4" />
-              </button>
-              {/* Play Overlay Button */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                <div className="flex size-12 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
-                  <Play className="size-6 fill-white ml-0.5" />
-                </div>
-              </div>
-              {/* Card Footer Text */}
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-lg font-bold text-white tracking-tight group-hover:text-fuchsia-300 transition-colors">
-                  A$AP Rocky
-                </h2>
-                <p className="text-xs text-[#a3a3a3]">132 songs</p>
-              </div>
-            </Link>
-
-            {/* 2. Kendrick Lamar Card (Top Right) */}
-            <Link
-              href="/watch/H58vbez_m4E"
-              className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-square sm:aspect-[4/3]"
-            >
-              <img
-                src="/images/home/kendrick_lamar.png"
-                alt="Kendrick Lamar"
-                className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-                decoding="async"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
-              {/* Download Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  download.begin({
-                    id: 'H58vbez_m4E',
-                    title: 'Kendrick Lamar - Not Like Us',
-                    channel: 'Kendrick Lamar',
-                    duration: '4:34',
-                    thumbnail: '/images/home/kendrick_lamar.png',
-                    sourceUrl: 'https://www.youtube.com/watch?v=H58vbez_m4E',
-                  })
-                }}
-                aria-label="Download Kendrick Lamar"
-                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
-              >
-                <Download className="size-4" />
-              </button>
-              {/* Play Overlay Button */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                <div className="flex size-12 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
-                  <Play className="size-6 fill-white ml-0.5" />
-                </div>
-              </div>
-              {/* Card Footer Text */}
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-base font-bold text-white tracking-tight group-hover:text-fuchsia-300 transition-colors sm:text-lg">
-                  Kendrick Lamar
-                </h2>
-                <p className="text-xs text-[#a3a3a3]">98 songs</p>
-              </div>
-            </Link>
-
-            {/* 3. Linkin Park Card (Middle Right) */}
-            <Link
-              href="/watch/eVTXPUF4Oz4"
-              className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-square sm:aspect-[4/3]"
-            >
-              <img
-                src="/images/home/linkin_park.png"
-                alt="Linkin Park"
-                className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-                decoding="async"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
-              {/* Badge */}
-              <div className="absolute top-3 left-3 rounded-full bg-black/40 border border-white/15 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md flex items-center gap-1.5 shadow-md">
-                <Sparkles className="size-3.5 text-amber-300 fill-amber-300" />
-                Gold Record
-              </div>
-              {/* Download Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  download.begin({
-                    id: 'eVTXPUF4Oz4',
-                    title: 'Linkin Park - In The End (Official HD Video)',
-                    channel: 'Linkin Park',
-                    duration: '3:36',
-                    thumbnail: '/images/home/linkin_park.png',
-                    sourceUrl: 'https://www.youtube.com/watch?v=eVTXPUF4Oz4',
-                  })
-                }}
-                aria-label="Download Linkin Park"
-                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
-              >
-                <Download className="size-4" />
-              </button>
-              {/* Play Overlay Button */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                <div className="flex size-12 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
-                  <Play className="size-6 fill-white ml-0.5" />
-                </div>
-              </div>
-              {/* Card Footer Text */}
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-base font-bold text-white tracking-tight group-hover:text-fuchsia-300 transition-colors sm:text-lg">
-                  Linkin Park
-                </h2>
-                <p className="text-xs text-[#a3a3a3]">72 songs</p>
-              </div>
-            </Link>
-
-            {/* 4. Taylor Swift Card (Middle Left) */}
-            <Link
-              href="/watch/ic8j13U_FS8"
-              className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[3/4]"
-            >
-              <img
-                src="/images/home/taylor_swift.png"
-                alt="Taylor Swift"
-                className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
-                loading="lazy"
-                decoding="async"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
-              {/* Download Button */}
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault()
-                  e.stopPropagation()
-                  download.begin({
-                    id: 'ic8j13U_FS8',
-                    title: 'Taylor Swift - Cruel Summer (Official Audio)',
-                    channel: 'Taylor Swift',
-                    duration: '2:58',
-                    thumbnail: '/images/home/taylor_swift.png',
-                    sourceUrl: 'https://www.youtube.com/watch?v=ic8j13U_FS8',
-                  })
-                }}
-                aria-label="Download Taylor Swift"
-                className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
-              >
-                <Download className="size-4" />
-              </button>
-              {/* Play Overlay Button */}
-              <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                <div className="flex size-12 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
-                  <Play className="size-6 fill-white ml-0.5" />
-                </div>
-              </div>
-              {/* Card Footer Text */}
-              <div className="absolute bottom-4 left-4 right-4">
-                <h2 className="text-lg font-bold text-white tracking-tight group-hover:text-fuchsia-300 transition-colors">
-                  Taylor Swift
-                </h2>
-                <p className="text-xs text-[#a3a3a3]">48 songs</p>
-              </div>
-            </Link>
+            ))}
 
             {/* Dynamic Search/Recommendation Videos */}
             {recommendations.slice(0, 4).map(video => (
               <Link
                 key={video.id}
                 href={`/watch/${encodeURIComponent(video.id)}`}
-                className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[4/3]"
+                className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[16/10]"
               >
                 <img
                   src={video.thumbnail || '/placeholder.svg'}
@@ -546,7 +451,7 @@ export function HomeScreen() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[4/3]"
+                    className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[16/10]"
                   >
                     <img
                       src={item.thumbnail || '/placeholder.svg'}
