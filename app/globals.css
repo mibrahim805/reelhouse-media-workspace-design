@@ -241,7 +241,7 @@ html {
    ═══════════════════════════════════════════════ */
 
 .page-transition {
-  animation: page-enter .5s var(--ease-spring) both;
+  animation: page-enter .18s var(--ease-spring) both;
   will-change: opacity, transform;
 }
 

@@ -1,4 +1,4 @@
-const VERSION = 'reelhouse-offline-v2'
+const VERSION = 'reelhouse-offline-v3'
 const APP_CACHE = `${VERSION}-app`
 const STATIC_CACHE = `${VERSION}-static`
 
@@ -6,7 +6,8 @@ const STATIC_CACHE = `${VERSION}-static`
 const APP_ROUTES = [
   '/', '/downloads', '/library', '/library/videos', '/library/music',
   '/profile', '/history', '/favorites', '/playlists', '/storage',
-  '/downloads/settings', '/search', '/explore',
+  '/downloads/settings', '/search', '/search/results', '/explore',
+  '/downloader', '/youtube',
 ]
 
 // ── Offline stub responses ──────────────────────────────────────────────────
@@ -32,6 +33,36 @@ function offlineBackendResponse() {
     JSON.stringify({ ok: false, error: 'backend_offline' }),
     { status: 503, headers: { 'Content-Type': 'application/json' } },
   )
+}
+
+function isAppDocumentRequest(request) {
+  const url = new URL(request.url)
+  const acceptsHtml = request.headers.get('accept')?.includes('text/html')
+  return !url.pathname.startsWith('/api/') && (request.mode === 'navigate' || acceptsHtml)
+}
+
+async function cacheShellResponse(request, response) {
+  if (!response || !response.ok) return response
+  const cache = await caches.open(APP_CACHE)
+  await cache.put(request, response.clone())
+  return response
+}
+
+async function serveAppShell(request, event) {
+  const cache = await caches.open(APP_CACHE)
+  const cached = await cache.match(request)
+  if (cached) {
+    // Keep the cached document responsive on Android while quietly refreshing
+    // it for the next launch.
+    event.waitUntil(fetch(request).then(response => cacheShellResponse(request, response)).catch(() => undefined))
+    return cached
+  }
+
+  try {
+    return await cacheShellResponse(request, await fetch(request))
+  } catch {
+    return (await cache.match(new URL(request.url).pathname)) || (await cache.match('/')) || new Response('Offline', { status: 503 })
+  }
 }
 
 // ── Install — pre-cache app shell ───────────────────────────────────────────
@@ -95,7 +126,16 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // 3. Next.js static assets + icons + thumbnails — cache-first
+  // 3. App shell routes are static client screens. Return the cached document
+  // immediately, then refresh it in the background. This is especially
+  // important for Android WebView, where a network RSC/document round-trip
+  // can make simple tab navigation feel stuck.
+  if (isAppDocumentRequest(request)) {
+    event.respondWith(serveAppShell(request, event))
+    return
+  }
+
+  // 4. Next.js static assets + icons + thumbnails — cache-first
   if (
     path.startsWith('/_next/static/') ||
     path.startsWith('/icons/') ||
@@ -118,7 +158,7 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // 4. Navigation / HTML — network-first, fall back to cached shell
+  // 5. Other navigation / HTML — network-first, fall back to cached shell
   const htmlRequest = request.headers.get('accept')?.includes('text/html')
   if (request.mode === 'navigate' || htmlRequest) {
     event.respondWith((async () => {
@@ -140,5 +180,5 @@ self.addEventListener('fetch', event => {
     return
   }
 
-  // 5. Everything else — network only (don't intercept)
+  // 6. Everything else — network only (don't intercept)
 })
