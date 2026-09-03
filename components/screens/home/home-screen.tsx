@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, Flame, Play, Search, Sparkles, Music2, Download, CheckCircle2 } from 'lucide-react'
+import { Bell, Flame, Play, Search, Sparkles, Music2, Download, CheckCircle2, User, Pencil, X } from 'lucide-react'
 import { useOnlineVideoDownload } from '@/hooks/use-online-video-download'
 import { searchYouTube } from '@/lib/backend-api'
 import { useNetworkStatus } from '@/lib/network-status'
@@ -76,10 +76,21 @@ export function HomeScreen() {
   const [recommendations, setRecommendations] = useState<OnlineVideo[]>([])
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState<Filter>('all')
+  const [userName, setUserName] = useState<string>('')
+  const [isNameModalOpen, setIsNameModalOpen] = useState(false)
+  const [inputName, setInputName] = useState('')
+
   const download = useOnlineVideoDownload()
   const completed = useMemo(() => downloads.filter(item => item.status === 'completed'), [downloads])
 
   useEffect(() => {
+    const savedName = localStorage.getItem('myutube_user_name')
+    if (savedName && savedName.trim()) {
+      setUserName(savedName.trim())
+    } else {
+      setIsNameModalOpen(true)
+    }
+
     const stored = readRecentSearches()
     setRecentSearches(stored)
     if (!online) {
@@ -104,6 +115,15 @@ export function HomeScreen() {
       cancelled = true
     }
   }, [online])
+
+  const handleSaveName = (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
+    const trimmed = inputName.trim()
+    const finalName = trimmed || userName || 'Ibrahim'
+    setUserName(finalName)
+    localStorage.setItem('myutube_user_name', finalName)
+    setIsNameModalOpen(false)
+  }
 
   const filterChips: Array<{ value: Filter; label: string }> = [
     { value: 'all', label: 'All' },
@@ -136,21 +156,28 @@ export function HomeScreen() {
       {/* ── Top Header Bar ── */}
       <header className="relative z-10 flex items-center justify-between">
         {/* User Profile Avatar with vibrant gradient ring */}
-        <Link href="/profile" aria-label="User Profile" className="group relative block">
+        <button
+          type="button"
+          onClick={() => {
+            setInputName(userName || 'Ibrahim')
+            setIsNameModalOpen(true)
+          }}
+          aria-label="User Profile"
+          className="group relative block text-left"
+        >
           <div className="size-12 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 shadow-md shadow-purple-500/20 transition-transform duration-300 group-hover:scale-105">
             <div className="size-full rounded-full overflow-hidden bg-[#181324] flex items-center justify-center">
               <img
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80"
-                alt="Mike"
+                alt={userName || 'User Profile'}
                 className="size-full object-cover"
                 onError={(e) => {
-                  // Fallback avatar if external image fails
                   e.currentTarget.src = '/images/home/asap_rocky.png'
                 }}
               />
             </div>
           </div>
-        </Link>
+        </button>
 
         {/* Action Icon Buttons */}
         <div className="flex items-center gap-3">
@@ -179,9 +206,73 @@ export function HomeScreen() {
       </header>
 
       {/* ── Greeting Title ── */}
-      <div className="relative z-10 mt-5 mb-5">
-        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">Hello, Mike</h1>
+      <div className="relative z-10 mt-5 mb-5 flex items-center gap-3">
+        <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl">
+          Hello, {userName || 'Ibrahim'}
+        </h1>
+        <button
+          type="button"
+          onClick={() => {
+            setInputName(userName || 'Ibrahim')
+            setIsNameModalOpen(true)
+          }}
+          aria-label="Edit Name"
+          className="rounded-full p-1.5 text-white/40 hover:bg-white/10 hover:text-white transition-all"
+        >
+          <Pencil className="size-4" />
+        </button>
       </div>
+
+      {/* ── First-Time User Name Setup Modal ── */}
+      {isNameModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#161124] p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-[#c026d3]/20 border border-[#c026d3]/30 text-[#c026d3]">
+                  <User className="size-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-bold text-white">Welcome to My UTube</h2>
+                  <p className="text-xs text-[#a3a3a3]">Enter your name to customize your app</p>
+                </div>
+              </div>
+              {userName && (
+                <button
+                  type="button"
+                  onClick={() => setIsNameModalOpen(false)}
+                  className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+                >
+                  <X className="size-5" />
+                </button>
+              )}
+            </div>
+
+            <form onSubmit={handleSaveName} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-[#a3a3a3] mb-1.5">Your Name</label>
+                <input
+                  type="text"
+                  value={inputName}
+                  onChange={(e) => setInputName(e.target.value)}
+                  placeholder="e.g. Ibrahim"
+                  autoFocus
+                  className="w-full rounded-2xl border border-white/15 bg-[#1e182e] px-4 py-3.5 text-sm font-medium text-white placeholder:text-white/30 focus:border-[#c026d3] focus:outline-none focus:ring-2 focus:ring-[#c026d3]/30 transition-all"
+                />
+              </div>
+
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  className="w-full rounded-2xl bg-[#c026d3] py-3.5 text-sm font-bold text-white shadow-lg shadow-fuchsia-500/30 hover:bg-[#a21caf] transition-all active:scale-95"
+                >
+                  Save Name & Continue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ── Category Chips Filter Row ── */}
       <nav aria-label="Categories" className="relative z-10 mb-6">
