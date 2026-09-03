@@ -3,8 +3,110 @@
 import { Download, FileVideo, HardDrive, X } from 'lucide-react'
 import type { MediaInfo, QualityOption } from '@/lib/backend-api'
 
-export function DownloadConfirmation({media,quality,onClose,onStart}:{media:MediaInfo|null;quality:QualityOption|null;onClose:()=>void;onStart:()=>void}){
- if(!media||!quality)return null
- return <div className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label="Confirm download"><button className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} aria-label="Close confirmation"/><section className="animate-in slide-in-from-bottom-4 relative z-10 w-full max-w-md rounded-t-[24px] border border-border bg-[#151515] p-4 shadow-2xl sm:rounded-[24px]"><div className="flex items-center"><div><p className="text-xs font-medium text-primary">Ready to download</p><h2 className="mt-1 text-xl font-semibold">Confirm download</h2></div><button onClick={onClose} className="icon-button ml-auto" aria-label="Close"><X className="size-4"/></button></div><div className="mt-4 flex gap-3"><img src={media.thumbnail||'/placeholder.svg'} alt="" className="h-20 w-28 rounded-xl object-cover"/><div className="min-w-0"><p className="line-clamp-2 text-sm font-semibold">{media.title}</p><p className="mt-1 text-xs text-muted-foreground">{media.channel} · {media.platform}</p></div></div><div className="mt-5 rounded-2xl border border-border bg-black/30 p-2"><Row icon={<FileVideo/>} label="Format" value={`${quality.label} · ${quality.extension.toUpperCase()}`}/><Row icon={<HardDrive/>} label="Estimated size" value={quality.size}/><Row icon={<Download/>} label="Saved by" value="Django media storage"/></div><p className="mt-4 text-xs leading-5 text-muted-foreground">The backend will download and process this file. Actual size can differ from the estimate returned by the source.</p><div className="mt-5 grid grid-cols-2 gap-3"><button onClick={onClose} className="secondary-button min-h-11">Back</button><button onClick={onStart} className="primary-button min-h-11"><Download className="size-4"/>Start download</button></div></section></div>
+export function DownloadConfirmation({
+  media,
+  quality,
+  onClose,
+  onStart,
+}: {
+  media: MediaInfo | null
+  quality: QualityOption | null
+  onClose: () => void
+  onStart: () => void
+}) {
+  if (!media || !quality) return null
+
+  return (
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center sm:items-center sm:p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Confirm download"
+    >
+      <button
+        className="modal-backdrop absolute inset-0 bg-black/75 backdrop-blur-sm"
+        onClick={onClose}
+        aria-label="Close confirmation"
+      />
+      <section className="modal-content relative z-10 w-full max-w-md rounded-t-[24px] border border-border bg-[#151515] p-4 shadow-2xl sm:rounded-[24px]">
+        <div className="flex items-center">
+          <div>
+            <p className="text-xs font-medium text-primary">Ready to download</p>
+            <h2 className="mt-1 text-xl font-semibold">Confirm download</h2>
+          </div>
+          <button
+            onClick={onClose}
+            className="icon-button ml-auto"
+            aria-label="Close"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex gap-3" style={{ animation: 'fade-up 0.4s var(--ease-spring) both', animationDelay: '100ms' }}>
+          <img
+            src={media.thumbnail || '/placeholder.svg'}
+            alt=""
+            className="h-20 w-28 rounded-xl object-cover transition-transform duration-500 hover:scale-105"
+          />
+          <div className="min-w-0">
+            <p className="line-clamp-2 text-sm font-semibold">{media.title}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {media.channel} · {media.platform}
+            </p>
+          </div>
+        </div>
+
+        <div
+          className="mt-5 rounded-2xl border border-border bg-black/30 p-2 stagger-children"
+          style={{ animation: 'fade-up 0.4s var(--ease-spring) both', animationDelay: '200ms' }}
+        >
+          <Row icon={<FileVideo />} label="Format" value={`${quality.label} · ${quality.extension.toUpperCase()}`} />
+          <Row icon={<HardDrive />} label="Estimated size" value={quality.size} />
+          <Row icon={<Download />} label="Saved by" value="Django media storage" />
+        </div>
+
+        <p
+          className="mt-4 text-xs leading-5 text-muted-foreground"
+          style={{ animation: 'fade-up 0.4s var(--ease-spring) both', animationDelay: '300ms' }}
+        >
+          The backend will download and process this file. Actual size can differ
+          from the estimate returned by the source.
+        </p>
+
+        <div
+          className="mt-5 grid grid-cols-2 gap-3"
+          style={{ animation: 'fade-up 0.4s var(--ease-spring) both', animationDelay: '350ms' }}
+        >
+          <button onClick={onClose} className="secondary-button min-h-11">
+            Back
+          </button>
+          <button onClick={onStart} className="primary-button min-h-11">
+            <Download className="size-4" />
+            Start download
+          </button>
+        </div>
+      </section>
+    </div>
+  )
 }
-function Row({icon,label,value}:{icon:React.ReactNode;label:string;value:string}){return <div className="flex items-center gap-3 rounded-xl px-2 py-3"><span className="text-muted-foreground [&>svg]:size-4">{icon}</span><span className="text-xs text-muted-foreground">{label}</span><span className="ml-auto max-w-[55%] truncate text-right text-xs font-medium">{value}</span></div>}
+
+function Row({
+  icon,
+  label,
+  value,
+}: {
+  icon: React.ReactNode
+  label: string
+  value: string
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-xl px-2 py-3 transition-colors duration-200 hover:bg-white/[0.03]">
+      <span className="text-muted-foreground [&>svg]:size-4">{icon}</span>
+      <span className="text-xs text-muted-foreground">{label}</span>
+      <span className="ml-auto max-w-[55%] truncate text-right text-xs font-medium">
+        {value}
+      </span>
+    </div>
+  )
+}

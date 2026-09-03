@@ -139,7 +139,7 @@ export function DownloaderView() {
   const recent = downloads.slice(0, 5)
 
   return (
-    <div className="mx-auto w-full max-w-[1100px] px-4 pb-28 pt-5 sm:px-5 md:pb-8">
+    <div className="mx-auto w-full max-w-[1100px] px-4 pb-28 pt-5 sm:px-5 md:pb-8 stagger-children">
       <div className="mb-4">
         <div className="flex items-center gap-2">
           <span className="flex size-9 items-center justify-center rounded-lg bg-primary/15 text-primary">
@@ -161,7 +161,7 @@ export function DownloaderView() {
         {/* Left: form + preview */}
         <div className="space-y-3">
           {/* Step 1: platform */}
-          <section className="rounded-2xl border border-border bg-card p-4">
+          <section className="rounded-2xl border border-border bg-card p-4 card-lift">
             <StepLabel n={1} title="Choose platform" />
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
               {PLATFORMS.map((p) => {
@@ -194,15 +194,15 @@ export function DownloaderView() {
           </section>
 
           {/* Step 2: paste url */}
-          <section className="rounded-2xl border border-border bg-card p-4">
+          <section className="rounded-2xl border border-border bg-card p-4 card-lift">
             <StepLabel n={2} title="Paste URL" />
             <div className="mt-3 flex flex-col gap-2 sm:flex-row">
               <div
                 className={cn(
-                  'flex h-11 flex-1 items-center gap-2 rounded-xl border bg-background px-3 transition-colors',
+                  'flex h-11 flex-1 items-center gap-2 rounded-xl border bg-background px-3 smooth-focus transition-all duration-300',
                   status === 'error'
                     ? 'border-destructive/60'
-                    : 'border-border focus-within:border-primary/50',
+                    : 'border-border',
                 )}
               >
                 <Link2 className="size-4 shrink-0 text-muted-foreground" />
@@ -231,7 +231,7 @@ export function DownloaderView() {
                 onClick={fetchPreview}
                 disabled={status === 'loading' || !online}
                 title={!online ? 'No internet connection' : undefined}
-                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 text-sm font-semibold text-primary-foreground transition-all duration-300 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 disabled:opacity-70 disabled:cursor-not-allowed active:scale-[0.97]"
               >
                 {status === 'loading' ? (
                   <Loader2 className="size-4 animate-spin" />
@@ -252,7 +252,7 @@ export function DownloaderView() {
           </section>
 
           {/* Step 3: preview + quality */}
-          <section className="rounded-2xl border border-border bg-card p-4">
+          <section className="rounded-2xl border border-border bg-card p-4 card-lift">
             <StepLabel n={3} title="Preview & download" />
 
             {status === 'idle' && (
@@ -268,18 +268,18 @@ export function DownloaderView() {
             )}
 
             {status === 'loading' && (
-              <div className="mt-3 flex animate-pulse gap-3 rounded-xl border border-border p-3">
-                <div className="aspect-video w-44 shrink-0 rounded-lg bg-muted" />
+              <div className="mt-3 flex gap-3 rounded-xl border border-border p-3" style={{ animation: 'fade-in-scale 0.3s var(--ease-spring) both' }}>
+                <div className="loading-shimmer aspect-video w-44 shrink-0 rounded-lg" />
                 <div className="flex-1 space-y-2 py-1">
-                  <div className="h-4 w-3/4 rounded bg-muted" />
-                  <div className="h-3 w-1/2 rounded bg-muted" />
-                  <div className="h-3 w-1/3 rounded bg-muted" />
+                  <div className="loading-shimmer h-4 w-3/4 rounded" />
+                  <div className="loading-shimmer h-3 w-1/2 rounded" style={{ animationDelay: '0.1s' }} />
+                  <div className="loading-shimmer h-3 w-1/3 rounded" style={{ animationDelay: '0.2s' }} />
                 </div>
               </div>
             )}
 
             {status === 'ready' && preview && (
-              <div className="mt-3 space-y-3">
+              <div className="mt-3 space-y-3" style={{ animation: 'fade-up 0.45s var(--ease-spring) both' }}>
                 <div className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row">
                   <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-lg bg-muted sm:w-44">
                     <img
@@ -315,9 +315,9 @@ export function DownloaderView() {
                         key={q.value}
                         onClick={() => { const value = normalizeQualityValue(q.value); setQuality(value) }}
                         className={cn(
-                          'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-colors',
+                          'rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-300 active:scale-95',
                           quality === q.value
-                            ? 'border-primary/60 bg-primary/10 text-primary'
+                            ? 'border-primary/60 bg-primary/10 text-primary shadow-sm shadow-primary/10'
                             : 'border-border text-muted-foreground hover:bg-muted hover:text-foreground',
                         )}
                       >
@@ -340,13 +340,13 @@ export function DownloaderView() {
                       const q = preview.qualities.find((x) => x.value === quality)
                       confirmDownload(q?.value || 'best', q?.size || 'Estimated size')
                     }}
-                    className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                    className="flex h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-primary text-sm font-semibold text-primary-foreground transition-all duration-300 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97]"
                   >
                     <Download className="size-4" /> Start download
                   </button>
                   {preview.qualities.length > 0 && <button
                     onClick={() => setDialogOpen(true)}
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-border px-4 text-sm font-medium text-foreground transition-all duration-300 hover:bg-muted active:scale-[0.97]"
                   >
                     More options
                   </button>}
@@ -358,7 +358,7 @@ export function DownloaderView() {
 
         {/* Right: sidebar */}
         <aside className="space-y-3">
-          <section className="rounded-2xl border border-border bg-card p-4">
+          <section className="rounded-2xl border border-border bg-card p-4 card-lift">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Download className="size-4 text-primary" />

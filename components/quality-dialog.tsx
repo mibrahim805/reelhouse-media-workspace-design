@@ -68,16 +68,16 @@ export function QualityDialog({
       aria-label="Choose download quality"
     >
       <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        className="modal-backdrop absolute inset-0 bg-background/80 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="animate-in slide-in-from-bottom-4 fade-in relative z-10 w-full max-w-md overflow-hidden rounded-t-2xl border border-border bg-popover shadow-2xl duration-200 sm:rounded-2xl">
+      <div className="modal-content relative z-10 w-full max-w-md overflow-hidden rounded-t-2xl border border-border glass-panel shadow-2xl sm:rounded-2xl">
         <div className="flex items-start gap-3 border-b border-border p-4">
           <div className="relative h-14 w-24 shrink-0 overflow-hidden rounded-md bg-muted">
             <img
               src={target.thumbnail || '/placeholder.svg'}
               alt=""
-              className="h-full w-full object-cover"
+              className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
             />
           </div>
           <div className="min-w-0 flex-1">
@@ -91,7 +91,7 @@ export function QualityDialog({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-all duration-300 hover:bg-muted hover:text-foreground hover:rotate-90 active:scale-90"
           >
             <X className="size-4" />
           </button>
@@ -101,8 +101,8 @@ export function QualityDialog({
           <p className="px-2 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Select quality
           </p>
-          <div className="max-h-[46vh] space-y-1 overflow-y-auto px-1 pb-1">
-            {displayOptions.map((q) => {
+          <div className="max-h-[46vh] space-y-1 overflow-y-auto px-1 pb-1 smooth-scroll">
+            {displayOptions.map((q, i) => {
               const isAudio = q.value === 'audio'
               const active = selected === q.value
               return (
@@ -110,17 +110,18 @@ export function QualityDialog({
                   key={q.value}
                   onClick={() => setSelected(q.value)}
                   className={cn(
-                    'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                    'flex w-full items-center gap-3 rounded-lg border px-3 py-2.5 text-left transition-all duration-300',
                     active
-                      ? 'border-primary/60 bg-primary/10'
+                      ? 'border-primary/60 bg-primary/10 shadow-sm shadow-primary/10'
                       : 'border-transparent hover:bg-muted',
                   )}
+                  style={{ animationDelay: `${i * 40}ms`, animation: 'fade-up 0.35s var(--ease-spring) both' }}
                 >
                   <span
                     className={cn(
-                      'flex size-8 shrink-0 items-center justify-center rounded-md',
+                      'flex size-8 shrink-0 items-center justify-center rounded-md transition-all duration-300',
                       active
-                        ? 'bg-primary/20 text-primary'
+                        ? 'bg-primary/20 text-primary scale-110'
                         : 'bg-muted text-muted-foreground',
                     )}
                   >
@@ -143,9 +144,9 @@ export function QualityDialog({
                   </span>
                   <span
                     className={cn(
-                      'flex size-5 shrink-0 items-center justify-center rounded-full border',
+                      'flex size-5 shrink-0 items-center justify-center rounded-full border transition-all duration-300',
                       active
-                        ? 'border-primary bg-primary text-primary-foreground'
+                        ? 'border-primary bg-primary text-primary-foreground scale-110'
                         : 'border-border',
                     )}
                   >
@@ -160,7 +161,7 @@ export function QualityDialog({
         <div className="flex items-center gap-2 border-t border-border p-3">
           <button
             onClick={onClose}
-            className="h-10 flex-1 rounded-lg border border-border text-sm font-medium text-foreground transition-colors hover:bg-muted"
+            className="h-10 flex-1 rounded-lg border border-border text-sm font-medium text-foreground transition-all duration-300 hover:bg-muted active:scale-[0.98]"
           >
             Cancel
           </button>
@@ -169,7 +170,7 @@ export function QualityDialog({
               onConfirm(chosen.value, chosen.size)
               onClose()
             }}
-            className="flex h-10 flex-[1.6] items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+            className="flex h-10 flex-[1.6] items-center justify-center gap-2 rounded-lg bg-primary text-sm font-semibold text-primary-foreground transition-all duration-300 hover:bg-primary/90 hover:shadow-lg hover:shadow-primary/25 active:scale-[0.98]"
           >
             <Download className="size-4" />
             Download {chosen.label} · {chosen.size}
