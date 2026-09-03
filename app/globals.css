@@ -697,6 +697,11 @@ html.light [class*="border-[#292929]"] { border-color: #dedee5 !important; }
 html.light [class*="text-[#a3a3a3]"] { color: #626269 !important; }
 html.light [class*="text-[#737373]"] { color: #85858d !important; }
 html.light [class~="text-white"] { color: #171324 !important; }
+html.light [class*="text-white/90"] { color: rgba(23, 19, 36, 0.9) !important; }
+html.light [class*="text-white/80"] { color: rgba(23, 19, 36, 0.8) !important; }
+html.light [class*="text-white/70"] { color: rgba(23, 19, 36, 0.7) !important; }
+html.light [class*="text-white/60"] { color: rgba(23, 19, 36, 0.6) !important; }
+html.light [class*="text-white/50"] { color: rgba(23, 19, 36, 0.5) !important; }
 
 /* Keep white text on dark buttons, liquid glow buttons, badges, and image overlays */
 html.light .liquid-glow-btn,
@@ -711,6 +716,15 @@ html.light .water-bubble,
 html.light .sliding-liquid-bubble,
 html.light .home-card .pointer-events-none *,
 html.light .home-card button * { color: #ffffff !important; }
+
+/* Ensure transparent text & background-clip gradients work correctly in light mode */
+html.light .text-transparent,
+html.light [class*="text-transparent"],
+html.light .bg-clip-text,
+html.light [class*="bg-clip-text"] {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+}
 
 /* Crystal Light Liquid Glass System for Light Mode */
 html.light .liquid-glass-card {
@@ -740,4 +754,20 @@ html.light .liquid-glass-pill {
   box-shadow: 
     0 12px 32px rgba(147, 51, 234, 0.12),
     inset 0 1px 1.5px 0 rgba(255, 255, 255, 1) !important;
+}
+
+html.light .liquid-glass-input {
+  background: linear-gradient(
+    135deg, 
+    rgba(0, 0, 0, 0.05) 0%, 
+    rgba(0, 0, 0, 0.02) 100%
+  ) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(0, 0, 0, 0.15) !important;
+  color: #171324 !important;
+}
+
+html.light .liquid-glass-input::placeholder {
+  color: rgba(23, 19, 36, 0.45) !important;
 }

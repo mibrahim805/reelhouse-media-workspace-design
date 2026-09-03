@@ -1,7 +1,7 @@
 import { createReadStream, statSync } from 'node:fs'
 import { Readable } from 'node:stream'
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-static'
 export const runtime = 'nodejs'
 
 const APK_FILENAME = 'Reelhouse-Android-arm64.apk'

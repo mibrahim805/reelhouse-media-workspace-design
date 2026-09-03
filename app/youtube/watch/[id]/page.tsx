@@ -1,3 +1,5 @@
+export function generateStaticParams() { return [{ id: 'placeholder' }] }
+
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { WatchView } from '@/components/youtube/watch-view'

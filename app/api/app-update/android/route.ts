@@ -1,6 +1,6 @@
 import { readFileSync, statSync } from 'node:fs'
 
-export const dynamic = 'force-dynamic'
+export const dynamic = 'force-static'
 export const runtime = 'nodejs'
 
 const METADATA_PATH = process.env.REELHOUSE_ANDROID_METADATA_PATH?.trim()

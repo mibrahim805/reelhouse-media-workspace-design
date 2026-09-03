@@ -7,6 +7,7 @@ plugins {
 }
 
 val generatedLegalAssets = layout.buildDirectory.dir("generated/reelhouseLegalAssets")
+val generatedWebAssets = layout.buildDirectory.dir("generated/reelhouseWebAssets")
 val generatedAppUpdateMetadata = layout.buildDirectory.file(
     "generated/reelhouseAppUpdate/app-version.json",
 )
@@ -14,6 +15,10 @@ val copyLegalAssets by tasks.registering(Copy::class) {
     from(rootProject.file("COPYING"))
     from(rootProject.file("NOTICE.md"))
     into(generatedLegalAssets)
+}
+val copyWebAssets by tasks.registering(Copy::class) {
+    from(rootProject.file("../../out"))
+    into(generatedWebAssets.map { it.dir("web") })
 }
 
 val generateAppUpdateMetadata by tasks.registering {
@@ -52,7 +57,7 @@ android {
         buildConfigField(
             "String",
             "REELHOUSE_WEB_BASE_URL",
-            "\"https://reelhouse.kubeletto.app\"",
+            "\"https://appassets.androidview.app\"",
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -96,7 +101,7 @@ android {
         buildConfig = true
     }
 
-    sourceSets.getByName("main").assets.srcDir(generatedLegalAssets)
+    sourceSets.getByName("main").assets.srcDirs(generatedLegalAssets, generatedWebAssets)
 
     packaging {
         jniLibs {
@@ -106,7 +111,7 @@ android {
 }
 
 tasks.named("preBuild").configure {
-    dependsOn(copyLegalAssets)
+    dependsOn(copyLegalAssets, copyWebAssets)
 }
 
 tasks.matching { it.name.startsWith("assemble") }.configureEach {

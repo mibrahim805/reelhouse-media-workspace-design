@@ -289,7 +289,7 @@ export function HomeScreen() {
       {/* ── Greeting Title ── */}
       <div className="relative z-10 mt-5 mb-5 flex items-center gap-3">
         <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl drop-shadow-md">
-          Hello, <span className="bg-gradient-to-r from-fuchsia-400 via-pink-400 to-purple-400 bg-clip-text text-transparent">{userName || 'Ibrahim'}</span>
+          Hello, <span className="bg-gradient-to-r from-fuchsia-600 via-pink-500 to-purple-600 dark:from-fuchsia-400 dark:via-pink-400 dark:to-purple-400 bg-clip-text text-transparent">{userName || 'Ibrahim'}</span>
         </h1>
         <button
           type="button"
@@ -298,7 +298,7 @@ export function HomeScreen() {
             setIsNameModalOpen(true)
           }}
           aria-label="Edit Name"
-          className="rounded-full p-1.5 text-white/70 hover:bg-white/10 hover:text-white transition-all"
+          className="rounded-full p-1.5 text-white/70 hover:bg-black/10 dark:hover:bg-white/10 hover:text-white transition-all"
         >
           <Pencil className="size-4" />
         </button>
@@ -322,7 +322,7 @@ export function HomeScreen() {
                 <button
                   type="button"
                   onClick={() => setIsNameModalOpen(false)}
-                  className="rounded-full p-1.5 text-white/60 hover:bg-white/10 hover:text-white"
+                  className="rounded-full p-1.5 text-white/60 hover:bg-black/10 dark:hover:bg-white/10 hover:text-white"
                 >
                   <X className="size-5" />
                 </button>
@@ -338,7 +338,7 @@ export function HomeScreen() {
                   onChange={(e) => setInputName(e.target.value)}
                   placeholder="e.g. Ibrahim"
                   autoFocus
-                  className="liquid-glass-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium text-white placeholder:text-white/30 focus:outline-none transition-all"
+                  className="liquid-glass-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium focus:outline-none transition-all"
                 />
               </div>
 

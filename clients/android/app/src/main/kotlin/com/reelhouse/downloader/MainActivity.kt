@@ -36,6 +36,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.webkit.WebViewAssetLoader
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.reelhouse.downloader.util.UrlValidator
@@ -66,6 +67,12 @@ class MainActivity : ComponentActivity() {
     private var mediaPermissionRequested = false
     private var updateDownloadId: Long = -1L
     private var updateReceiver: BroadcastReceiver? = null
+    private val assetLoader by lazy {
+        WebViewAssetLoader.Builder()
+            .setDomain(URI(webBaseUrl).host ?: "appassets.androidview.app")
+            .addPathHandler("/", CustomAssetsPathHandler(this))
+            .build()
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -407,6 +414,10 @@ class MainActivity : ComponentActivity() {
                     mapOf("Cache-Control" to "no-store"),
                     ByteArrayInputStream(body.encodeToByteArray()),
                 )
+            }
+            val assetResponse = assetLoader.shouldInterceptRequest(uri)
+            if (assetResponse != null) {
+                return assetResponse
             }
             return null
         }
@@ -839,5 +850,45 @@ class MainActivity : ComponentActivity() {
               };
             })();
         """.trimIndent()
+    }
+}
+
+class CustomAssetsPathHandler(
+    private val context: Context,
+    private val pathPrefix: String = "web",
+) : WebViewAssetLoader.PathHandler {
+    private val assetsPathHandler = WebViewAssetLoader.AssetsPathHandler(context)
+
+    override fun handle(path: String): WebResourceResponse? {
+        val cleanPath = path.removePrefix("/")
+        val assetPath = if (cleanPath.isEmpty()) "$pathPrefix/index.html" else "$pathPrefix/$cleanPath"
+
+        // 1. Direct asset load (e.g. web/_next/..., web/index.html, web/manifest.json)
+        try {
+            context.assets.open(assetPath).close()
+            return assetsPathHandler.handle(assetPath)
+        } catch (_: Exception) {}
+
+        // 2. Asset with file extension (e.g. .js, .css, .png, .svg)
+        if (cleanPath.substringAfterLast('/', "").contains(".")) {
+            return assetsPathHandler.handle("$pathPrefix/$cleanPath")
+        }
+
+        // 3. Clean path + .html (e.g. web/downloader.html for /downloader)
+        try {
+            val htmlPath = "$pathPrefix/$cleanPath.html"
+            context.assets.open(htmlPath).close()
+            return assetsPathHandler.handle(htmlPath)
+        } catch (_: Exception) {}
+
+        // 4. Clean path + /index.html (e.g. web/downloader/index.html)
+        try {
+            val indexSubPath = "$pathPrefix/$cleanPath/index.html"
+            context.assets.open(indexSubPath).close()
+            return assetsPathHandler.handle(indexSubPath)
+        } catch (_: Exception) {}
+
+        // 5. Fallback to main SPA index.html
+        return assetsPathHandler.handle("$pathPrefix/index.html")
     }
 }

@@ -1,10 +1,11 @@
 import { fileURLToPath } from 'node:url'
 
 const projectRoot = fileURLToPath(new URL('.', import.meta.url))
+const isExport = process.env.OUTPUT_MODE === 'export'
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'standalone',
+  output: isExport ? 'export' : 'standalone',
   images: {
     unoptimized: true,
   },

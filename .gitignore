@@ -19,3 +19,7 @@ node_modules
 
 # Native client build outputs
 clients/desktop/dist/
+out/
+*.apk
+*.png
+

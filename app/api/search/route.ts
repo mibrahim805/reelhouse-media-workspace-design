@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { searchOnline, getTrending, getOnlineVideo } from '@/services/online-search'
 
+export const dynamic = 'force-static'
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
