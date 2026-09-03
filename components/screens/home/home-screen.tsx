@@ -214,6 +214,13 @@ export function HomeScreen() {
       <div className="home-glow animate-liquid-blob-1 absolute -top-24 -right-24 size-[450px] rounded-full bg-gradient-to-br from-fuchsia-600/30 via-purple-600/20 to-pink-500/20 blur-[110px] pointer-events-none" />
       <div className="home-glow animate-liquid-blob-2 absolute top-1/3 -left-24 size-[400px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/20 blur-[120px] pointer-events-none" />
 
+      {/* ── Background Floating 3D Water Bubbles ── */}
+      <div className="water-bubble top-12 -right-8 size-36 opacity-70" style={{ animationDelay: '0s' }} />
+      <div className="water-bubble top-1/4 -left-12 size-48 opacity-60" style={{ animationDelay: '-4s' }} />
+      <div className="water-bubble top-1/2 right-4 size-28 opacity-65" style={{ animationDelay: '-8s' }} />
+      <div className="water-bubble top-3/4 left-10 size-40 opacity-55" style={{ animationDelay: '-12s' }} />
+      <div className="water-bubble bottom-10 right-16 size-32 opacity-60" style={{ animationDelay: '-6s' }} />
+
       {/* Concentric circular background line waves (Top-Left) */}
       <svg
         className="absolute top-0 left-0 w-80 h-80 opacity-15 pointer-events-none text-white/20"
