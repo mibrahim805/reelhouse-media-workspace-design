@@ -91,7 +91,7 @@ export function MiniPlayer() {
   const miniEngine = source.type === 'youtube' ? <YoutubePlayerAdapter ref={youtubeRef} videoId={source.videoId} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : source.type === 'local-video' ? <LocalVideoPlayerAdapter ref={videoRef} src={source.src} poster={source.thumbnail} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : <LocalAudioPlayerAdapter ref={audioRef} src={source.src} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} />
 
   return (
-    <aside className="fixed inset-x-3 bottom-[72px] z-40 mx-auto flex h-16 max-w-xl items-center gap-3 overflow-hidden rounded-2xl border border-[#292929] bg-[#151515]/95 px-2 shadow-2xl backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-96" aria-label="Mini player">
+    <aside className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+8px)] z-40 mx-auto flex h-16 max-w-xl items-center gap-3 overflow-hidden rounded-2xl border border-[#292929] bg-[#151515]/95 px-2 shadow-2xl backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-96" aria-label="Mini player">
       {source.type === 'local-video' ? (
         <div className="h-12 w-20 shrink-0 overflow-hidden rounded-xl">{miniEngine}</div>
       ) : (
