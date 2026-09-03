@@ -136,7 +136,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile bottom nav (< md) ── */}
       <nav
-        className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-4 border-t border-[#292929] bg-[#151515] px-1 pb-[max(.5rem,env(safe-area-inset-bottom))] pt-2 md:hidden"
+        className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-[#171124]/90 p-2 shadow-2xl backdrop-blur-2xl md:hidden"
         aria-label="Primary navigation"
       >
         {NAV.map(item => {
@@ -147,19 +147,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                'relative flex flex-col items-center gap-1 text-[10px] font-medium',
-                active ? 'text-primary' : 'text-[#a3a3a3]',
+                'relative flex items-center justify-center transition-all duration-300 active:scale-90',
+                active
+                  ? 'size-11 rounded-full bg-[#c026d3] text-white shadow-lg shadow-fuchsia-500/40'
+                  : 'size-10 rounded-full text-[#a3a3a3] hover:text-white hover:bg-white/10',
               )}
             >
-              <span className={cn(
-                'relative flex items-center justify-center rounded-xl px-3 py-1',
-                active && 'bg-primary/15',
-              )}>
-                <Icon className="size-5" />
-              </span>
-              {item.label}
+              <Icon className="size-5" />
               {item.label === 'Downloads' && activeCount > 0 && (
-                <span className="absolute -top-1 left-1/2 ml-2 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-white">
+                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#c026d3] text-[9px] font-bold text-white ring-2 ring-[#0b0813]">
                   {activeCount}
                 </span>
               )}
