@@ -44,9 +44,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { activeCount } = useDownloads()
   const [navigationPending, setNavigationPending] = useState(false)
+  const [isSliding, setIsSliding] = useState(false)
 
   useEffect(() => {
     setNavigationPending(false)
+    setIsSliding(true)
+    const timer = setTimeout(() => setIsSliding(false), 480)
+    return () => clearTimeout(timer)
   }, [pathname])
 
   function handleShellClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -163,7 +167,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Sliding 3D Liquid Water Bubble Droplet Indicator */}
         {activeNavIndex !== -1 && (
           <div
-            className="sliding-liquid-bubble"
+            className={cn('sliding-liquid-bubble', isSliding && 'is-sliding')}
             style={{
               transform: `translate3d(${activeNavIndex * 58}px, 0, 0)`,
             }}
@@ -178,8 +182,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               key={item.href}
               href={item.href}
               className={cn(
-                'relative z-10 flex size-11 items-center justify-center rounded-full transition-all duration-300 active:scale-90',
-                active ? 'text-white drop-shadow-md font-bold' : 'text-white/70 hover:text-white',
+                'relative z-10 flex size-11 items-center justify-center rounded-full transition-all duration-300 active:scale-75',
+                active ? 'text-white drop-shadow-lg font-bold bubble-active-icon' : 'text-white/70 hover:text-white',
               )}
             >
               <Icon className={cn('size-5 transition-transform duration-300', active && 'scale-110')} />
