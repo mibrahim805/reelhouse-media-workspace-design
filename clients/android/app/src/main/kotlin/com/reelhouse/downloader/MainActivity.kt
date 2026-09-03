@@ -2,8 +2,11 @@ package com.reelhouse.downloader
 
 import android.annotation.SuppressLint
 import android.Manifest
+import android.content.BroadcastReceiver
 import android.content.ContentUris
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.app.DownloadManager
 import android.content.pm.ActivityInfo
@@ -37,6 +40,7 @@ import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import com.reelhouse.downloader.util.UrlValidator
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.FilterInputStream
 import java.io.InputStream
 import java.net.URI
@@ -60,6 +64,8 @@ class MainActivity : ComponentActivity() {
     private var fullscreenView: View? = null
     private var fullscreenCallback: WebChromeClient.CustomViewCallback? = null
     private var mediaPermissionRequested = false
+    private var updateDownloadId: Long = -1L
+    private var updateReceiver: BroadcastReceiver? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -119,9 +125,11 @@ class MainActivity : ComponentActivity() {
                     exitFullscreen()
                 }
             }
-            setDownloadListener { url, _, _, _, _ ->
+            setDownloadListener { url, _, _, mimeType, _ ->
                 if (url.startsWith(LOCAL_RESULT_SCHEME) || localMediaId(Uri.parse(url)) != null) {
                     showSavedMessage(Uri.parse(url))
+                } else if (isAppUpdateUrl(url) || mimeType == "application/vnd.android.package-archive") {
+                    downloadAndInstallUpdate(Uri.parse(url))
                 } else if (url.startsWith("http://") || url.startsWith("https://")) {
                     enqueueExternalDownload(Uri.parse(url))
                 }
@@ -212,6 +220,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        unregisterUpdateReceiver()
         exitFullscreen()
         webView.apply {
             stopLoading()
@@ -350,7 +359,15 @@ class MainActivity : ComponentActivity() {
                 return true
             }
             if (!request.isForMainFrame) return false
-            if (uri.scheme == "https" && uri.host == URI(webBaseUrl).host) return false
+            if (uri.scheme == "https" && uri.host == URI(webBaseUrl).host) {
+                // Intercept the APK download URL so the WebView doesn't try to
+                // render the binary response — let the DownloadListener handle it.
+                if (uri.path.orEmpty().startsWith("/api/app-download/android")) {
+                    downloadAndInstallUpdate(uri)
+                    return true
+                }
+                return false
+            }
             if (uri.scheme == "https" && uri.host.isYoutubeHost()) return false
 
             runCatching { startActivity(Intent(Intent.ACTION_VIEW, uri)) }
@@ -579,6 +596,155 @@ class MainActivity : ComponentActivity() {
             val count = super.read(buffer, offset, minOf(length.toLong(), remaining).toInt())
             if (count > 0) remaining -= count
             return count
+        }
+    }
+
+    // ── App self-update: download APK and launch the installer ──────────
+
+    private fun isAppUpdateUrl(url: String): Boolean {
+        val parsed = runCatching { URI(url) }.getOrNull() ?: return false
+        val webHost = URI(webBaseUrl).host
+        return parsed.host == webHost && parsed.path.orEmpty().startsWith("/api/app-download/android")
+    }
+
+    private fun downloadAndInstallUpdate(uri: Uri) {
+        // On Android 8+ we need the INSTALL_PACKAGES permission
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && !packageManager.canRequestPackageInstalls()) {
+            // Ask the user to enable "Install unknown apps" for this app
+            runCatching {
+                startActivity(Intent(
+                    android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:$packageName"),
+                ))
+            }
+            Toast.makeText(this, "Please allow app installs, then try updating again.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val dm = getSystemService(DOWNLOAD_SERVICE) as DownloadManager
+        val apkName = "Reelhouse-update-${System.currentTimeMillis()}.apk"
+        val request = DownloadManager.Request(uri)
+            .setTitle("Reelhouse Update")
+            .setDescription("Downloading new version…")
+            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
+            .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, apkName)
+            .setMimeType("application/vnd.android.package-archive")
+
+        updateDownloadId = dm.enqueue(request)
+        Toast.makeText(this, "Downloading update…", Toast.LENGTH_SHORT).show()
+
+        // Notify the WebView JS that the download started
+        webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('reelhouse-update-download',{detail:{status:'downloading'}}))",
+            null,
+        )
+
+        // Register a one-shot receiver to install the APK when download completes
+        unregisterUpdateReceiver()
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                val downloadId = intent.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID, -1L)
+                if (downloadId != updateDownloadId) return
+                unregisterUpdateReceiver()
+                installDownloadedApk(dm, downloadId)
+            }
+        }
+        updateReceiver = receiver
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE), RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("UnspecifiedRegisterReceiverFlag")
+            registerReceiver(receiver, IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE))
+        }
+    }
+
+    private fun installDownloadedApk(dm: DownloadManager, downloadId: Long) {
+        val query = DownloadManager.Query().setFilterById(downloadId)
+        val cursor = dm.query(query)
+        if (cursor == null || !cursor.moveToFirst()) {
+            cursor?.close()
+            Toast.makeText(this, "Update download failed.", Toast.LENGTH_LONG).show()
+            notifyWebViewUpdateStatus("failed")
+            return
+        }
+
+        val statusColumn = cursor.getColumnIndex(DownloadManager.COLUMN_STATUS)
+        val status = if (statusColumn >= 0) cursor.getInt(statusColumn) else -1
+        if (status != DownloadManager.STATUS_SUCCESSFUL) {
+            cursor.close()
+            Toast.makeText(this, "Update download failed.", Toast.LENGTH_LONG).show()
+            notifyWebViewUpdateStatus("failed")
+            return
+        }
+
+        val localUriColumn = cursor.getColumnIndex(DownloadManager.COLUMN_LOCAL_URI)
+        val localUriString = if (localUriColumn >= 0) cursor.getString(localUriColumn) else null
+        cursor.close()
+
+        if (localUriString == null) {
+            Toast.makeText(this, "Update file not found.", Toast.LENGTH_LONG).show()
+            notifyWebViewUpdateStatus("failed")
+            return
+        }
+
+        val localUri = Uri.parse(localUriString)
+        val file = when (localUri.scheme) {
+            "file" -> File(localUri.path!!)
+            "content" -> {
+                // On newer Android, DownloadManager may return a content URI.
+                // Use the dm.openDownloadedFile or derive the file path.
+                val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                val nameColumn = dm.query(DownloadManager.Query().setFilterById(downloadId))?.use { c ->
+                    if (c.moveToFirst()) {
+                        val idx = c.getColumnIndex(DownloadManager.COLUMN_LOCAL_FILENAME)
+                        if (idx >= 0) c.getString(idx) else null
+                    } else null
+                }
+                if (nameColumn != null) File(nameColumn) else File(downloadsDir, "Reelhouse-update.apk")
+            }
+            else -> {
+                Toast.makeText(this, "Could not locate update file.", Toast.LENGTH_LONG).show()
+                notifyWebViewUpdateStatus("failed")
+                return
+            }
+        }
+
+        if (!file.exists()) {
+            Toast.makeText(this, "Update file not found on disk.", Toast.LENGTH_LONG).show()
+            notifyWebViewUpdateStatus("failed")
+            return
+        }
+
+        val installUri = androidx.core.content.FileProvider.getUriForFile(
+            this,
+            "$packageName.files",
+            file,
+        )
+
+        val installIntent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(installUri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+
+        notifyWebViewUpdateStatus("installing")
+        runCatching { startActivity(installIntent) }.onFailure {
+            Toast.makeText(this, "Could not open the installer.", Toast.LENGTH_LONG).show()
+            notifyWebViewUpdateStatus("failed")
+        }
+    }
+
+    private fun notifyWebViewUpdateStatus(status: String) {
+        webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('reelhouse-update-download',{detail:{status:'$status'}}))",
+            null,
+        )
+    }
+
+    private fun unregisterUpdateReceiver() {
+        updateReceiver?.let {
+            runCatching { unregisterReceiver(it) }
+            updateReceiver = null
         }
     }
 

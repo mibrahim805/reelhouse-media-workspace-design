@@ -2,6 +2,7 @@
 <paths xmlns:android="http://schemas.android.com/apk/res/android">
     <external-files-path name="app_downloads" path="." />
     <external-path name="public_downloads" path="Download/Reelhouse/" />
+    <external-path name="public_downloads_root" path="Download/" />
     <external-path name="public_movies" path="Movies/Reelhouse/" />
     <external-path name="public_music" path="Music/Reelhouse/" />
 </paths>
