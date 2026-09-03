@@ -90,7 +90,7 @@ function FeaturedVideoCard({
   onPlay: () => void
   onDownload: () => void
 }) {
-  const aspect = 'aspect-[4/5]'
+  const aspect = card.tall ? 'aspect-[3/4]' : 'aspect-[16/10]'
 
   return (
     <article
@@ -114,7 +114,7 @@ function FeaturedVideoCard({
             loading="lazy"
             decoding="async"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/30 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
           <button
             type="button"
             onClick={(event) => {
@@ -150,9 +150,9 @@ function FeaturedVideoCard({
         <Download className="size-4" />
       </button>
 
-      <div className="pointer-events-none absolute bottom-4 left-4 right-4 z-20">
-        <h2 className="text-lg font-bold tracking-tight text-white">{card.artist}</h2>
-        <p className="text-xs text-[#a3a3a3]">{card.songsCount} · {card.duration}</p>
+      <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20">
+        <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">{card.artist}</h2>
+        <p className="text-xs text-white/70">{card.songsCount} · {card.duration}</p>
       </div>
     </article>
   )
@@ -180,11 +180,6 @@ export function HomeScreen() {
     }
 
     const stored = readRecentSearches()
-    // Searching three YouTube queries through the Android bridge during the
-    // first paint can compete with WebView rendering and make the phone look
-    // frozen. The four featured cards already provide useful Home content;
-    // keep recommendations for the regular browser and load no network work
-    // on the Android shell startup path.
     const isAndroidApp = /ReelhouseAndroid\//i.test(navigator.userAgent)
     if (!online || isAndroidApp) {
       setRecommendations([])
@@ -366,67 +361,115 @@ export function HomeScreen() {
       {/* ── Main Asymmetric Bento Card Grid ── */}
       {filter !== 'downloaded' && (
         <section className="relative z-10 mb-10">
-          <div className="grid grid-cols-2 gap-3.5 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">
-            {FEATURED_CARDS.map(card => (
+          {/* Featured Artists Asymmetric 2-Column Layout */}
+          <div className="grid grid-cols-2 gap-3.5 sm:gap-4">
+            {/* Left Column: A$AP Rocky (Tall) + Linkin Park (Compact) */}
+            <div className="flex flex-col gap-3.5 sm:gap-4">
               <FeaturedVideoCard
-                key={card.id}
-                card={card}
-                playing={playingFeaturedId === card.id}
-                onPlay={() => setPlayingFeaturedId(card.id)}
+                card={FEATURED_CARDS[0]}
+                playing={playingFeaturedId === FEATURED_CARDS[0].id}
+                onPlay={() => setPlayingFeaturedId(FEATURED_CARDS[0].id)}
                 onDownload={() => download.begin({
-                  id: card.videoId,
-                  title: card.title,
-                  channel: card.artist,
-                  duration: card.duration,
-                  thumbnail: card.image,
-                  sourceUrl: `https://www.youtube.com/watch?v=${card.videoId}`,
+                  id: FEATURED_CARDS[0].videoId,
+                  title: FEATURED_CARDS[0].title,
+                  channel: FEATURED_CARDS[0].artist,
+                  duration: FEATURED_CARDS[0].duration,
+                  thumbnail: FEATURED_CARDS[0].image,
+                  sourceUrl: `https://www.youtube.com/watch?v=${FEATURED_CARDS[0].videoId}`,
                 })}
               />
-            ))}
+              <FeaturedVideoCard
+                card={FEATURED_CARDS[2]}
+                playing={playingFeaturedId === FEATURED_CARDS[2].id}
+                onPlay={() => setPlayingFeaturedId(FEATURED_CARDS[2].id)}
+                onDownload={() => download.begin({
+                  id: FEATURED_CARDS[2].videoId,
+                  title: FEATURED_CARDS[2].title,
+                  channel: FEATURED_CARDS[2].artist,
+                  duration: FEATURED_CARDS[2].duration,
+                  thumbnail: FEATURED_CARDS[2].image,
+                  sourceUrl: `https://www.youtube.com/watch?v=${FEATURED_CARDS[2].videoId}`,
+                })}
+              />
+            </div>
 
-            {/* Dynamic Search/Recommendation Videos */}
-            {recommendations.slice(0, 4).map(video => (
-              <Link
-                key={video.id}
-                href={`/watch/${encodeURIComponent(video.id)}`}
-                className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[16/10]"
-              >
-                <img
-                  src={video.thumbnail || '/placeholder.svg'}
-                  alt={video.title}
-                  className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
-                  loading="lazy"
-                  decoding="async"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/40 to-transparent" />
-                {/* Download Button */}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    download.begin(video)
-                  }}
-                  aria-label={`Download ${video.title}`}
-                  className="absolute top-3 right-3 z-20 flex size-9 items-center justify-center rounded-full bg-black/50 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
-                >
-                  <Download className="size-4" />
-                </button>
-                {/* Play Overlay Button */}
-                <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                  <div className="flex size-12 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
-                    <Play className="size-6 fill-white ml-0.5" />
-                  </div>
-                </div>
-                <div className="absolute bottom-4 left-4 right-4">
-                  <h3 className="line-clamp-1 text-base font-bold text-white group-hover:text-fuchsia-300 transition-colors">
-                    {video.title}
-                  </h3>
-                  <p className="text-xs text-[#a3a3a3]">{video.channel || 'YouTube'}</p>
-                </div>
-              </Link>
-            ))}
+            {/* Right Column: Kendrick Lamar (Compact) + Taylor Swift (Tall) */}
+            <div className="flex flex-col gap-3.5 sm:gap-4">
+              <FeaturedVideoCard
+                card={FEATURED_CARDS[1]}
+                playing={playingFeaturedId === FEATURED_CARDS[1].id}
+                onPlay={() => setPlayingFeaturedId(FEATURED_CARDS[1].id)}
+                onDownload={() => download.begin({
+                  id: FEATURED_CARDS[1].videoId,
+                  title: FEATURED_CARDS[1].title,
+                  channel: FEATURED_CARDS[1].artist,
+                  duration: FEATURED_CARDS[1].duration,
+                  thumbnail: FEATURED_CARDS[1].image,
+                  sourceUrl: `https://www.youtube.com/watch?v=${FEATURED_CARDS[1].videoId}`,
+                })}
+              />
+              <FeaturedVideoCard
+                card={FEATURED_CARDS[3]}
+                playing={playingFeaturedId === FEATURED_CARDS[3].id}
+                onPlay={() => setPlayingFeaturedId(FEATURED_CARDS[3].id)}
+                onDownload={() => download.begin({
+                  id: FEATURED_CARDS[3].videoId,
+                  title: FEATURED_CARDS[3].title,
+                  channel: FEATURED_CARDS[3].artist,
+                  duration: FEATURED_CARDS[3].duration,
+                  thumbnail: FEATURED_CARDS[3].image,
+                  sourceUrl: `https://www.youtube.com/watch?v=${FEATURED_CARDS[3].videoId}`,
+                })}
+              />
+            </div>
           </div>
+
+          {/* Dynamic Search/Recommendation Videos */}
+          {recommendations.length > 0 && (
+            <div className="grid grid-cols-2 gap-3.5 sm:gap-4 mt-3.5 sm:mt-4">
+              {recommendations.slice(0, 4).map(video => (
+                <Link
+                  key={video.id}
+                  href={`/watch/${encodeURIComponent(video.id)}`}
+                  className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-video"
+                >
+                  <img
+                    src={video.thumbnail || '/placeholder.svg'}
+                    alt={video.title}
+                    className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                  {/* Download Button */}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      download.begin(video)
+                    }}
+                    aria-label={`Download ${video.title}`}
+                    className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-full bg-black/60 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
+                  >
+                    <Download className="size-3.5" />
+                  </button>
+                  {/* Play Overlay Button */}
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                    <div className="flex size-11 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
+                      <Play className="size-5 fill-white ml-0.5" />
+                    </div>
+                  </div>
+                  <div className="absolute bottom-2.5 left-3 right-3">
+                    <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
+                      {video.title}
+                    </h3>
+                    <p className="text-[11px] text-white/70 truncate">{video.channel || 'YouTube'}</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       )}
 
@@ -451,7 +494,7 @@ export function HomeScreen() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-[16/10]"
+                    className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-video"
                   >
                     <img
                       src={item.thumbnail || '/placeholder.svg'}
@@ -460,15 +503,15 @@ export function HomeScreen() {
                       loading="lazy"
                       decoding="async"
                     />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0b0813] via-[#0b0813]/40 to-transparent" />
-                    <span className="absolute top-3 right-3 rounded-full bg-black/60 border border-white/15 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
+                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/60 border border-white/15 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
                       {isAudio(item) ? 'Audio' : 'Video'}
                     </span>
-                    <div className="absolute bottom-4 left-4 right-4">
-                      <h3 className="line-clamp-1 text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
+                    <div className="absolute bottom-2.5 left-3 right-3">
+                      <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
                         {item.title}
                       </h3>
-                      <p className="text-xs text-[#a3a3a3]">Downloaded offline</p>
+                      <p className="text-[11px] text-white/70">Downloaded offline</p>
                     </div>
                   </Link>
                 )
