@@ -274,29 +274,6 @@ export function HomeScreen() {
         </div>
       )}
 
-      {/* ── Category Chips Filter Row ── */}
-      <nav aria-label="Categories" className="relative z-10 mb-6">
-        <div className="no-scrollbar flex items-center gap-2.5 overflow-x-auto pb-1">
-          {filterChips.map(chip => {
-            const active = filter === chip.value
-            return (
-              <button
-                key={chip.value}
-                type="button"
-                onClick={() => setFilter(chip.value)}
-                className={`shrink-0 rounded-full px-5 py-2.5 text-xs font-semibold transition-all duration-300 active:scale-95 ${
-                  active
-                    ? 'bg-[#c026d3] text-white shadow-lg shadow-fuchsia-500/30'
-                    : 'bg-[#1b162a]/80 text-[#a3a3a3] border border-white/10 hover:bg-white/10 hover:text-white'
-                }`}
-              >
-                {chip.label}
-              </button>
-            )
-          })}
-        </div>
-      </nav>
-
       {/* ── Offline Banner Alert ── */}
       {!online && (
         <div className="relative z-10 mb-6 rounded-2xl border border-white/10 bg-[#161124]/90 p-4 text-center backdrop-blur-xl">
