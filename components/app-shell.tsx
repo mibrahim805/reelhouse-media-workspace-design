@@ -81,6 +81,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Full-screen immersive screens — no desktop top bar but keep bottom nav
   const isPlayer = pathname.startsWith('/player/') || pathname.startsWith('/music/')
 
+  const activeNavIndex = NAV.findIndex(item =>
+    item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+  )
+
   return (
     <div className="flex min-h-svh flex-col bg-[#0b0813] text-white relative overflow-x-hidden" onClickCapture={handleShellClick}>
       {navigationPending && <div className="navigation-progress" role="status" aria-label="Loading page" />}
@@ -156,23 +160,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         className="liquid-glass-pill fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3.5 rounded-full p-2.5 md:hidden"
         aria-label="Primary navigation"
       >
-        {NAV.map(item => {
-          const active = item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+        {/* Sliding 3D Liquid Water Bubble Droplet Indicator */}
+        {activeNavIndex !== -1 && (
+          <div
+            className="sliding-liquid-bubble"
+            style={{
+              transform: `translate3d(${activeNavIndex * 58}px, 0, 0)`,
+            }}
+          />
+        )}
+
+        {NAV.map((item, index) => {
+          const active = index === activeNavIndex
           const Icon = item.icon
           return (
             <Link
               key={item.href}
               href={item.href}
               className={cn(
-                'relative flex items-center justify-center transition-all duration-300 active:scale-90',
-                active
-                  ? 'size-11 rounded-full liquid-glow-btn text-white'
-                  : 'size-10 rounded-full text-white/70 hover:text-white hover:bg-white/10',
+                'relative z-10 flex size-11 items-center justify-center rounded-full transition-all duration-300 active:scale-90',
+                active ? 'text-white drop-shadow-md font-bold' : 'text-white/70 hover:text-white',
               )}
             >
-              <Icon className="size-5" />
+              <Icon className={cn('size-5 transition-transform duration-300', active && 'scale-110')} />
               {item.label === 'Downloads' && activeCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#d946ef] text-[9px] font-bold text-white ring-2 ring-[#0b0813] shadow-[0_0_8px_rgba(217,70,239,0.8)]">
+                <span className="absolute -top-1 -right-1 z-20 flex size-4 items-center justify-center rounded-full bg-[#d946ef] text-[9px] font-bold text-white ring-2 ring-[#0b0813] shadow-[0_0_8px_rgba(217,70,239,0.8)]">
                   {activeCount}
                 </span>
               )}
