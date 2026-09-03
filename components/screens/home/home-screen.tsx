@@ -94,7 +94,7 @@ function FeaturedVideoCard({
 
   return (
     <article
-      className={`home-card liquid-glass-card group relative overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] ${aspect}`}
+      className={`home-card liquid-glass-card card-3d-effect group relative overflow-hidden rounded-3xl preserve-3d ${aspect}`}
       onClick={() => { if (!playing) onPlay() }}
     >
       {playing ? (
@@ -122,9 +122,9 @@ function FeaturedVideoCard({
               onPlay()
             }}
             aria-label={`Play ${card.title}`}
-            className="absolute inset-0 z-10 flex items-center justify-center"
+            className="absolute inset-0 z-10 flex items-center justify-center translate-z-30"
           >
-            <span className="flex size-12 items-center justify-center rounded-full liquid-glow-btn text-white shadow-xl">
+            <span className="flex size-12 items-center justify-center rounded-full liquid-glow-btn text-white shadow-xl group-hover:scale-110 transition-transform duration-300">
               <Play className="ml-0.5 size-6 fill-white" />
             </span>
           </button>
@@ -132,7 +132,7 @@ function FeaturedVideoCard({
       )}
 
       {card.badge && (
-        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-xl shadow-lg">
+        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/30 bg-black/50 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-xl shadow-lg translate-z-20">
           {card.badge}
         </div>
       )}
@@ -145,14 +145,14 @@ function FeaturedVideoCard({
           onDownload()
         }}
         aria-label={`Download ${card.artist}`}
-        className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full border border-white/25 bg-black/40 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:border-[#d946ef] hover:text-white hover:scale-110 active:scale-95 shadow-lg"
+        className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full border border-white/30 bg-black/50 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:border-[#d946ef] hover:text-white hover:scale-110 active:scale-95 shadow-lg translate-z-20"
       >
         <Download className="size-4" />
       </button>
 
-      <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20">
-        <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">{card.artist}</h2>
-        <p className="text-xs text-white/75">{card.songsCount} · {card.duration}</p>
+      <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20 translate-z-30">
+        <h2 className="text-base font-bold tracking-tight text-white sm:text-lg drop-shadow-md">{card.artist}</h2>
+        <p className="text-xs text-white/80 drop-shadow">{card.songsCount} · {card.duration}</p>
       </div>
     </article>
   )
@@ -438,7 +438,7 @@ export function HomeScreen() {
                 <Link
                   key={video.id}
                   href={`/watch/${encodeURIComponent(video.id)}`}
-                  className="home-card liquid-glass-card group relative block overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] aspect-video"
+                  className="home-card liquid-glass-card card-3d-effect group relative block overflow-hidden rounded-3xl preserve-3d aspect-video"
                 >
                   <img
                     src={video.thumbnail || '/placeholder.svg'}
@@ -457,18 +457,18 @@ export function HomeScreen() {
                       download.begin(video)
                     }}
                     aria-label={`Download ${video.title}`}
-                    className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-full bg-black/40 border border-white/25 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:text-white hover:border-[#d946ef] hover:scale-110 active:scale-95 shadow-lg"
+                    className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-full bg-black/40 border border-white/25 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:text-white hover:border-[#d946ef] hover:scale-110 active:scale-95 shadow-lg translate-z-20"
                   >
                     <Download className="size-3.5" />
                   </button>
                   {/* Play Overlay Button */}
-                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
+                  <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none translate-z-30">
                     <div className="flex size-11 items-center justify-center rounded-full liquid-glow-btn text-white shadow-xl scale-90 group-hover:scale-100 transition-transform duration-300">
                       <Play className="size-5 fill-white ml-0.5" />
                     </div>
                   </div>
-                  <div className="absolute bottom-2.5 left-3 right-3">
-                    <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
+                  <div className="absolute bottom-2.5 left-3 right-3 translate-z-30">
+                    <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors drop-shadow-md">
                       {video.title}
                     </h3>
                     <p className="text-[11px] text-white/75 truncate">{video.channel || 'YouTube'}</p>
@@ -501,7 +501,7 @@ export function HomeScreen() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="home-card liquid-glass-card group relative block overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] aspect-video"
+                    className="home-card liquid-glass-card card-3d-effect group relative block overflow-hidden rounded-3xl preserve-3d aspect-video"
                   >
                     <img
                       src={item.thumbnail || '/placeholder.svg'}
@@ -511,11 +511,11 @@ export function HomeScreen() {
                       decoding="async"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/40 border border-white/20 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xl shadow-md">
+                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/40 border border-white/20 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xl shadow-md translate-z-20">
                       {isAudio(item) ? 'Audio' : 'Video'}
                     </span>
-                    <div className="absolute bottom-2.5 left-3 right-3">
-                      <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
+                    <div className="absolute bottom-2.5 left-3 right-3 translate-z-30">
+                      <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors drop-shadow-md">
                         {item.title}
                       </h3>
                       <p className="text-[11px] text-white/75">Downloaded offline</p>

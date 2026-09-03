@@ -82,19 +82,28 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isPlayer = pathname.startsWith('/player/') || pathname.startsWith('/music/')
 
   return (
-    <div className="flex min-h-svh flex-col bg-[#090909]" onClickCapture={handleShellClick}>
+    <div className="flex min-h-svh flex-col bg-[#0b0813] text-white relative overflow-x-hidden" onClickCapture={handleShellClick}>
       {navigationPending && <div className="navigation-progress" role="status" aria-label="Loading page" />}
+
+      {/* ── Global Background Floating 3D Water Bubbles & Ambient Blobs ── */}
+      <div className="home-glow animate-liquid-blob-1 fixed -top-32 -right-32 size-[500px] rounded-full bg-gradient-to-br from-fuchsia-600/25 via-purple-600/15 to-pink-500/15 blur-[120px] pointer-events-none z-0" />
+      <div className="home-glow animate-liquid-blob-2 fixed top-1/2 -left-32 size-[450px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/15 blur-[130px] pointer-events-none z-0" />
+
+      <div className="water-bubble fixed top-16 -right-10 size-40 opacity-70 z-0" style={{ animationDelay: '0s' }} />
+      <div className="water-bubble fixed top-1/3 -left-14 size-52 opacity-60 z-0" style={{ animationDelay: '-4s' }} />
+      <div className="water-bubble fixed top-2/3 right-6 size-32 opacity-65 z-0" style={{ animationDelay: '-8s' }} />
+      <div className="water-bubble fixed bottom-20 left-12 size-44 opacity-55 z-0" style={{ animationDelay: '-12s' }} />
 
       {/* ── Desktop top nav (≥ md) ── */}
       {!isPlayer && (
-        <header className="sticky top-0 z-50 hidden border-b border-[#292929] glass-panel md:block transition-all duration-300">
-          <div className="mx-auto flex h-14 w-full max-w-[1400px] items-center gap-4 px-5">
+        <header className="sticky top-0 z-50 hidden liquid-glass-pill border-b-0 my-3 mx-auto w-[95%] max-w-[1400px] rounded-2xl md:block transition-all duration-300">
+          <div className="mx-auto flex h-14 w-full items-center gap-4 px-5">
             {/* Logo */}
             <Link href="/" className="flex shrink-0 items-center gap-2 group">
-              <span className="flex size-8 items-center justify-center rounded-lg bg-primary transition-all duration-300 group-hover:shadow-lg group-hover:shadow-primary/30 group-hover:scale-105">
+              <span className="flex size-8 items-center justify-center rounded-lg liquid-glow-btn text-white transition-all duration-300 group-hover:scale-105">
                 <Play className="size-4 fill-white text-white" />
               </span>
-              <span className="text-[15px] font-bold tracking-tight text-white">{APP_BRAND.name}</span>
+              <span className="text-[15px] font-bold tracking-tight text-white drop-shadow">{APP_BRAND.name}</span>
             </Link>
 
             {/* Nav links */}
@@ -107,26 +116,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     key={item.href}
                     href={item.href}
                     className={cn(
-                      'relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-300 active:scale-95',
-                      active ? 'bg-primary/15 text-primary' : 'text-[#a3a3a3] hover:bg-[#1d1d1d] hover:text-white',
+                      'relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all duration-300 active:scale-95',
+                      active ? 'liquid-glow-btn text-white font-bold' : 'text-white/70 hover:bg-white/10 hover:text-white',
                     )}
                   >
                     <Icon className={cn('size-4 transition-transform duration-300', active && 'scale-110')} />
                     {item.label}
-                    {active && (
-                      <span className="nav-indicator absolute -bottom-[11px] left-1/2 h-[2px] w-6 -translate-x-1/2 rounded-full bg-primary" />
-                    )}
                   </Link>
                 )
               })}
               <Link href="/youtube" className={cn(
-                'relative flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-300',
-                pathname.startsWith('/youtube') ? 'bg-primary/15 text-primary' : 'text-[#a3a3a3] hover:bg-[#1d1d1d] hover:text-white',
+                'relative flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-[13px] font-medium transition-all duration-300',
+                pathname.startsWith('/youtube') ? 'liquid-glow-btn text-white font-bold' : 'text-white/70 hover:bg-white/10 hover:text-white',
               )}>
                 <Tv className="size-4" /> YouTube
-                {pathname.startsWith('/youtube') && (
-                  <span className="nav-indicator absolute -bottom-[11px] left-1/2 h-[2px] w-6 -translate-x-1/2 rounded-full bg-primary" />
-                )}
               </Link>
             </nav>
 
@@ -135,7 +138,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <DownloadBadge />
               <Link
                 href="/profile"
-                className="flex size-9 items-center justify-center rounded-full bg-[#1d1d1d] text-xs font-bold text-white transition-all duration-300 hover:bg-primary/20 hover:scale-105 active:scale-95"
+                className="flex size-9 items-center justify-center rounded-full liquid-glass-input text-xs font-bold text-white transition-all duration-300 hover:border-[#d946ef] hover:scale-105 active:scale-95 shadow-md"
                 aria-label="Profile"
               >
                 R
