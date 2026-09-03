@@ -246,19 +246,85 @@ html {
 
 /* Mobile WebViews have less GPU headroom for large filters and composited
    hover effects. Keep the Home artwork, but make its first paint cheap. */
+/* ═══════════════════════════════════════════════
+   LIQUID GLASSMORPHISM DESIGN SYSTEM
+   ═══════════════════════════════════════════════ */
+
+.liquid-glass-card {
+  background: rgba(23, 17, 38, 0.65) !important;
+  backdrop-filter: blur(24px) saturate(160%) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(160%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  box-shadow: 
+    0 8px 32px 0 rgba(0, 0, 0, 0.37),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.25) !important;
+}
+
+.liquid-glass-card:hover {
+  background: rgba(32, 23, 53, 0.78) !important;
+  border-color: rgba(217, 70, 239, 0.45) !important;
+  box-shadow: 
+    0 12px 40px 0 rgba(192, 38, 211, 0.35),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
+.liquid-glass-pill {
+  background: rgba(22, 16, 38, 0.75) !important;
+  backdrop-filter: blur(28px) saturate(180%) !important;
+  -webkit-backdrop-filter: blur(28px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  box-shadow: 
+    0 16px 48px -8px rgba(0, 0, 0, 0.65),
+    0 0 24px 0 rgba(192, 38, 211, 0.2),
+    inset 0 1.5px 1.5px 0 rgba(255, 255, 255, 0.35) !important;
+}
+
+.liquid-glow-btn {
+  background: linear-gradient(135deg, #d946ef 0%, #c026d3 50%, #9333ea 100%) !important;
+  box-shadow: 
+    0 4px 24px 0 rgba(192, 38, 211, 0.6),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.45) !important;
+}
+
+.liquid-glass-input {
+  background: rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.25) !important;
+}
+
+.liquid-glass-input:focus {
+  border-color: #d946ef !important;
+  box-shadow: 
+    0 0 24px 0 rgba(217, 70, 239, 0.4),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2) !important;
+}
+
+@keyframes float-blob-1 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(30px, -40px, 0) scale(1.1); }
+  66% { transform: translate3d(-20px, 20px, 0) scale(0.95); }
+}
+
+@keyframes float-blob-2 {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  33% { transform: translate3d(-40px, 30px, 0) scale(1.08); }
+  66% { transform: translate3d(25px, -35px, 0) scale(0.92); }
+}
+
+.animate-liquid-blob-1 {
+  animation: float-blob-1 14s ease-in-out infinite;
+}
+
+.animate-liquid-blob-2 {
+  animation: float-blob-2 18s ease-in-out infinite;
+}
+
 @media (max-width: 767px) {
-  .home-screen .home-glow { display: none; }
-  .home-screen .home-backdrop {
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+  .home-screen .home-glow {
+    opacity: 0.8;
   }
-  .home-screen .home-card,
-  .home-screen .home-card-image { transition: none !important; }
-  .home-screen .home-card:hover {
-    transform: none;
-    box-shadow: none;
-  }
-  .home-screen .home-card:hover .home-card-image { transform: none; }
 }
 
 .navigation-progress {

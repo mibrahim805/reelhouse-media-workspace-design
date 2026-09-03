@@ -94,7 +94,7 @@ function FeaturedVideoCard({
 
   return (
     <article
-      className={`home-card group relative overflow-hidden rounded-3xl border border-white/10 bg-[#171226] ${aspect}`}
+      className={`home-card liquid-glass-card group relative overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] ${aspect}`}
       onClick={() => { if (!playing) onPlay() }}
     >
       {playing ? (
@@ -110,7 +110,7 @@ function FeaturedVideoCard({
           <img
             src={card.image}
             alt={card.artist}
-            className="home-card-image size-full object-cover"
+            className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-105"
             loading="lazy"
             decoding="async"
           />
@@ -124,7 +124,7 @@ function FeaturedVideoCard({
             aria-label={`Play ${card.title}`}
             className="absolute inset-0 z-10 flex items-center justify-center"
           >
-            <span className="flex size-12 items-center justify-center rounded-full bg-[#c026d3]/95 text-white shadow-xl shadow-fuchsia-500/40">
+            <span className="flex size-12 items-center justify-center rounded-full liquid-glow-btn text-white shadow-xl">
               <Play className="ml-0.5 size-6 fill-white" />
             </span>
           </button>
@@ -132,7 +132,7 @@ function FeaturedVideoCard({
       )}
 
       {card.badge && (
-        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/15 bg-black/60 px-3 py-1 text-[11px] font-medium text-white shadow-md">
+        <div className="absolute left-3 top-3 z-20 rounded-full border border-white/20 bg-black/40 px-3 py-1 text-[11px] font-semibold text-white backdrop-blur-xl shadow-lg">
           {card.badge}
         </div>
       )}
@@ -145,14 +145,14 @@ function FeaturedVideoCard({
           onDownload()
         }}
         aria-label={`Download ${card.artist}`}
-        className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full border border-white/20 bg-black/60 text-white/80 shadow-lg transition-all hover:border-[#c026d3] hover:bg-[#c026d3] hover:text-white hover:scale-110 active:scale-95"
+        className="absolute right-3 top-3 z-20 flex size-9 items-center justify-center rounded-full border border-white/25 bg-black/40 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:border-[#d946ef] hover:text-white hover:scale-110 active:scale-95 shadow-lg"
       >
         <Download className="size-4" />
       </button>
 
       <div className="pointer-events-none absolute bottom-3 left-3 right-3 z-20">
         <h2 className="text-base font-bold tracking-tight text-white sm:text-lg">{card.artist}</h2>
-        <p className="text-xs text-white/70">{card.songsCount} · {card.duration}</p>
+        <p className="text-xs text-white/75">{card.songsCount} · {card.duration}</p>
       </div>
     </article>
   )
@@ -210,9 +210,9 @@ export function HomeScreen() {
 
   return (
     <main className="home-screen relative min-h-screen bg-[#0b0813] text-white px-4 pt-5 pb-36 sm:px-6 md:pb-16 max-w-[1240px] mx-auto overflow-hidden">
-      {/* ── Background Ambient Lighting & Wave Line Graphics ── */}
-      <div className="home-glow absolute top-0 right-0 size-[380px] rounded-full bg-purple-600/15 blur-[120px] pointer-events-none" />
-      <div className="home-glow absolute top-1/3 left-0 size-[320px] rounded-full bg-fuchsia-600/10 blur-[130px] pointer-events-none" />
+      {/* ── Background Ambient Lighting & Liquid Wave Graphics ── */}
+      <div className="home-glow animate-liquid-blob-1 absolute -top-24 -right-24 size-[450px] rounded-full bg-gradient-to-br from-fuchsia-600/30 via-purple-600/20 to-pink-500/20 blur-[110px] pointer-events-none" />
+      <div className="home-glow animate-liquid-blob-2 absolute top-1/3 -left-24 size-[400px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/20 blur-[120px] pointer-events-none" />
 
       {/* Concentric circular background line waves (Top-Left) */}
       <svg
@@ -230,7 +230,7 @@ export function HomeScreen() {
 
       {/* ── Top Header Bar ── */}
       <header className="relative z-10 flex items-center justify-between">
-        {/* User Profile Avatar with vibrant gradient ring */}
+        {/* User Profile Avatar with vibrant liquid ring */}
         <button
           type="button"
           onClick={() => {
@@ -240,7 +240,7 @@ export function HomeScreen() {
           aria-label="User Profile"
           className="group relative block text-left"
         >
-          <div className="size-12 rounded-full p-[2px] bg-gradient-to-tr from-blue-500 via-purple-500 to-pink-500 shadow-md shadow-purple-500/20 transition-transform duration-300 group-hover:scale-105">
+          <div className="size-12 rounded-full p-[2px] bg-gradient-to-tr from-pink-500 via-fuchsia-500 to-purple-500 shadow-[0_0_20px_rgba(217,70,239,0.4)] transition-transform duration-300 group-hover:scale-105">
             <div className="size-full rounded-full overflow-hidden bg-[#181324] flex items-center justify-center">
               <img
                 src="/placeholder-user.jpg"
@@ -259,7 +259,7 @@ export function HomeScreen() {
           <Link
             href="/search"
             aria-label="Search"
-            className="home-backdrop flex size-11 items-center justify-center rounded-full bg-[#1e182e]/80 border border-white/10 text-white/80 transition-all duration-300 hover:bg-white/10 hover:text-white hover:scale-105 active:scale-95 backdrop-blur-xl"
+            className="liquid-glass-pill flex size-11 items-center justify-center rounded-full text-white/80 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
           >
             <Search className="size-5" />
           </Link>
@@ -269,11 +269,11 @@ export function HomeScreen() {
             type="button"
             onClick={() => setPanelOpen(!panelOpen)}
             aria-label="Downloads panel"
-            className="home-backdrop relative flex size-11 items-center justify-center rounded-full bg-[#1e182e]/80 border border-white/10 text-white/80 transition-all duration-300 hover:bg-white/10 hover:text-white hover:scale-105 active:scale-95 backdrop-blur-xl"
+            className="liquid-glass-pill relative flex size-11 items-center justify-center rounded-full text-white/80 transition-all duration-300 hover:text-white hover:scale-105 active:scale-95"
           >
             <Bell className="size-5" />
             {activeCount > 0 && (
-              <span className="absolute top-2 right-2 size-2.5 rounded-full bg-[#c026d3] ring-2 ring-[#0b0813] animate-pulse" />
+              <span className="absolute top-2 right-2 size-2.5 rounded-full bg-[#d946ef] ring-2 ring-[#0b0813] animate-pulse shadow-[0_0_8px_rgba(217,70,239,0.8)]" />
             )}
           </button>
         </div>
@@ -291,7 +291,7 @@ export function HomeScreen() {
             setIsNameModalOpen(true)
           }}
           aria-label="Edit Name"
-          className="rounded-full p-1.5 text-white/40 hover:bg-white/10 hover:text-white transition-all"
+          className="rounded-full p-1.5 text-white/50 hover:bg-white/10 hover:text-white transition-all"
         >
           <Pencil className="size-4" />
         </button>
@@ -299,16 +299,16 @@ export function HomeScreen() {
 
       {/* ── First-Time User Name Setup Modal ── */}
       {isNameModalOpen && (
-        <div className="home-backdrop fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md px-4 animate-in fade-in duration-300">
-          <div className="w-full max-w-md rounded-3xl border border-white/15 bg-[#161124] p-6 shadow-2xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xl px-4 animate-in fade-in duration-300">
+          <div className="liquid-glass-card w-full max-w-md rounded-3xl p-6 shadow-2xl">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <div className="flex size-10 items-center justify-center rounded-2xl bg-[#c026d3]/20 border border-[#c026d3]/30 text-[#c026d3]">
+                <div className="flex size-10 items-center justify-center rounded-2xl bg-[#d946ef]/20 border border-[#d946ef]/30 text-[#d946ef]">
                   <User className="size-5" />
                 </div>
                 <div>
                   <h2 className="text-lg font-bold text-white">Welcome to My UTube</h2>
-                  <p className="text-xs text-[#a3a3a3]">Enter your name to customize your app</p>
+                  <p className="text-xs text-white/70">Enter your name to customize your app</p>
                 </div>
               </div>
               {userName && (
@@ -324,21 +324,21 @@ export function HomeScreen() {
 
             <form onSubmit={handleSaveName} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-[#a3a3a3] mb-1.5">Your Name</label>
+                <label className="block text-xs font-semibold text-white/70 mb-1.5">Your Name</label>
                 <input
                   type="text"
                   value={inputName}
                   onChange={(e) => setInputName(e.target.value)}
                   placeholder="e.g. Ibrahim"
                   autoFocus
-                  className="w-full rounded-2xl border border-white/15 bg-[#1e182e] px-4 py-3.5 text-sm font-medium text-white placeholder:text-white/30 focus:border-[#c026d3] focus:outline-none focus:ring-2 focus:ring-[#c026d3]/30 transition-all"
+                  className="liquid-glass-input w-full rounded-2xl px-4 py-3.5 text-sm font-medium text-white placeholder:text-white/30 focus:outline-none transition-all"
                 />
               </div>
 
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full rounded-2xl bg-[#c026d3] py-3.5 text-sm font-bold text-white shadow-lg shadow-fuchsia-500/30 hover:bg-[#a21caf] transition-all active:scale-95"
+                  className="w-full rounded-2xl liquid-glow-btn py-3.5 text-sm font-bold text-white transition-all active:scale-95"
                 >
                   Save Name & Continue
                 </button>
@@ -350,9 +350,9 @@ export function HomeScreen() {
 
       {/* ── Offline Banner Alert ── */}
       {!online && (
-        <div className="home-backdrop relative z-10 mb-6 rounded-2xl border border-white/10 bg-[#161124]/90 p-4 text-center backdrop-blur-xl">
+        <div className="liquid-glass-card relative z-10 mb-6 rounded-2xl p-4 text-center">
           <p className="text-sm font-semibold text-white">You&apos;re offline</p>
-          <p className="mt-1 text-xs text-[#a3a3a3]">
+          <p className="mt-1 text-xs text-white/70">
             Downloaded music and videos remain available in your Library.
           </p>
         </div>
@@ -431,12 +431,12 @@ export function HomeScreen() {
                 <Link
                   key={video.id}
                   href={`/watch/${encodeURIComponent(video.id)}`}
-                  className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-video"
+                  className="home-card liquid-glass-card group relative block overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] aspect-video"
                 >
                   <img
                     src={video.thumbnail || '/placeholder.svg'}
                     alt={video.title}
-                    className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
+                    className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-105"
                     loading="lazy"
                     decoding="async"
                   />
@@ -450,13 +450,13 @@ export function HomeScreen() {
                       download.begin(video)
                     }}
                     aria-label={`Download ${video.title}`}
-                    className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-full bg-black/60 border border-white/20 text-white/80 backdrop-blur-md transition-all hover:bg-[#c026d3] hover:text-white hover:border-[#c026d3] hover:scale-110 active:scale-95 shadow-lg"
+                    className="absolute top-2.5 right-2.5 z-20 flex size-8 items-center justify-center rounded-full bg-black/40 border border-white/25 text-white/90 backdrop-blur-xl transition-all hover:bg-[#d946ef] hover:text-white hover:border-[#d946ef] hover:scale-110 active:scale-95 shadow-lg"
                   >
                     <Download className="size-3.5" />
                   </button>
                   {/* Play Overlay Button */}
                   <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none">
-                    <div className="flex size-11 items-center justify-center rounded-full bg-[#c026d3] text-white shadow-xl shadow-fuchsia-500/50 scale-90 group-hover:scale-100 transition-transform duration-300">
+                    <div className="flex size-11 items-center justify-center rounded-full liquid-glow-btn text-white shadow-xl scale-90 group-hover:scale-100 transition-transform duration-300">
                       <Play className="size-5 fill-white ml-0.5" />
                     </div>
                   </div>
@@ -464,7 +464,7 @@ export function HomeScreen() {
                     <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
                       {video.title}
                     </h3>
-                    <p className="text-[11px] text-white/70 truncate">{video.channel || 'YouTube'}</p>
+                    <p className="text-[11px] text-white/75 truncate">{video.channel || 'YouTube'}</p>
                   </div>
                 </Link>
               ))}
@@ -478,10 +478,10 @@ export function HomeScreen() {
         <section className="relative z-10 mt-8 mb-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-              <CheckCircle2 className="size-5 text-[#c026d3]" />
+              <CheckCircle2 className="size-5 text-[#d946ef]" />
               Downloaded
             </h2>
-            <Link href="/library" className="text-xs font-semibold text-[#c026d3] hover:underline">
+            <Link href="/library" className="text-xs font-semibold text-[#d946ef] hover:underline">
               Open Library
             </Link>
           </div>
@@ -494,34 +494,34 @@ export function HomeScreen() {
                   <Link
                     key={item.id}
                     href={href}
-                    className="home-card group relative block overflow-hidden rounded-3xl border border-white/10 bg-[#171226] transition-all duration-500 hover:scale-[1.02] hover:shadow-2xl hover:shadow-purple-500/20 aspect-video"
+                    className="home-card liquid-glass-card group relative block overflow-hidden rounded-3xl transition-all duration-500 hover:scale-[1.02] aspect-video"
                   >
                     <img
                       src={item.thumbnail || '/placeholder.svg'}
                       alt={item.title}
-                      className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-110"
+                      className="home-card-image size-full object-cover transition-transform duration-700 group-hover:scale-105"
                       loading="lazy"
                       decoding="async"
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/30 to-transparent" />
-                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/60 border border-white/15 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-md">
+                    <span className="absolute top-2.5 right-2.5 rounded-full bg-black/40 border border-white/20 px-2.5 py-0.5 text-[10px] font-semibold text-white backdrop-blur-xl shadow-md">
                       {isAudio(item) ? 'Audio' : 'Video'}
                     </span>
                     <div className="absolute bottom-2.5 left-3 right-3">
                       <h3 className="line-clamp-1 text-xs sm:text-sm font-bold text-white group-hover:text-fuchsia-300 transition-colors">
                         {item.title}
                       </h3>
-                      <p className="text-[11px] text-white/70">Downloaded offline</p>
+                      <p className="text-[11px] text-white/75">Downloaded offline</p>
                     </div>
                   </Link>
                 )
               })}
             </div>
           ) : (
-            <div className="rounded-3xl border border-dashed border-white/10 bg-[#140f21]/80 p-8 text-center backdrop-blur-xl">
-              <Music2 className="mx-auto size-8 text-[#a3a3a3]/50 mb-2" />
+            <div className="liquid-glass-card rounded-3xl p-8 text-center border-dashed">
+              <Music2 className="mx-auto size-8 text-white/50 mb-2" />
               <p className="text-sm font-semibold text-white">No downloaded media yet</p>
-              <p className="mt-1 text-xs text-[#a3a3a3]">
+              <p className="mt-1 text-xs text-white/70">
                 Search for any track or video to download it for offline listening.
               </p>
             </div>

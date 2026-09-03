@@ -150,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile bottom nav (< md) ── */}
       <nav
-        className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-[#171124] p-2 shadow-lg md:hidden"
+        className="liquid-glass-pill fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3.5 rounded-full p-2.5 md:hidden"
         aria-label="Primary navigation"
       >
         {NAV.map(item => {
@@ -163,13 +163,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               className={cn(
                 'relative flex items-center justify-center transition-all duration-300 active:scale-90',
                 active
-                  ? 'size-11 rounded-full bg-[#c026d3] text-white shadow-lg shadow-fuchsia-500/40'
-                  : 'size-10 rounded-full text-[#a3a3a3] hover:text-white hover:bg-white/10',
+                  ? 'size-11 rounded-full liquid-glow-btn text-white'
+                  : 'size-10 rounded-full text-white/70 hover:text-white hover:bg-white/10',
               )}
             >
               <Icon className="size-5" />
               {item.label === 'Downloads' && activeCount > 0 && (
-                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#c026d3] text-[9px] font-bold text-white ring-2 ring-[#0b0813]">
+                <span className="absolute -top-1 -right-1 flex size-4 items-center justify-center rounded-full bg-[#d946ef] text-[9px] font-bold text-white ring-2 ring-[#0b0813] shadow-[0_0_8px_rgba(217,70,239,0.8)]">
                   {activeCount}
                 </span>
               )}
