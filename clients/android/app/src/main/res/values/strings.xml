@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">my yt</string>
+    <string name="app_name">My UTube</string>
     <string name="splash_author">by Ibrahim</string>
 
     <string name="downloads_processing">Processing locally…</string>

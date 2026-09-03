@@ -118,7 +118,7 @@ export function LibraryHub() {
           </Link>
         }
       />
-      {localMedia.permissionRequired && <div className="mb-5 rounded-2xl border border-primary/30 bg-primary/10 p-4"><p className="text-sm font-semibold text-white">Allow device media access</p><p className="mt-1 text-xs text-[#a3a3a3]">Allow my yt to access videos and music on this device so they can appear in your Library. Downloaded app media remains available.</p><button type="button" onClick={refreshLocalMedia} className="mt-3 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white">Check permission again</button></div>}
+      {localMedia.permissionRequired && <div className="mb-5 rounded-2xl border border-primary/30 bg-primary/10 p-4"><p className="text-sm font-semibold text-white">Allow device media access</p><p className="mt-1 text-xs text-[#a3a3a3]">Allow My UTube to access videos and music on this device so they can appear in your Library. Downloaded app media remains available.</p><button type="button" onClick={refreshLocalMedia} className="mt-3 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-white">Check permission again</button></div>}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <LibTile href="/library/videos" icon={<Video />} title="Videos" value={videos.length} />
         <LibTile href="/library/music" icon={<Music2 />} title="Music" value={music.length} />

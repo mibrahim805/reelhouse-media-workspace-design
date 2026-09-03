@@ -86,7 +86,7 @@ export function Splash() {
     <Entry>
       <div className="flex flex-1 flex-col items-center justify-center">
         <Logo />
-        <h1 className="mt-6 text-3xl font-bold tracking-tight text-white">my yt</h1>
+        <h1 className="mt-6 text-3xl font-bold tracking-tight text-white">My UTube</h1>
         <p className="mt-2 text-sm text-[#a3a3a3]">Watch. Save. Enjoy.</p>
         <span
           className="mt-10 size-6 animate-spin rounded-full border-2 border-[#292929] border-t-primary"

@@ -1,5 +1,5 @@
 export const APP_BRAND = {
-  name: 'my yt',
+  name: 'My UTube',
   version: '1.6.17',
   author: 'Ibrahim',
 } as const
