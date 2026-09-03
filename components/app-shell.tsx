@@ -150,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile bottom nav (< md) ── */}
       <nav
-        className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-[#171124]/90 p-2 shadow-2xl backdrop-blur-2xl md:hidden"
+        className="fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3 rounded-full border border-white/15 bg-[#171124] p-2 shadow-lg md:hidden"
         aria-label="Primary navigation"
       >
         {NAV.map(item => {

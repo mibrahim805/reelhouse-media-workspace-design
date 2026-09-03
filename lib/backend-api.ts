@@ -10,6 +10,8 @@ export type { OnlineVideo } from '@/types/media'
 import type { OnlineVideo } from '@/types/media'
 export type YoutubeSearchVideo = OnlineVideo
 
+let localMediaInFlight: Promise<LocalMediaResponse> | null = null
+
 /**
  * Thrown when the service worker intercepts an API call but the backend
  * (Django) is unreachable. Callers can `instanceof BackendOfflineError`
@@ -63,4 +65,13 @@ export async function fetchBackendProgress(jobId:string):Promise<BackendJob>{
   const raw=job.result as Record<string,unknown>|null|undefined
   return {status:(job.status||'queued') as BackendJob['status'],percent:Number(job.percent||0),speed:job.speed as number|null|undefined,eta:job.eta as number|null|undefined,error:job.error as string|null|undefined,result:raw?{title:String(raw.title||''),filename:String(raw.filename||'download'),fileUrl:fileUrl(String(raw.file_url||'')),filesizeMb:Number(raw.filesize_mb||0),sourceUrl:String(raw.source_url||'')}:null}
 }
-export async function fetchLocalMedia(): Promise<LocalMediaResponse> { return get<LocalMediaResponse>('local-media') }
+export function fetchLocalMedia(): Promise<LocalMediaResponse> {
+  // DownloadProvider and LibraryProvider both request this on startup. Share
+  // the native bridge call so Android does not scan MediaStore twice at once.
+  if (!localMediaInFlight) {
+    localMediaInFlight = get<LocalMediaResponse>('local-media').finally(() => {
+      localMediaInFlight = null
+    })
+  }
+  return localMediaInFlight
+}

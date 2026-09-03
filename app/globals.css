@@ -139,9 +139,8 @@ html {
    ═══════════════════════════════════════════════ */
 
 @keyframes page-enter {
-  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.988); filter: blur(2px); }
-  60%  { opacity: 1; filter: blur(0); }
-  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translate3d(0, 18px, 0) scale(0.988); }
+  to   { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
 }
 
 @keyframes page-exit {
@@ -243,6 +242,23 @@ html {
 .page-transition {
   animation: page-enter .18s var(--ease-spring) both;
   will-change: opacity, transform;
+}
+
+/* Mobile WebViews have less GPU headroom for large filters and composited
+   hover effects. Keep the Home artwork, but make its first paint cheap. */
+@media (max-width: 767px) {
+  .home-screen .home-glow { display: none; }
+  .home-screen .home-backdrop {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+  .home-screen .home-card,
+  .home-screen .home-card-image { transition: none !important; }
+  .home-screen .home-card:hover {
+    transform: none;
+    box-shadow: none;
+  }
+  .home-screen .home-card:hover .home-card-image { transform: none; }
 }
 
 .navigation-progress {
