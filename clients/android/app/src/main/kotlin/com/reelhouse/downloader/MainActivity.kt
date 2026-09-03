@@ -177,13 +177,17 @@ class MainActivity : ComponentActivity() {
                     if (fullscreenView != null) {
                         exitFullscreen()
                     } else {
-                        // Let transient web UI (such as the Home quality dialog)
-                        // consume Back before changing the WebView history.
+                        // Check if a web modal handles back, or if we are on the Home page ('/') where Back exits the app.
                         webView.evaluateJavascript(
-                            "window.__reelhouseHandleBack ? window.__reelhouseHandleBack() : false",
-                        ) { handled ->
-                            if (handled != "true") {
-                                if (webView.canGoBack()) webView.goBack() else finish()
+                            "(() => { if (window.__reelhouseHandleBack && window.__reelhouseHandleBack()) return 'modal'; return (window.location.pathname === '/' || window.location.pathname === '') ? 'home' : 'normal'; })()",
+                        ) { result ->
+                            val res = result?.removeSurrounding("\"")
+                            when (res) {
+                                "modal" -> { /* Modal consumed the back press */ }
+                                "home" -> finish()
+                                else -> {
+                                    if (webView.canGoBack()) webView.goBack() else finish()
+                                }
                             }
                         }
                     }
