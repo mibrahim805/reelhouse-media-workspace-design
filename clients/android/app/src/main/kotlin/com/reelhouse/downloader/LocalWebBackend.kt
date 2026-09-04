@@ -151,6 +151,9 @@ class LocalWebBackend(private val app: ReelhouseApp) {
     private fun userFacingError(error: Exception): String {
         val message = error.message.orEmpty()
         val lower = message.lowercase()
+        if ("cannot link executable" in lower || "em_aarch64" in lower || "em_x86_64" in lower) {
+            return "Device architecture mismatch: You installed an ARM64 APK on an x86_64 device or emulator. Please download and install the Universal APK (or x86_64 APK)."
+        }
         if ("empty media response" in lower || "instagram" in lower && "cookies" in lower) {
             return "Instagram did not provide this post to the downloader. The app tried to update its download engine automatically; the post must be public and accessible without an Instagram login."
         }
