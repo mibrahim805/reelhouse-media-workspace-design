@@ -101,6 +101,10 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:!*.ear:!*.tar:!*.gz"
+    }
+
     sourceSets.getByName("main").assets.srcDirs(generatedLegalAssets, generatedWebAssets)
 
     packaging {

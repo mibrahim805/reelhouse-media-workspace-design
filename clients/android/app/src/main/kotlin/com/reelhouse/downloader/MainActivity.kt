@@ -16,6 +16,7 @@ import android.os.Bundle
 import android.os.Environment
 import android.os.Build
 import android.provider.MediaStore
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceRequest
@@ -857,38 +858,60 @@ class CustomAssetsPathHandler(
     private val context: Context,
     private val pathPrefix: String = "web",
 ) : WebViewAssetLoader.PathHandler {
-    private val assetsPathHandler = WebViewAssetLoader.AssetsPathHandler(context)
+
+    private fun getMimeType(filePath: String): String {
+        val ext = filePath.substringAfterLast('.', "").lowercase()
+        return when (ext) {
+            "js", "mjs" -> "text/javascript"
+            "css" -> "text/css"
+            "html" -> "text/html"
+            "json" -> "application/json"
+            "png" -> "image/png"
+            "jpg", "jpeg" -> "image/jpeg"
+            "webp" -> "image/webp"
+            "svg" -> "image/svg+xml"
+            "woff" -> "font/woff"
+            "woff2" -> "font/woff2"
+            "ttf" -> "font/ttf"
+            "otf" -> "font/otf"
+            "ico" -> "image/x-icon"
+            "txt" -> "text/plain"
+            else -> "application/octet-stream"
+        }
+    }
+
+    private fun createResponse(assetPath: String): WebResourceResponse? {
+        return try {
+            val stream = context.assets.open(assetPath)
+            val mimeType = getMimeType(assetPath)
+            val encoding = if (mimeType.startsWith("text/") || mimeType == "application/json" || mimeType == "image/svg+xml") "UTF-8" else null
+            Log.d("CustomAssets", "Serving local asset: $assetPath ($mimeType)")
+            WebResourceResponse(mimeType, encoding, stream)
+        } catch (_: Exception) {
+            null
+        }
+    }
 
     override fun handle(path: String): WebResourceResponse? {
         val cleanPath = path.removePrefix("/")
         val assetPath = if (cleanPath.isEmpty()) "$pathPrefix/index.html" else "$pathPrefix/$cleanPath"
 
         // 1. Direct asset load (e.g. web/_next/..., web/index.html, web/manifest.json)
-        try {
-            context.assets.open(assetPath).close()
-            return assetsPathHandler.handle(assetPath)
-        } catch (_: Exception) {}
+        createResponse(assetPath)?.let { return it }
 
-        // 2. Asset with file extension (e.g. .js, .css, .png, .svg)
+        // 2. Asset with file extension that was not found
         if (cleanPath.substringAfterLast('/', "").contains(".")) {
-            return assetsPathHandler.handle("$pathPrefix/$cleanPath")
+            Log.w("CustomAssets", "Asset file not found: $assetPath")
+            return null
         }
 
         // 3. Clean path + .html (e.g. web/downloader.html for /downloader)
-        try {
-            val htmlPath = "$pathPrefix/$cleanPath.html"
-            context.assets.open(htmlPath).close()
-            return assetsPathHandler.handle(htmlPath)
-        } catch (_: Exception) {}
+        createResponse("$pathPrefix/$cleanPath.html")?.let { return it }
 
         // 4. Clean path + /index.html (e.g. web/downloader/index.html)
-        try {
-            val indexSubPath = "$pathPrefix/$cleanPath/index.html"
-            context.assets.open(indexSubPath).close()
-            return assetsPathHandler.handle(indexSubPath)
-        } catch (_: Exception) {}
+        createResponse("$pathPrefix/$cleanPath/index.html")?.let { return it }
 
         // 5. Fallback to main SPA index.html
-        return assetsPathHandler.handle("$pathPrefix/index.html")
+        return createResponse("$pathPrefix/index.html")
     }
 }
