@@ -46,7 +46,7 @@ cd clients/android
 Debug APKs are emitted per ABI plus a universal APK. Release signing credentials are intentionally absent and must never be committed.
 
 The application ID remains `com.reelhouse.app`, matching the earlier Android
-client. The current build is version 1.6.20 with `versionCode 39`. An installed
+client. The current build is version 1.6.21 with `versionCode 40`. An installed
 build is upgrade-compatible only when it is signed with the same private
 signing key.
 

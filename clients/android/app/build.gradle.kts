@@ -45,8 +45,8 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 39
-        versionName = "1.6.20"
+        versionCode = 40
+        versionName = "1.6.21"
 
         buildConfigField("String", "PERF_BUILD_ID", "\"kubeletto-webview-hybrid-v1\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")

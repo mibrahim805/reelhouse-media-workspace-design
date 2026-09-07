@@ -52,6 +52,19 @@ jobs:
           java-version: "17"
           cache: gradle
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Build static frontend assets for Android
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.18.3 --activate
+          pnpm install --frozen-lockfile
+          OUTPUT_MODE=export pnpm build
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 

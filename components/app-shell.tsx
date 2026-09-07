@@ -44,13 +44,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { activeCount } = useDownloads()
   const [navigationPending, setNavigationPending] = useState(false)
-  const [isSliding, setIsSliding] = useState(false)
 
   useEffect(() => {
     setNavigationPending(false)
-    setIsSliding(true)
-    const timer = setTimeout(() => setIsSliding(false), 480)
-    return () => clearTimeout(timer)
   }, [pathname])
 
   function handleShellClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -81,13 +77,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       {navigationPending && <div className="navigation-progress" role="status" aria-label="Loading page" />}
 
       {/* ── Global Background Floating 3D Water Bubbles & Ambient Blobs ── */}
-      <div className="home-glow animate-liquid-blob-1 fixed -top-32 -right-32 size-[500px] rounded-full bg-gradient-to-br from-fuchsia-600/25 via-purple-600/15 to-pink-500/15 blur-[120px] pointer-events-none z-0" />
-      <div className="home-glow animate-liquid-blob-2 fixed top-1/2 -left-32 size-[450px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/15 blur-[130px] pointer-events-none z-0" />
+      <div className="shell-background-art home-glow animate-liquid-blob-1 fixed -top-32 -right-32 size-[500px] rounded-full bg-gradient-to-br from-fuchsia-600/25 via-purple-600/15 to-pink-500/15 blur-[120px] pointer-events-none z-0" />
+      <div className="shell-background-art home-glow animate-liquid-blob-2 fixed top-1/2 -left-32 size-[450px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/15 blur-[130px] pointer-events-none z-0" />
 
-      <div className="water-bubble fixed top-16 -right-10 size-40 opacity-70 z-0" style={{ animationDelay: '0s' }} />
-      <div className="water-bubble fixed top-1/3 -left-14 size-52 opacity-60 z-0" style={{ animationDelay: '-4s' }} />
-      <div className="water-bubble fixed top-2/3 right-6 size-32 opacity-65 z-0" style={{ animationDelay: '-8s' }} />
-      <div className="water-bubble fixed bottom-20 left-12 size-44 opacity-55 z-0" style={{ animationDelay: '-12s' }} />
+      <div className="shell-background-art water-bubble fixed top-16 -right-10 size-40 opacity-70 z-0" style={{ animationDelay: '0s' }} />
+      <div className="shell-background-art water-bubble fixed top-1/3 -left-14 size-52 opacity-60 z-0" style={{ animationDelay: '-4s' }} />
+      <div className="shell-background-art water-bubble fixed top-2/3 right-6 size-32 opacity-65 z-0" style={{ animationDelay: '-8s' }} />
+      <div className="shell-background-art water-bubble fixed bottom-20 left-12 size-44 opacity-55 z-0" style={{ animationDelay: '-12s' }} />
 
       {/* ── Desktop top nav (≥ md) ── */}
       {!isPlayer && (
@@ -154,7 +150,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Sliding 3D Liquid Water Bubble Droplet Indicator */}
         {activeNavIndex !== -1 && (
           <div
-            className={cn('sliding-liquid-bubble', isSliding && 'is-sliding')}
+            className="sliding-liquid-bubble"
             style={{
               transform: `translate3d(${activeNavIndex * 58}px, 0, 0)`,
             }}
