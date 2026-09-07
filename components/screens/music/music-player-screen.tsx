@@ -4,9 +4,10 @@ import { useEffect, useRef } from 'react'
 import { useParams } from 'next/navigation'
 import { useDownloads } from '@/components/download-store'
 import { useLibrary } from '@/components/library-store'
+import Link from 'next/link'
+import { ArrowDown, MoreHorizontal } from 'lucide-react'
 import { useMedia } from '@/components/media-state'
-import { ReelhousePlayer } from '@/components/player/reelhouse-player'
-import { PlayerShell } from '@/components/player/player-shell'
+import { ImmersiveAudioPlayer } from '@/components/player/immersive-audio-player'
 
 export function MusicPlayerScreen() {
   const { id } = useParams<{ id: string }>()
@@ -24,9 +25,22 @@ export function MusicPlayerScreen() {
     open(item)
   }, [item, open, preparedKey])
 
-  if (!source) return <PlayerShell title="Music player"><div className="rounded-2xl border border-[#292929] bg-[#151515] p-6"><h1 className="text-lg font-semibold">Track unavailable</h1><p className="mt-2 text-sm text-[#a3a3a3]">Only completed backend audio files can be played here.</p></div></PlayerShell>
+  if (!source) return <main className="music-player-page"><div className="music-player-empty"><h1 className="text-lg font-semibold">Track unavailable</h1><p className="mt-2 text-sm text-white/55">Only completed backend audio files can be played here.</p><Link href="/library/music" className="mt-5 inline-flex rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white">Back to music</Link></div></main>
 
-  return <PlayerShell title="Now playing"><ReelhousePlayer source={source} autoPlay /><div className="mt-4 flex items-start gap-3"><div className="min-w-0 flex-1"><h1 className="truncate text-lg font-bold">{source.title}</h1><p className="mt-1 text-sm text-[#a3a3a3]">{source.artist || 'Downloaded audio'}</p></div><button onClick={() => toggleFavorite(source.id)} className="rounded-xl border border-[#292929] px-3 py-2 text-sm text-white">{favorites.includes(source.id) ? 'Favorited' : 'Favorite'}</button></div></PlayerShell>
+  return (
+    <main className="music-player-page">
+      <div className="music-player-orb music-player-orb-one" />
+      <div className="music-player-orb music-player-orb-two" />
+      <div className="music-player-surface">
+        <header className="music-player-header">
+          <Link href="/library/music" className="music-header-button" aria-label="Back to music library"><ArrowDown className="size-5" /></Link>
+          <span className="music-header-title">Now Playing</span>
+          <button className="music-header-button" aria-label="More player options"><MoreHorizontal className="size-5" /></button>
+        </header>
+        <ImmersiveAudioPlayer source={source} favorited={favorites.includes(source.id)} onToggleFavorite={() => toggleFavorite(source.id)} />
+      </div>
+    </main>
+  )
 }
 
 export const MusicPlayer = MusicPlayerScreen

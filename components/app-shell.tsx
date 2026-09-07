@@ -44,9 +44,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const { activeCount } = useDownloads()
   const [navigationPending, setNavigationPending] = useState(false)
+  const [isSliding, setIsSliding] = useState(false)
 
   useEffect(() => {
     setNavigationPending(false)
+    setIsSliding(true)
+    const timer = window.setTimeout(() => setIsSliding(false), 220)
+    return () => window.clearTimeout(timer)
   }, [pathname])
 
   function handleShellClick(event: React.MouseEvent<HTMLDivElement>) {
@@ -140,17 +144,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       )}
 
       {/* ── Page content ── */}
-      <main key={pathname} className="page-transition flex-1 pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0">{children}</main>
+      <main key={pathname} className={`page-transition flex-1 ${isPlayer ? 'pb-0' : 'pb-[calc(3.5rem+env(safe-area-inset-bottom))] md:pb-0'}`}>{children}</main>
 
       {/* ── Mobile bottom nav (< md) ── */}
-      <nav
+      {!isPlayer && <nav
         className="liquid-glass-pill fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3.5 rounded-full p-2.5 md:hidden"
         aria-label="Primary navigation"
       >
         {/* Sliding 3D Liquid Water Bubble Droplet Indicator */}
         {activeNavIndex !== -1 && (
           <div
-            className="sliding-liquid-bubble"
+            className={cn('sliding-liquid-bubble', isSliding && 'is-sliding')}
             style={{
               transform: `translate3d(${activeNavIndex * 58}px, 0, 0)`,
             }}
@@ -178,7 +182,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </Link>
           )
         })}
-      </nav>
+      </nav>}
     </div>
   )
 }
