@@ -63,19 +63,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (destination.origin !== window.location.origin) return
     if (destination.pathname === window.location.pathname && destination.search === window.location.search) return
 
-    // Android WebView has a noticeably slower RSC round-trip than a desktop
-    // browser. Use the cached app document for internal links there so a tap
-    // is not held up waiting for the hosted Next.js navigation request.
-    // The service worker serves the shell route from cache and revalidates it
-    // in the background. Keep modifier-key and external-link behavior above.
-    if (/Android/i.test(navigator.userAgent)) {
-      event.preventDefault()
-      event.stopPropagation()
-      setNavigationPending(true)
-      window.location.assign(destination.href)
-      return
-    }
-
     setNavigationPending(true)
   }
 
