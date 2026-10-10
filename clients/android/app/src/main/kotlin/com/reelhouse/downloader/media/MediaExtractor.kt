@@ -111,6 +111,40 @@ class MediaExtractor(private val context: Context) {
         }
     }
 
+    /** Resolves one progressive audio+video URL for the first-party Android player. */
+    suspend fun extractPlayableUrl(url: String): String = withContext(Dispatchers.IO) {
+        Log.i(TAG, "ONLINE_STREAM_RESOLVE_STARTED url=${url.take(180)}")
+        // Stream playback must not wait for the optional startup updater. The
+        // bundled yt-dlp engine is enough to resolve this URL immediately;
+        // downloads keep their existing startup/update synchronization.
+        YoutubeDL.getInstance().init(context.applicationContext)
+        fun request(playerClient: String? = null) = YoutubeDLRequest(url).apply {
+            addOption("-f", "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]")
+            addOption("--get-url")
+            addOption("--no-playlist")
+            addOption("--no-warnings")
+            addOption("--no-config")
+            addOption("--retries", "1")
+            addOption("--fragment-retries", "1")
+            addOption("--socket-timeout", "15")
+            playerClient?.let { addOption("--extractor-args", "youtube:player_client=$it") }
+        }
+
+        try {
+            executeWithEngineRecovery { YoutubeDL.getInstance().execute(request()).out }
+        } catch (error: Exception) {
+            if (!url.isYouTubeUrl() || !isClientAccessFailure(error)) throw error
+            try {
+                executeWithEngineRecovery { YoutubeDL.getInstance().execute(request("web_embedded")).out }
+            } catch (embeddedError: Exception) {
+                if (!isClientAccessFailure(embeddedError)) throw embeddedError
+                executeWithEngineRecovery { YoutubeDL.getInstance().execute(request("android_vr")).out }
+            }
+        }.orEmpty().lineSequence().map(String::trim).firstOrNull { it.startsWith("http") }
+            ?.also { Log.i(TAG, "ONLINE_STREAM_RESOLVE_FINISHED length=${it.length}") }
+            ?: throw Exception("No progressive media stream was found")
+    }
+
     /**
      * Searches YouTube through the embedded yt-dlp runtime. The request and
      * response stay on this Android device; the Reelhouse host is not used.
@@ -125,7 +159,7 @@ class MediaExtractor(private val context: Context) {
             val safeLimit = limit.coerceIn(1, 20)
 
             awaitEngine()
-            val request = YoutubeDLRequest("ytsearch$safeLimit:$cleanedQuery").apply {
+            fun createSearchRequest(playerClient: String? = null) = YoutubeDLRequest("ytsearch$safeLimit:$cleanedQuery").apply {
                 addOption("--dump-single-json")
                 addOption("--flat-playlist")
                 addOption("--skip-download")
@@ -133,11 +167,21 @@ class MediaExtractor(private val context: Context) {
                 addOption("--no-config")
                 addOption("--retries", "1")
                 addOption("--socket-timeout", "15")
+                playerClient?.let { addOption("--extractor-args", "youtube:player_client=$it") }
             }
-            val response = executeWithEngineRecovery {
-                YoutubeDL.getInstance().execute(request)
+            val response = try {
+                executeWithEngineRecovery {
+                    YoutubeDL.getInstance().execute(createSearchRequest())
+                }
+            } catch (firstErr: Exception) {
+                Log.w(TAG, "Standard search failed, trying mweb client fallback: ${firstErr.message}")
+                runCatching {
+                    executeWithEngineRecovery {
+                        YoutubeDL.getInstance().execute(createSearchRequest("mweb"))
+                    }
+                }.getOrNull()
             }
-            val output = response.out
+            val output = response?.out
             if (output.isNullOrBlank()) return@withContext emptyList()
 
             val root = json.parseToJsonElement(output).jsonObject
@@ -299,6 +343,7 @@ class MediaExtractor(private val context: Context) {
                 val fmt = element.jsonObject
                 FormatInfo(
                     formatId = fmt.str("format_id"),
+                    url = fmt.str("url"),
                     ext = fmt.str("ext"),
                     resolution = fmt.str("resolution"),
                     height = fmt.intOrZero("height"),
