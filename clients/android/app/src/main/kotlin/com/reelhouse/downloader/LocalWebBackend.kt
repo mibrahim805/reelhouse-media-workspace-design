@@ -246,21 +246,13 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val started = SystemClock.elapsedRealtime()
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start query=${query.take(120)}")
-        val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto results=${it.size}") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto failed=${it.message}") }
-            .getOrNull()
-        val response = if (!remoteVideos.isNullOrEmpty()) {
-            buildJsonObject {
-                put("ok", true)
-                put("videos", backendVideoArray(remoteVideos))
-            }
-        } else {
-            val videos = loadSearch(query, 8, operationId)
-            buildJsonObject {
-                put("ok", true)
-                put("videos", mediaArray(videos))
-            }
+        // Android search is device-local. Do not probe the hosted backend
+        // first: its connection timeout would delay every search before the
+        // embedded yt-dlp fallback can run.
+        val videos = runCatching { loadSearch(query, 8, operationId) }.getOrElse { emptyList() }
+        val response = buildJsonObject {
+            put("ok", true)
+            put("videos", mediaArray(videos))
         }
         Log.d(TAG, "operation=$operationId phase=search_finish durationMs=${elapsed(started)}")
         return 200 to response
@@ -409,12 +401,7 @@ class LocalWebBackend(private val app: ReelhouseApp) {
         val started = SystemClock.elapsedRealtime()
         val operationId = "search-${UUID.randomUUID().toString().take(8)}"
         Log.d(TAG, "operation=$operationId phase=search_start topic=$topic")
-        val remoteVideos = runCatching { loadRemoteSearch(query, operationId) }
-            .onSuccess { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto results=${it.size}") }
-            .onFailure { Log.d(TAG, "backend=$backendInstanceId operation=$operationId search_source=kubeletto failed=${it.message}") }
-            .getOrNull()
-        val videos = remoteVideos?.takeIf { it.isNotEmpty() }?.let { backendVideoArray(it) }
-            ?: mediaArray(loadSearch(query, 8, operationId))
+        val videos = mediaArray(loadSearch(query, 8, operationId))
         Log.d(TAG, "operation=$operationId phase=search_finish durationMs=${elapsed(started)}")
         return 200 to buildJsonObject {
             put("ok", true)
