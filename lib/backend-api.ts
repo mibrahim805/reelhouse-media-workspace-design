@@ -22,6 +22,7 @@ export class BackendOfflineError extends Error {
 }
 
 type Envelope<T> = T & { ok: boolean; error?: string }
+type DesktopBridge = { fetchMediaInfo?: (url: string) => Promise<{ ok: boolean; error?: string; video?: Record<string, unknown> }> }
 async function read<T>(response: Response): Promise<Envelope<T>> {
   const text = await response.text()
   let data: Envelope<T>
@@ -35,10 +36,26 @@ async function post<T>(endpoint:string, body:Record<string,unknown>) { return re
 async function get<T>(endpoint:string) { return read<T>(await fetch(`/api/backend/${endpoint}`, {cache:'no-store'})) }
 function fileUrl(path:string) { return path ? `/api/backend/${path.replace(/^\//,'')}` : '' }
 
+function desktopBridge(): DesktopBridge | null {
+  if (typeof window === 'undefined') return null
+  return (window as Window & { reelhouseDesktop?: DesktopBridge }).reelhouseDesktop || null
+}
+
+function mediaInfoFromPayload(video: Record<string, unknown>, fallbackUrl: string): MediaInfo {
+  return {sourceUrl:String(video.source_url||fallbackUrl),title:String(video.title||'Untitled video'),channel:String(video.channel||'Unknown channel'),duration:String(video.duration||'Unknown duration'),thumbnail:String(video.thumbnail||''),platform:String(video.platform||'Video'),qualities:normalizeQualityOptions((video.qualities || []) as Array<Record<string,unknown>>),embedUrl:String(video.embed_url||''),canEmbed:Boolean(video.can_embed),category:String(video.category||''),description:String(video.description||''),tags:Array.isArray(video.tags) ? video.tags.map(String) : []}
+}
+
 export async function fetchMediaInfo(url:string):Promise<MediaInfo> {
-  const {video} = await post<{video:Record<string,unknown>}>('fetch-info',{url})
-  const qualities = normalizeQualityOptions((video.qualities || []) as Array<Record<string,unknown>>)
-  return {sourceUrl:String(video.source_url||url),title:String(video.title||'Untitled video'),channel:String(video.channel||'Unknown channel'),duration:String(video.duration||'Unknown duration'),thumbnail:String(video.thumbnail||''),platform:String(video.platform||'Video'),qualities,embedUrl:String(video.embed_url||''),canEmbed:Boolean(video.can_embed),category:String(video.category||''),description:String(video.description||''),tags:Array.isArray(video.tags) ? video.tags.map(String) : []}
+  try {
+    const {video} = await post<{video:Record<string,unknown>}>('fetch-info',{url})
+    return mediaInfoFromPayload(video, url)
+  } catch (remoteError) {
+    const desktop = desktopBridge()
+    if (!desktop?.fetchMediaInfo) throw remoteError
+    const local = await desktop.fetchMediaInfo(url)
+    if (!local.ok || !local.video) throw new Error(local.error || (remoteError instanceof Error ? remoteError.message : 'Could not load media information.'))
+    return mediaInfoFromPayload(local.video, url)
+  }
 }
 function normalizeYoutubeVideo(video: Record<string, unknown>): YoutubeSearchVideo {
   return {
