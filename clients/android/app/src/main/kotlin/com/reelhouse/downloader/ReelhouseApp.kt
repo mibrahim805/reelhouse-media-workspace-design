@@ -19,6 +19,7 @@ import android.util.Log
 class ReelhouseApp : Application() {
     val database by lazy { DownloadDatabase.getInstance(this) }
     val preferences by lazy { PreferencesRepository(this) }
+    val nativePlayback by lazy { NativePlaybackController(this) }
 
     @Volatile
     var engineError: String? = null
