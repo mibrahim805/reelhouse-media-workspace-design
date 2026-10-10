@@ -1,7 +1,7 @@
 'use client'
 
 import { Check, Download, LoaderCircle, RotateCcw } from 'lucide-react'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMedia } from '@/components/media-state'
 import { OnlineVideoCard } from '@/components/media/online-video-card'
 import { ReelhousePlayer } from '@/components/player/reelhouse-player'
@@ -14,15 +14,17 @@ import { useNetworkStatus } from '@/lib/network-status'
 const RELATED_RESULT_LIMIT = 20
 
 function RelatedSkeleton() {
-  return <div className="animate-pulse">
-    <div className="aspect-video rounded-2xl bg-[#151515]" />
-    <div className="mt-3 h-4 w-11/12 rounded bg-[#151515]" />
-    <div className="mt-2 h-3 w-2/5 rounded bg-[#151515]" />
+  return <div className="online-suggestion-skeleton animate-pulse">
+    <div className="aspect-video w-40 shrink-0 rounded-2xl bg-[#151515] sm:w-48" />
+    <div className="min-w-0 flex-1 py-1">
+      <div className="h-4 w-11/12 rounded bg-[#151515]" />
+      <div className="mt-3 h-3 w-2/5 rounded bg-[#151515]" />
+    </div>
   </div>
 }
 
 export function OnlineWatch({ videoId }: { videoId: string }) {
-  const { source, openOnline, setPlaying } = useMedia()
+  const { source, openOnline } = useMedia()
   const online = useNetworkStatus()
   const download = useOnlineVideoDownload()
   const sourceUrl = `https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`
@@ -31,9 +33,10 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
   const [loadingRelated, setLoadingRelated] = useState(true)
   const [relatedError, setRelatedError] = useState('')
   const [reload, setReload] = useState(0)
-  const relatedScrollRef = useRef<HTMLDivElement>(null)
+  const [titleExpanded, setTitleExpanded] = useState(false)
 
   const title = hasUsableRelatedTitle(metadata?.title) ? metadata!.title : ''
+  const displayTitle = title || 'Loading online video…'
   const onlineVideo = useMemo<OnlineVideo>(() => ({
     id: videoId,
     title,
@@ -43,10 +46,11 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
     sourceUrl: metadata?.sourceUrl || sourceUrl,
   }), [metadata?.channel, metadata?.duration, metadata?.sourceUrl, metadata?.thumbnail, sourceUrl, title, videoId])
   const downloadState = download.getDownloadState(onlineVideo)
-  const playerSource = useMemo(() => ({ type: 'youtube' as const, videoId, title }), [title, videoId])
+  const playerSource = useMemo(() => ({ type: 'youtube' as const, videoId, title, thumbnail: metadata?.thumbnail, channel: metadata?.channel }), [metadata?.channel, metadata?.thumbnail, title, videoId])
 
   useEffect(() => {
-    relatedScrollRef.current?.scrollTo({ top: 0 })
+    window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior })
+    setTitleExpanded(false)
   }, [videoId])
 
   useEffect(() => {
@@ -57,10 +61,7 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
       // recreating or resetting the active player.
       openOnline({ ...source, title })
     }
-    // Selecting a video is an explicit user action. Start the hosted player
-    // immediately instead of waiting for a second click on Play.
-    setPlaying(true)
-  }, [openOnline, setPlaying, source, title, videoId])
+  }, [openOnline, source, title, videoId])
 
   useEffect(() => {
     let cancelled = false
@@ -100,36 +101,53 @@ export function OnlineWatch({ videoId }: { videoId: string }) {
     return () => { cancelled = true }
   }, [online, reload, sourceUrl, videoId])
 
-  return <>
-    <main className="mx-auto flex h-[calc(100dvh-4.5rem)] w-full max-w-5xl flex-col overflow-hidden px-4 pt-4 sm:px-6 md:h-[calc(100dvh-3.5rem)] md:pb-4">
-      <div className="shrink-0">
-        {online ? <ReelhousePlayer source={playerSource} autoPlay /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
-      </div>
+  const downloadLabel = downloadState.phase === 'completed' ? 'Downloaded' : downloadState.phase === 'failed' ? 'Retry' : 'Download'
 
-      <div ref={relatedScrollRef} className="mt-4 min-h-0 flex-1 overscroll-contain overflow-y-auto pb-24 [scrollbar-width:auto]">
+  return <>
+    <main className="online-watch-page mx-auto w-full max-w-4xl px-3 pb-10 pt-3 sm:px-5 md:px-6 md:pt-5">
+      <section className="online-watch-player-frame" aria-label="Online video player">
+        {online ? <ReelhousePlayer source={playerSource} /> : <div className="flex aspect-video items-center justify-center rounded-2xl bg-black px-6 text-center text-sm text-[#a3a3a3]">This video needs an internet connection.</div>}
+      </section>
+
+      <section className="online-watch-details mt-4 px-1 sm:px-2">
         <div className="flex items-start gap-3">
-          <h2 className="min-w-0 flex-1 text-lg font-bold leading-snug text-white">{title}</h2>
           <button
             type="button"
-            onClick={() => download.begin(onlineVideo)}
-            disabled={downloadState.phase === 'analyzing' || downloadState.phase === 'ready' || downloadState.phase === 'downloading'}
-            className="flex size-10 shrink-0 items-center justify-center rounded-full border border-[#292929] bg-[#151515] text-[#a3a3a3] transition-colors hover:border-primary/50 hover:bg-primary/10 hover:text-primary disabled:cursor-wait disabled:opacity-70"
-            aria-label={downloadState.phase === 'completed' ? 'Downloaded' : downloadState.phase === 'failed' ? 'Retry download' : 'Download video'}
+            onClick={() => setTitleExpanded(value => !value)}
+            aria-expanded={titleExpanded}
+            aria-label={titleExpanded ? 'Collapse video title' : 'Expand video title'}
+            className={`min-w-0 flex-1 text-left text-lg font-bold leading-snug text-white sm:text-xl ${titleExpanded ? '' : 'line-clamp-2'}`}
           >
-            {downloadState.phase === 'analyzing' ? <LoaderCircle className="size-[18px] animate-spin" /> : downloadState.phase === 'completed' ? <Check className="size-[18px] text-primary" /> : downloadState.phase === 'failed' ? <RotateCcw className="size-[18px]" /> : <Download className="size-[18px]" />}
+            {displayTitle}
+          </button>
+
+          <button type="button" onClick={() => download.begin(onlineVideo)} disabled={downloadState.phase === 'analyzing' || downloadState.phase === 'ready' || downloadState.phase === 'downloading'} className="online-watch-download-button shrink-0" aria-label={`${downloadLabel} video`}>
+            {downloadState.phase === 'analyzing' || downloadState.phase === 'downloading' ? <LoaderCircle className="size-4 animate-spin" /> : downloadState.phase === 'completed' ? <Check className="size-4" /> : downloadState.phase === 'failed' ? <RotateCcw className="size-4" /> : <Download className="size-4" />}
+            <span className="hidden sm:inline">{downloadLabel}</span>
           </button>
         </div>
+        <p className="mt-2 text-xs text-white/55">{metadata?.duration || 'Online video'} <span className="mx-1 text-white/25">•</span> {metadata?.platform || 'YouTube'}</p>
 
-        <section>
-          <div className="grid gap-y-7">
-            {loadingRelated && <><RelatedSkeleton /><RelatedSkeleton /><RelatedSkeleton /></>}
-            {!online && <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center"><p className="text-sm font-semibold text-white">This video needs an internet connection.</p><p className="mt-1 text-xs text-[#a3a3a3]">Downloaded media remains available from Library.</p></div>}
-            {!loadingRelated && online && relatedError && <div className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center"><p className="text-sm text-[#a3a3a3]">Unable to load related videos.</p><button type="button" onClick={() => setReload(value => value + 1)} className="mt-3 rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">Retry</button></div>}
-            {!loadingRelated && !relatedError && related.length === 0 && <p className="rounded-2xl border border-dashed border-[#292929] px-4 py-5 text-center text-xs text-[#737373]">No related videos found.</p>}
-            {!loadingRelated && !relatedError && related.map(video => <OnlineVideoCard key={video.id} video={video} onDownload={download.begin} downloadState={download.getDownloadState(video)} showChannel={false} />)}
+        {metadata?.description && <p className="mt-4 line-clamp-3 text-xs leading-relaxed text-white/60">{metadata.description}</p>}
+      </section>
+
+      <section className="mt-6" aria-labelledby="suggested-videos-heading">
+        <div className="mb-3 flex items-end justify-between px-1">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-fuchsia-200/70">Up next</p>
+            <h2 id="suggested-videos-heading" className="mt-1 text-xl font-bold text-white">Suggested videos</h2>
           </div>
-        </section>
-      </div>
+          <span className="text-xs text-white/40">For you</span>
+        </div>
+
+        <div className="online-suggestions-list">
+          {loadingRelated && <><RelatedSkeleton /><RelatedSkeleton /><RelatedSkeleton /></>}
+          {!online && <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center"><p className="text-sm font-semibold text-white">This video needs an internet connection.</p><p className="mt-1 text-xs text-[#a3a3a3]">Downloaded media remains available from Library.</p></div>}
+          {!loadingRelated && online && relatedError && <div className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center"><p className="text-sm text-[#a3a3a3]">Unable to load suggested videos.</p><button type="button" onClick={() => setReload(value => value + 1)} className="mt-3 rounded-xl bg-primary/10 px-4 py-2 text-xs font-semibold text-primary">Retry</button></div>}
+          {!loadingRelated && !relatedError && related.length === 0 && <p className="rounded-2xl border border-dashed border-white/10 px-4 py-5 text-center text-xs text-[#737373]">No suggested videos found.</p>}
+          {!loadingRelated && !relatedError && related.map(video => <OnlineVideoCard key={video.id} video={video} onDownload={download.begin} downloadState={download.getDownloadState(video)} compact />)}
+        </div>
+      </section>
     </main>
     {download.dialogs}
   </>
