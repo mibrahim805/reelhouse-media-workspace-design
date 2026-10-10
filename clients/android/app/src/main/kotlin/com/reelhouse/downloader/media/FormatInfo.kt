@@ -7,6 +7,7 @@ import kotlinx.serialization.Serializable
 data class FormatInfo(
     @SerialName("format_id")
     val formatId: String = "",
+    val url: String = "",
     val ext: String = "",
     val resolution: String = "",
     val height: Int = 0,
@@ -23,6 +24,7 @@ data class FormatInfo(
 ) {
     val isVideoOnly: Boolean get() = vcodec != "none" && acodec == "none"
     val isAudioOnly: Boolean get() = vcodec == "none" && acodec != "none"
+    val isProgressive: Boolean get() = hasVideo && hasAudio
     val hasVideo: Boolean get() = vcodec != "none"
     val hasAudio: Boolean get() = acodec != "none"
 
