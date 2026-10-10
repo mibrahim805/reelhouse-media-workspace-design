@@ -2,8 +2,8 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { Download, Home, Library, Play, UserRound, Tv } from 'lucide-react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Download, Home, Library, Link2, Play, UserRound, Tv, Zap } from 'lucide-react'
 import { useDownloads } from '@/components/download-store'
 import { DownloadsPanel } from '@/components/downloads-panel'
 import { cn } from '@/lib/utils'
@@ -13,6 +13,13 @@ const NAV = [
   { href: '/',          label: 'Home',      icon: Home },
   { href: '/downloads', label: 'Downloads', icon: Download },
   { href: '/library',   label: 'Library',   icon: Library },
+  { href: '/profile',   label: 'Profile',   icon: UserRound },
+]
+
+const MOBILE_NAV = [
+  { href: '/',          label: 'Home',      icon: Home },
+  { href: '/shorts',    label: 'Shorts',    icon: Zap },
+  { href: '/downloader', label: 'Paste Link', icon: Link2 },
   { href: '/profile',   label: 'Profile',   icon: UserRound },
 ]
 
@@ -45,13 +52,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { activeCount } = useDownloads()
   const [navigationPending, setNavigationPending] = useState(false)
   const [isSliding, setIsSliding] = useState(false)
+  const [bubbleLeft, setBubbleLeft] = useState<number | null>(null)
+  const mobileNavRef = useRef<HTMLElement>(null)
+  const mobileNavItemRefs = useRef<Array<HTMLAnchorElement | null>>([])
+  const activeMobileNavIndex = MOBILE_NAV.findIndex(item =>
+    item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
+  )
 
   useEffect(() => {
     setNavigationPending(false)
     setIsSliding(true)
-    const timer = window.setTimeout(() => setIsSliding(false), 220)
+    const timer = window.setTimeout(() => setIsSliding(false), 420)
     return () => window.clearTimeout(timer)
   }, [pathname])
+
+  useLayoutEffect(() => {
+    if (activeMobileNavIndex === -1) return
+
+    const updateBubblePosition = () => {
+      const nav = mobileNavRef.current
+      const item = mobileNavItemRefs.current[activeMobileNavIndex]
+      if (!nav || !item) return
+
+      const navRect = nav.getBoundingClientRect()
+      const itemRect = item.getBoundingClientRect()
+      setBubbleLeft(itemRect.left - navRect.left + (itemRect.width - 44) / 2)
+    }
+
+    updateBubblePosition()
+    window.addEventListener('resize', updateBubblePosition)
+    return () => window.removeEventListener('resize', updateBubblePosition)
+  }, [activeMobileNavIndex])
 
   function handleShellClick(event: React.MouseEvent<HTMLDivElement>) {
     if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
@@ -69,25 +100,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isEntry = ENTRY_PREFIXES.some(p => pathname === p || pathname.startsWith(p))
   if (isEntry) return <>{children}</>
 
-  // Full-screen immersive screens — no desktop top bar but keep bottom nav
+  // Player/watch screens own their controls and scrolling, so shell navigation
+  // must not cover the video or the suggested list.
   const isPlayer = pathname.startsWith('/player/') || pathname.startsWith('/music/')
 
   const activeNavIndex = NAV.findIndex(item =>
     item.href === '/' ? pathname === '/' : pathname.startsWith(item.href)
   )
-
   return (
     <div className="flex min-h-svh flex-col bg-[#0b0813] text-white relative overflow-x-hidden" onClickCapture={handleShellClick}>
       {navigationPending && <div className="navigation-progress" role="status" aria-label="Loading page" />}
 
-      {/* ── Global Background Floating 3D Water Bubbles & Ambient Blobs ── */}
-      <div className="shell-background-art home-glow animate-liquid-blob-1 fixed -top-32 -right-32 size-[500px] rounded-full bg-gradient-to-br from-fuchsia-600/25 via-purple-600/15 to-pink-500/15 blur-[120px] pointer-events-none z-0" />
-      <div className="shell-background-art home-glow animate-liquid-blob-2 fixed top-1/2 -left-32 size-[450px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/15 blur-[130px] pointer-events-none z-0" />
+      {/* Keep the home feed visually clean; the ambient treatment remains on the other screens. */}
+      {pathname !== '/' && <>
+        <div className="shell-background-art home-glow animate-liquid-blob-1 fixed -top-32 -right-32 size-[500px] rounded-full bg-gradient-to-br from-fuchsia-600/25 via-purple-600/15 to-pink-500/15 blur-[120px] pointer-events-none z-0" />
+        <div className="shell-background-art home-glow animate-liquid-blob-2 fixed top-1/2 -left-32 size-[450px] rounded-full bg-gradient-to-tr from-purple-600/20 via-blue-600/15 to-fuchsia-500/15 blur-[130px] pointer-events-none z-0" />
 
-      <div className="shell-background-art water-bubble fixed top-16 -right-10 size-40 opacity-70 z-0" style={{ animationDelay: '0s' }} />
-      <div className="shell-background-art water-bubble fixed top-1/3 -left-14 size-52 opacity-60 z-0" style={{ animationDelay: '-4s' }} />
-      <div className="shell-background-art water-bubble fixed top-2/3 right-6 size-32 opacity-65 z-0" style={{ animationDelay: '-8s' }} />
-      <div className="shell-background-art water-bubble fixed bottom-20 left-12 size-44 opacity-55 z-0" style={{ animationDelay: '-12s' }} />
+        <div className="shell-background-art water-bubble fixed top-16 -right-10 size-40 opacity-70 z-0" style={{ animationDelay: '0s' }} />
+        <div className="shell-background-art water-bubble fixed top-1/3 -left-14 size-52 opacity-60 z-0" style={{ animationDelay: '-4s' }} />
+        <div className="shell-background-art water-bubble fixed top-2/3 right-6 size-32 opacity-65 z-0" style={{ animationDelay: '-8s' }} />
+        <div className="shell-background-art water-bubble fixed bottom-20 left-12 size-44 opacity-55 z-0" style={{ animationDelay: '-12s' }} />
+      </>}
 
       {/* ── Desktop top nav (≥ md) ── */}
       {!isPlayer && (
@@ -148,34 +181,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* ── Mobile bottom nav (< md) ── */}
       {!isPlayer && <nav
-        className="liquid-glass-pill fixed bottom-4 left-1/2 z-40 flex -translate-x-1/2 items-center gap-3.5 rounded-full p-2.5 md:hidden"
+        ref={mobileNavRef}
+        className={cn(
+          'app-bottom-nav liquid-glass-pill fixed bottom-4 left-1/2 z-40 flex w-[calc(100%-24px)] max-w-md -translate-x-1/2 items-center justify-around rounded-3xl px-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur-xl md:hidden',
+          'home-liquid-nav',
+        )}
         aria-label="Primary navigation"
       >
-        {/* Sliding 3D Liquid Water Bubble Droplet Indicator */}
-        {activeNavIndex !== -1 && (
+        {activeMobileNavIndex !== -1 && (
           <div
             className={cn('sliding-liquid-bubble', isSliding && 'is-sliding')}
             style={{
-              transform: `translate3d(${activeNavIndex * 58}px, 0, 0)`,
+              left: bubbleLeft === null ? '-60px' : `${bubbleLeft}px`,
+              transform: 'none',
             }}
           />
         )}
 
-        {NAV.map((item, index) => {
-          const active = index === activeNavIndex
+        {MOBILE_NAV.map((item, index) => {
+          const active = index === activeMobileNavIndex
           const Icon = item.icon
           return (
             <Link
               key={item.href}
               href={item.href}
+              ref={(node) => {
+                mobileNavItemRefs.current[index] = node
+              }}
               className={cn(
-                'relative z-10 flex size-11 items-center justify-center rounded-full transition-all duration-300 active:scale-75',
-                active ? 'text-white drop-shadow-lg font-bold bubble-active-icon' : 'text-white/70 hover:text-white',
+                'app-bottom-nav-item relative flex min-w-0 flex-1 flex-col items-center justify-center gap-1 py-1 text-[11px] transition-colors active:scale-95',
+                active ? 'font-semibold text-white' : 'text-[#a7abb4] hover:text-white',
               )}
+              aria-current={active ? 'page' : undefined}
             >
-              <Icon className={cn('size-5 transition-transform duration-300', active && 'scale-110')} />
+              <Icon className={cn('size-5 transition-transform duration-300', active && 'scale-110 bubble-active-icon')} />
+              <span>{item.label}</span>
               {item.label === 'Downloads' && activeCount > 0 && (
-                <span className="absolute -top-1 -right-1 z-20 flex size-4 items-center justify-center rounded-full bg-[#d946ef] text-[9px] font-bold text-white ring-2 ring-[#0b0813] shadow-[0_0_8px_rgba(217,70,239,0.8)]">
+                <span className="absolute left-1/2 top-0 ml-2 flex size-4 items-center justify-center rounded-full bg-[#ff4f5f] text-[9px] font-bold text-white ring-2 ring-[#17191d]">
                   {activeCount}
                 </span>
               )}
