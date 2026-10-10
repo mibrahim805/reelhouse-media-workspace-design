@@ -15,6 +15,8 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Environment
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.MediaStore
 import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
@@ -50,6 +52,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 /**
  * Android renders the production web frontend unchanged. A document-start,
@@ -68,10 +71,22 @@ class MainActivity : ComponentActivity() {
     private var mediaPermissionRequested = false
     private var updateDownloadId: Long = -1L
     private var updateReceiver: BroadcastReceiver? = null
+    private var nativeVideoOpen = false
+    private var nativeVideoOpening = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private val nativeStateTicker = object : Runnable {
+        override fun run() {
+            if (!isFinishing && !isDestroyed && ::webView.isInitialized) {
+                syncNativePlaybackToWebView()
+                mainHandler.postDelayed(this, 500L)
+            }
+        }
+    }
+    private var splashFallback: Runnable? = null
     private val assetLoader by lazy {
         WebViewAssetLoader.Builder()
             .setDomain(URI(webBaseUrl).host ?: "appassets.androidview.app")
-            .addPathHandler("/", CustomAssetsPathHandler(this))
+            .addPathHandler("/", StaticAssetsPathHandler(this))
             .build()
     }
 
@@ -101,8 +116,17 @@ class MainActivity : ComponentActivity() {
                 mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 allowFileAccess = false
                 allowContentAccess = false
+                cacheMode = WebSettings.LOAD_NO_CACHE
+                setSupportZoom(false)
                 userAgentString = "$userAgentString ReelhouseAndroid/${BuildConfig.VERSION_NAME}; code=${BuildConfig.VERSION_CODE}"
             }
+            // The window is hardware accelerated, but the WebView itself must
+            // not be forced into one enormous layer when a library is long.
+            setLayerType(View.LAYER_TYPE_NONE, null)
+            overScrollMode = View.OVER_SCROLL_NEVER
+            isVerticalScrollBarEnabled = false
+            isHorizontalScrollBarEnabled = false
+            clearCache(true)
             CookieManager.getInstance().setAcceptCookie(true)
             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
             webChromeClient = object : WebChromeClient() {
@@ -173,10 +197,15 @@ class MainActivity : ComponentActivity() {
 
         checkBridgeSupport()
         installLocalBackendBridge()
-        // Always render the hosted Kubeletto frontend. The Android bridge still
-        // handles media operations locally, but the native Compose shell must
-        // not replace the production UI based on a false network check.
+        // The complete static export is bundled into the APK and served through
+        // WebViewAssetLoader. Only the native backend bridge can do I/O.
         webView.loadUrl(initialUrl(intent))
+        splashFallback = Runnable {
+            if (nativeSplash != null) {
+                Log.e("ReelhouseWebView", "Bundled frontend did not become visible within 4 seconds")
+                dismissNativeSplash()
+            }
+        }.also { mainHandler.postDelayed(it, SPLASH_FALLBACK_DELAY_MS) }
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -217,9 +246,29 @@ class MainActivity : ComponentActivity() {
         applySystemThemeToWebView()
     }
 
+    override fun onPause() {
+        mainHandler.removeCallbacks(nativeStateTicker)
+        if (::webView.isInitialized) webView.onPause()
+        super.onPause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (!::webView.isInitialized) return
+        webView.onResume()
+        if (nativeVideoOpen) {
+            nativeVideoOpen = false
+        }
+        syncNativePlaybackToWebView()
+        mainHandler.removeCallbacks(nativeStateTicker)
+        mainHandler.post(nativeStateTicker)
+    }
+
     private fun applySystemThemeToWebView() {
-        val dark = (resources.configuration.uiMode and android.content.res.Configuration.UI_MODE_NIGHT_MASK) == android.content.res.Configuration.UI_MODE_NIGHT_YES
-        val color = if (dark) Color.rgb(9, 9, 9) else Color.rgb(245, 245, 247)
+        // Reelhouse has a single dark playback theme. Keeping the system bars
+        // in that palette avoids a bright flash when the phone uses light mode.
+        val dark = true
+        val color = Color.rgb(12, 13, 16)
         window.statusBarColor = color
         window.navigationBarColor = color
         WindowInsetsControllerCompat(window, window.decorView).apply {
@@ -232,8 +281,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        mainHandler.removeCallbacks(nativeStateTicker)
         unregisterUpdateReceiver()
         exitFullscreen()
+        splashFallback?.let { mainHandler.removeCallbacks(it) }
+        splashFallback = null
         webView.apply {
             stopLoading()
             loadUrl("about:blank")
@@ -288,6 +340,9 @@ class MainActivity : ComponentActivity() {
                 return@addWebMessageListener
             }
             val requestText = message.data ?: return@addWebMessageListener
+            if (openNativeVideoFromBridge(requestText)) {
+                return@addWebMessageListener
+            }
             maybeRequestMediaPermissions(requestText)
             Log.d("ReelhousePerf", "PERF_BUILD_ID=${BuildConfig.PERF_BUILD_ID} phase=bridge_request_received thread=${Thread.currentThread().name}")
             lifecycleScope.launch {
@@ -302,6 +357,173 @@ class MainActivity : ComponentActivity() {
             LOCAL_FETCH_SCRIPT,
             allowedOrigins,
         )
+        WebViewCompat.addDocumentStartJavaScript(
+            webView,
+            ANDROID_PERFORMANCE_SCRIPT,
+            allowedOrigins,
+        )
+        WebViewCompat.addDocumentStartJavaScript(
+            webView,
+            NATIVE_VIDEO_PLAYBACK_SCRIPT,
+            allowedOrigins,
+        )
+    }
+
+    private fun openNativeVideoFromBridge(requestText: String): Boolean {
+        val request = runCatching { JSONObject(requestText) }.getOrNull() ?: return false
+        val type = request.optString("type")
+        if (type == NATIVE_COMMAND_MESSAGE) return handleNativePlayerCommand(request)
+        if (type != NATIVE_VIDEO_MESSAGE && type != NATIVE_ONLINE_MESSAGE) return false
+
+        val source = request.optString("url").takeIf(String::isNotBlank) ?: return true
+        val positionMs = (request.optDouble("position", 0.0) * 1_000.0)
+            .toLong()
+            .coerceAtLeast(0L)
+        if (type == NATIVE_ONLINE_MESSAGE) {
+            if (PlaybackRequestValidator.onlineSource(source) == null) {
+                Toast.makeText(this, "This online video URL is not valid.", Toast.LENGTH_LONG).show()
+                return true
+            }
+            if (nativeVideoOpen) return true
+            nativeVideoOpen = true
+            startActivity(
+                Intent(this@MainActivity, NativeVideoPlayerActivity::class.java)
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_SOURCE_URL, source)
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_TITLE, request.optString("title", "Online video"))
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_THUMBNAIL, request.optString("thumbnail"))
+                    .putExtra(
+                        NativeVideoPlayerActivity.EXTRA_MEDIA_KEY,
+                        PlaybackRequestValidator.key(request.optString("key")) ?: "youtube:${source.hashCode()}",
+                    )
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_POSITION_MS, positionMs),
+            )
+            return true
+        }
+        if (nativeVideoOpen || nativeVideoOpening) return true
+        nativeVideoOpening = true
+        lifecycleScope.launch {
+            val media = withContext(Dispatchers.IO) { resolveNativeVideo(source) }
+            if (media == null) {
+                nativeVideoOpening = false
+                Toast.makeText(
+                    this@MainActivity,
+                    "This offline video is no longer available.",
+                    Toast.LENGTH_LONG,
+                ).show()
+                return@launch
+            }
+            if (nativeVideoOpen) {
+                nativeVideoOpening = false
+                return@launch
+            }
+            nativeVideoOpening = false
+            nativeVideoOpen = true
+            startActivity(
+                Intent(this@MainActivity, NativeVideoPlayerActivity::class.java)
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_URI, media.first.toString())
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_TITLE, media.second)
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_MEDIA_KEY, localPlaybackKey(source))
+                    .putExtra(NativeVideoPlayerActivity.EXTRA_POSITION_MS, positionMs),
+            )
+        }
+        return true
+    }
+
+    private fun handleNativePlayerCommand(request: JSONObject): Boolean {
+        val command = request.optString("command")
+        val controller = (application as ReelhouseApp).nativePlayback
+        when (command) {
+            "play" -> controller.player.play()
+            "pause" -> controller.player.pause()
+            "seek" -> {
+                val deltaMs = (request.optDouble("seconds", 0.0) * 1_000.0).toLong()
+                val target = (controller.player.currentPosition + deltaMs).coerceAtLeast(0L)
+                controller.player.seekTo(target)
+            }
+            "speed" -> controller.player.setPlaybackSpeed(request.optDouble("value", 1.0).toFloat().coerceIn(0.25f, 2f))
+            "close" -> controller.stop()
+            "restore" -> {
+                val session = controller.session
+                if (session != null && !nativeVideoOpen) {
+                    nativeVideoOpen = true
+                    startActivity(
+                        Intent(this, NativeVideoPlayerActivity::class.java)
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_URI, if (session.online) null else session.uri.toString())
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_SOURCE_URL, session.sourceUrl)
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_TITLE, session.title)
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_THUMBNAIL, session.thumbnail)
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_MEDIA_KEY, session.key)
+                            .putExtra(NativeVideoPlayerActivity.EXTRA_POSITION_MS, controller.player.currentPosition),
+                    )
+                }
+            }
+            "state" -> Unit
+            else -> return true
+        }
+        syncNativePlaybackToWebView()
+        return true
+    }
+
+    private fun localPlaybackKey(source: String): String {
+        val uri = Uri.parse(source)
+        deviceMediaRef(uri)?.let { return "local-video:device-${it.collection}-${it.id}" }
+        localMediaId(uri)?.let { return "local-video:$it" }
+        return "local-video:${source.hashCode()}"
+    }
+
+    private fun syncNativePlaybackToWebView() {
+        if (!::webView.isInitialized) return
+        val snapshot = (application as ReelhouseApp).nativePlayback.snapshot()
+        val detail = JSONObject().apply {
+            put("active", snapshot.active)
+            put("key", snapshot.key)
+            put("title", snapshot.title)
+            put("thumbnail", snapshot.thumbnail)
+            put("online", snapshot.online)
+            put("playing", snapshot.playing)
+            put("position", snapshot.positionMs / 1_000.0)
+            put("duration", snapshot.durationMs / 1_000.0)
+            put("speed", snapshot.speed)
+            put("ended", snapshot.ended)
+            put("buffering", snapshot.buffering)
+            put("error", snapshot.error)
+            put("uiOpen", nativeVideoOpen)
+        }
+        webView.evaluateJavascript(
+            "window.dispatchEvent(new CustomEvent('reelhouse-native-player-state',{detail:${detail}}))",
+            null,
+        )
+    }
+
+    private fun resolveNativeVideo(source: String): Pair<Uri, String>? {
+        val sourceUri = runCatching { Uri.parse(source) }.getOrNull() ?: return null
+        deviceMediaRef(sourceUri)?.let { ref ->
+            if (ref.collection != "video") return null
+            val contentUri = ContentUris.withAppendedId(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                ref.id,
+            )
+            val title = contentResolver.query(
+                contentUri,
+                arrayOf(MediaStore.Video.Media.DISPLAY_NAME),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            } ?: "Offline video"
+            return contentUri to title
+        }
+
+        val id = localMediaId(sourceUri) ?: return null
+        val item = runBlocking(Dispatchers.IO) {
+            (application as ReelhouseApp).database.downloadDao().getById(id)
+        } ?: return null
+        val contentUri = item.contentUri?.let(Uri::parse) ?: return null
+        val title = item.savedDisplayName.takeIf(String::isNotBlank)
+            ?: item.title.takeIf(String::isNotBlank)
+            ?: "Offline video"
+        return contentUri to title
     }
 
     private fun maybeRequestMediaPermissions(requestText: String) {
@@ -341,6 +563,14 @@ class MainActivity : ComponentActivity() {
         }
 
     private inner class ReelhouseWebViewClient : WebViewClient() {
+        override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+            // Do not keep the native overlay above a failed/slow document. The
+            // WebView background or its error page is more useful than a stuck
+            // splash image while the bundled page is being diagnosed.
+            dismissNativeSplash()
+            super.onPageStarted(view, url, favicon)
+        }
+
         override fun onPageCommitVisible(view: WebView, url: String) {
             dismissNativeSplash()
             applySystemThemeToWebView()
@@ -354,9 +584,7 @@ class MainActivity : ComponentActivity() {
         ) {
             if (request.isForMainFrame) {
                 dismissNativeSplash()
-                // Keep the hosted UI visible even when the network fails. Do
-                // not replace it with the legacy native/offline shell.
-                Log.e("ReelhouseWebView", "Hosted frontend failed: ${error.description}")
+                Log.e("ReelhouseWebView", "Bundled frontend failed: ${error.description}")
             }
             super.onReceivedError(view, request, error)
         }
@@ -416,10 +644,7 @@ class MainActivity : ComponentActivity() {
                     ByteArrayInputStream(body.encodeToByteArray()),
                 )
             }
-            val assetResponse = assetLoader.shouldInterceptRequest(uri)
-            if (assetResponse != null) {
-                return assetResponse
-            }
+            assetLoader.shouldInterceptRequest(uri)?.let { return it }
             return null
         }
     }
@@ -782,9 +1007,573 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val BRIDGE_NAME = "ReelhouseAndroid"
+        private const val NATIVE_VIDEO_MESSAGE = "native-video-playback"
+        private const val NATIVE_ONLINE_MESSAGE = "native-online-playback"
+        private const val NATIVE_COMMAND_MESSAGE = "native-player-command"
         private const val LOCAL_RESULT_SCHEME = "reelhouse-local"
         private const val MEDIA_PERMISSION_REQUEST = 7001
+        private const val SPLASH_FALLBACK_DELAY_MS = 4_000L
         private val RANGE_PATTERN = Regex("bytes=(\\d+)-(\\d*)", RegexOption.IGNORE_CASE)
+
+        /**
+         * Chromium on some Android devices aborts otherwise valid offline
+         * MP4 files after a few seconds with an audio MediaCodec error. Route
+         * only local video play commands to Android's native media stack.
+         */
+        private val NATIVE_VIDEO_PLAYBACK_SCRIPT = """
+            (() => {
+              if (window.__reelhouseNativeVideoInstalled) return;
+              window.__reelhouseNativeVideoInstalled = true;
+              const webPlay = HTMLMediaElement.prototype.play;
+
+              HTMLMediaElement.prototype.play = function(...args) {
+                try {
+                  const source = this.currentSrc || this.getAttribute('src') || '';
+                  const url = new URL(source, location.href);
+                  const localVideo = this instanceof HTMLVideoElement &&
+                    url.origin === location.origin &&
+                    (url.pathname.startsWith('/api/backend/android-device-media/video/') ||
+                     url.pathname.startsWith('/api/backend/android-media/'));
+                  if (localVideo) {
+                    ReelhouseAndroid.postMessage(JSON.stringify({
+                      type: 'native-video-playback',
+                      url: url.href,
+                      position: Number.isFinite(this.currentTime) ? this.currentTime : 0
+                    }));
+                    return Promise.resolve();
+                  }
+                } catch (_) {}
+                return webPlay.apply(this, args);
+              };
+            })();
+        """.trimIndent()
+
+        /**
+         * The mobile stylesheet already avoids most expensive effects, but
+         * this document-start rule also covers tablet-sized Android windows
+         * and keeps route transitions from waiting on decorative animations.
+         */
+        private val ANDROID_PERFORMANCE_SCRIPT = """
+            (() => {
+              if (window.__reelhouseAndroidPerformanceInstalled) return;
+              window.__reelhouseAndroidPerformanceInstalled = true;
+
+              // Keep route transitions uncovered so fixed glass navigation stays
+              // stable while Next swaps the page content underneath it.
+
+              const install = () => {
+                const root = document.documentElement;
+                if (!root || root.classList.contains('reelhouse-android')) return;
+                root.classList.add('reelhouse-android');
+                // The Android shell is intentionally dark and lightweight;
+                // keep the web theme from switching to the light palette when
+                // the phone itself is using a light system theme.
+                const forceDark = () => {
+                  if (root.classList.contains('light')) root.classList.remove('light');
+                  if (!root.classList.contains('dark')) root.classList.add('dark');
+                  root.style.colorScheme = 'dark';
+                };
+                forceDark();
+                new MutationObserver(forceDark).observe(root, { attributes: true, attributeFilter: ['class'] });
+                const style = document.createElement('style');
+                style.textContent = `
+                  html.reelhouse-android,
+                  html.reelhouse-android body {
+                    scroll-behavior: auto !important;
+                    background: #0b0813 !important;
+                  }
+                  @keyframes reelhouse-android-page-enter {
+                    from {
+                      opacity: 0;
+                      transform: translate3d(0, 12px, 0) scale(0.992);
+                    }
+                    to {
+                      opacity: 1;
+                      transform: translate3d(0, 0, 0) scale(1);
+                    }
+                  }
+                  html.reelhouse-android .page-transition {
+                    animation: reelhouse-android-page-enter 260ms cubic-bezier(.22, 1, .36, 1) both !important;
+                    transform-origin: center top !important;
+                    will-change: opacity, transform !important;
+                  }
+                  html.reelhouse-android .stagger-children > * {
+                    animation-delay: 0ms !important;
+                    animation-duration: 120ms !important;
+                  }
+                  html.reelhouse-android .navigation-progress,
+                  html.reelhouse-android .loading-shimmer {
+                    animation: none !important;
+                  }
+                  /* Remove decorative 3D/background artwork on Android. */
+                  html.reelhouse-android .shell-background-art,
+                  html.reelhouse-android .home-glow,
+                  html.reelhouse-android .water-bubble,
+                  html.reelhouse-android [class*="music-droplet"] {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .home-glow,
+                  html.reelhouse-android .water-bubble,
+                  html.reelhouse-android .sliding-liquid-bubble,
+                  html.reelhouse-android [class*="music-droplet"] {
+                    animation: none !important;
+                  }
+                  html.reelhouse-android [class*="backdrop-blur"] {
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                  }
+                  html.reelhouse-android .liquid-glass-card,
+                  html.reelhouse-android .liquid-glass-input,
+                  html.reelhouse-android .liquid-glass-pill {
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                  }
+                  html.reelhouse-android .card-3d-effect {
+                    transform-style: flat !important;
+                    will-change: auto !important;
+                    transition: border-color 100ms ease-out !important;
+                  }
+                  html.reelhouse-android .card-3d-effect:hover,
+                  html.reelhouse-android .card-3d-effect:active {
+                    transform: none !important;
+                  }
+                  html.reelhouse-android [class*="transition-all"],
+                  html.reelhouse-android [class*="duration-300"],
+                  html.reelhouse-android [class*="duration-500"],
+                  html.reelhouse-android [class*="duration-700"] {
+                    transition-duration: 100ms !important;
+                  }
+                  html.reelhouse-android [class*="drop-shadow"] {
+                    filter: none !important;
+                  }
+                  html.reelhouse-android .bubble-active-icon {
+                    animation: none !important;
+                  }
+                  html.reelhouse-android .sliding-liquid-bubble {
+                    animation: none !important;
+                    transition: transform 100ms ease-out !important;
+                    background: linear-gradient(135deg, #ec4899, #c026d3) !important;
+                    border: 0 !important;
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                    box-shadow: none !important;
+                  }
+                  html.reelhouse-android .sliding-liquid-bubble::before,
+                  html.reelhouse-android .sliding-liquid-bubble::after {
+                    display: none !important;
+                  }
+                  /* A clean, flat Android home layout: keep the artwork and
+                     content, remove only the expensive 3D/glass treatment. */
+                  html.reelhouse-android .home-screen {
+                    background: linear-gradient(180deg, #100c19 0%, #0b0813 55%, #09070f 100%) !important;
+                    overflow-x: hidden !important;
+                    overflow-y: visible !important;
+                  }
+                  html.reelhouse-android .home-screen > svg {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .home-screen > header > button[aria-label="User Profile"],
+                  html.reelhouse-android .home-screen > div.fixed:has(input[placeholder="e.g. Ibrahim"]) {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .home-screen > header {
+                    justify-content: flex-end !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type {
+                    margin-top: 20px !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card {
+                    border: 1px solid rgba(255, 255, 255, 0.10) !important;
+                    border-radius: 22px !important;
+                    background: #171321 !important;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28) !important;
+                    transform-style: flat !important;
+                    will-change: auto !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card:hover,
+                  html.reelhouse-android .home-screen .home-card:active {
+                    transform: none !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card-image {
+                    transition: none !important;
+                    transform: none !important;
+                  }
+                  /* The Android app stays dark even when the device theme is
+                     light; keep Home text and controls readable. */
+                  html.reelhouse-android .home-screen [class~="text-white"],
+                  html.reelhouse-android .home-screen [class*="text-white/"] {
+                    color: #ffffff !important;
+                  }
+                  html.reelhouse-android .home-screen .liquid-glass-pill {
+                    color: rgba(255, 255, 255, 0.88) !important;
+                    background: #171321 !important;
+                  }
+                  html.reelhouse-android .home-screen section {
+                    margin-bottom: 28px !important;
+                  }
+                  html.reelhouse-android .home-screen section:has(h2) > div:first-child {
+                    align-items: center !important;
+                  }
+                  html.reelhouse-android .home-screen section:has(h2) > div:first-child h2 {
+                    color: #ffffff !important;
+                    font-size: 18px !important;
+                  }
+                  /* Placeholder artwork is a utility asset, not a useful
+                     Home thumbnail. Let the card's dark gradient show. */
+                  html.reelhouse-android .home-screen .home-card img[src*="placeholder.svg"] {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card:has(img[src*="placeholder.svg"]) {
+                    background: linear-gradient(145deg, #21172d 0%, #15111e 100%) !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card > .bg-gradient-to-t {
+                    opacity: 0.88 !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card h3 {
+                    color: #ffffff !important;
+                    text-shadow: 0 1px 8px rgba(0, 0, 0, 0.65) !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card p {
+                    color: rgba(255, 255, 255, 0.72) !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"] {
+                    background: #171321 !important;
+                    border-color: rgba(217, 70, 239, 0.35) !important;
+                    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42) !important;
+                    color: #ffffff !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"] [class~="text-white"],
+                  html.reelhouse-android aside[aria-label="Mini player"] [class*="text-white/"] {
+                    color: #ffffff !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"] img[src*="placeholder.svg"] {
+                    display: none !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"]:has(> div:first-child video) > div:first-child {
+                    position: relative !important;
+                    background: linear-gradient(145deg, #54216f 0%, #d946ef 100%) !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"]:has(> div:first-child video) > div:first-child video {
+                    opacity: 0 !important;
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"]:has(> div:first-child video) > div:first-child::after {
+                    content: '▶';
+                    position: absolute;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: #ffffff;
+                    font-size: 22px;
+                    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+                  }
+                  html.reelhouse-android aside[aria-label="Mini player"] button {
+                    background: #241a32 !important;
+                    border-color: rgba(255, 255, 255, 0.14) !important;
+                  }
+                  html.reelhouse-android .home-screen .translate-z-10,
+                  html.reelhouse-android .home-screen .translate-z-20,
+                  html.reelhouse-android .home-screen .translate-z-30 {
+                    transform: none !important;
+                  }
+                  html.reelhouse-android .home-screen .liquid-glass-card,
+                  html.reelhouse-android .home-screen .liquid-glass-input,
+                  html.reelhouse-android .home-screen .liquid-glass-pill {
+                    background: rgba(24, 18, 36, 0.96) !important;
+                    border-color: rgba(255, 255, 255, 0.10) !important;
+                    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22) !important;
+                    -webkit-backdrop-filter: none !important;
+                    backdrop-filter: none !important;
+                  }
+                  html.reelhouse-android .home-screen .liquid-glow-btn {
+                    background: #d946ef !important;
+                    box-shadow: 0 5px 14px rgba(217, 70, 239, 0.28) !important;
+                  }
+                  html.reelhouse-android .home-screen .animate-pulse {
+                    animation: none !important;
+                  }
+                  /* Keep Home compact even when the device library contains
+                     hundreds of items. The complete list remains in Library. */
+                  html.reelhouse-android .home-screen section:has(h2) .grid > a:nth-child(n+5) {
+                    display: none !important;
+                  }
+                  /* Compact Android visual system. The app uses solid layers
+                     so scrolling does not continuously repaint glass blurs. */
+                  html.reelhouse-android,
+                  html.reelhouse-android body,
+                  html.reelhouse-android body > div,
+                  html.reelhouse-android .home-screen {
+                    background: #0c0d10 !important;
+                  }
+                  html.reelhouse-android .home-screen {
+                    padding: 18px 14px 150px !important;
+                  }
+                  html.reelhouse-android .home-header {
+                    align-items: center !important;
+                    justify-content: space-between !important;
+                  }
+                  html.reelhouse-android .home-heading p {
+                    color: #ff5368 !important;
+                  }
+                  html.reelhouse-android .home-heading h1 {
+                    color: #f7f7f8 !important;
+                    font-size: 21px !important;
+                    line-height: 1.2 !important;
+                  }
+                  html.reelhouse-android .home-header .liquid-glass-pill {
+                    width: 40px !important;
+                    height: 40px !important;
+                    background: #18191e !important;
+                    border: 1px solid #282a31 !important;
+                    box-shadow: none !important;
+                  }
+                  html.reelhouse-android .home-header > div:last-child {
+                    gap: 8px !important;
+                  }
+                  html.reelhouse-android .home-section-heading {
+                    display: block !important;
+                  }
+                  html.reelhouse-android .home-section-heading h2 {
+                    color: #f7f7f8 !important;
+                    font-size: 19px !important;
+                  }
+                  html.reelhouse-android .home-section-heading p {
+                    color: #858791 !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type {
+                    margin-top: 24px !important;
+                    margin-bottom: 30px !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type > .grid > div {
+                    display: contents !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type > .grid {
+                    gap: 10px !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card {
+                    aspect-ratio: 16 / 11 !important;
+                    border-radius: 16px !important;
+                  }
+                  html.reelhouse-android .home-screen .home-card {
+                    background: #17181d !important;
+                    border-color: #282a31 !important;
+                    box-shadow: none !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card h2 {
+                    font-size: 14px !important;
+                    line-height: 1.15 !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card p {
+                    font-size: 10px !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card .liquid-glow-btn {
+                    width: 38px !important;
+                    height: 38px !important;
+                    background: rgba(255, 255, 255, 0.94) !important;
+                    color: #111217 !important;
+                    box-shadow: none !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card .liquid-glow-btn svg {
+                    width: 17px !important;
+                    height: 17px !important;
+                    color: #111217 !important;
+                    fill: #111217 !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card > div[class*="left-3"][class*="top-3"] {
+                    max-width: calc(100% - 54px) !important;
+                    padding: 4px 8px !important;
+                    border: 0 !important;
+                    font-size: 9px !important;
+                    background: rgba(12, 13, 16, 0.78) !important;
+                  }
+                  html.reelhouse-android .home-screen > section:first-of-type .home-card > button {
+                    top: 8px !important;
+                    right: 8px !important;
+                    width: 32px !important;
+                    height: 32px !important;
+                    border: 0 !important;
+                    background: rgba(12, 13, 16, 0.78) !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section {
+                    margin-top: 0 !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section > div:first-child h2 svg,
+                  html.reelhouse-android .home-downloaded-section > div:first-child a {
+                    color: #ff5368 !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section .grid {
+                    gap: 10px !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section .home-card {
+                    border-radius: 14px !important;
+                    background: linear-gradient(145deg, #202127 0%, #131419 100%) !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section .home-download-fallback {
+                    color: #565963 !important;
+                  }
+                  html.reelhouse-android .home-downloaded-section .grid > a:nth-child(n+3) {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav {
+                    bottom: 8px !important;
+                    width: calc(100% - 24px) !important;
+                    max-width: 430px !important;
+                    height: 62px !important;
+                    padding: 5px 6px !important;
+                    gap: 0 !important;
+                    justify-content: space-around !important;
+                    border-radius: 18px !important;
+                    border: 1px solid #2a2b31 !important;
+                    background: #15161a !important;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.34) !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble {
+                    display: none !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav-item {
+                    width: 25% !important;
+                    flex: 1 1 0 !important;
+                    height: 50px !important;
+                    display: flex !important;
+                    flex-direction: column !important;
+                    gap: 3px !important;
+                    border-radius: 12px !important;
+                    color: #81838c !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav-item[aria-current="page"] {
+                    color: #ff5368 !important;
+                    background: #242126 !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav-item svg {
+                    width: 19px !important;
+                    height: 19px !important;
+                    transform: none !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav-item .android-nav-label {
+                    display: block !important;
+                    font-size: 9px !important;
+                    font-weight: 600 !important;
+                    line-height: 1 !important;
+                  }
+                  /* The home route uses the reflective liquid-glass navigation surface. */
+                  html.reelhouse-android .home-liquid-nav {
+                    border: 1px solid rgba(255, 255, 255, 0.24) !important;
+                    background:
+                      linear-gradient(135deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.045) 48%, rgba(255, 255, 255, 0.1)),
+                      rgba(16, 12, 27, 0.72) !important;
+                    -webkit-backdrop-filter: blur(26px) saturate(185%) !important;
+                    backdrop-filter: blur(26px) saturate(185%) !important;
+                    box-shadow:
+                      0 18px 42px rgba(0, 0, 0, 0.58),
+                      0 0 28px rgba(168, 85, 247, 0.14),
+                      inset 0 1px 1px rgba(255, 255, 255, 0.45) !important;
+                  }
+                  html.reelhouse-android .home-liquid-nav .app-bottom-nav-item {
+                    color: #c7c9d2 !important;
+                  }
+                  html.reelhouse-android .home-liquid-nav .app-bottom-nav-item[aria-current="page"] {
+                    color: #ffffff !important;
+                    background: linear-gradient(145deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.07)) !important;
+                    box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3) !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble {
+                    display: block !important;
+                    top: 8px !important;
+                    z-index: 0 !important;
+                    width: 44px !important;
+                    height: 44px !important;
+                    border-radius: 50% !important;
+                    background: radial-gradient(circle at 35% 25%, rgba(255, 255, 255, 0.98) 0%, rgba(255, 255, 255, 0.5) 20%, rgba(236, 72, 153, 0.98) 48%, rgba(192, 38, 211, 0.92) 75%, rgba(147, 51, 234, 0.88) 100%) !important;
+                    border: 1px solid rgba(255, 255, 255, 0.45) !important;
+                    -webkit-backdrop-filter: blur(16px) saturate(220%) !important;
+                    backdrop-filter: blur(16px) saturate(220%) !important;
+                    box-shadow: 0 10px 26px rgba(236, 72, 153, 0.65), inset 4px 4px 12px rgba(255, 255, 255, 0.82), inset -4px -4px 10px rgba(0, 0, 0, 0.3) !important;
+                    transition: left 420ms cubic-bezier(0.34, 1.56, 0.64, 1), transform 420ms cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble::before,
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble::after {
+                    display: block !important;
+                    content: '' !important;
+                    position: absolute !important;
+                    border-radius: 50% !important;
+                    pointer-events: none !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble::before {
+                    top: 14% !important;
+                    left: 18% !important;
+                    width: 34% !important;
+                    height: 24% !important;
+                    background: rgba(255, 255, 255, 0.98) !important;
+                    filter: blur(0.5px) !important;
+                    transform: rotate(-30deg) !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .sliding-liquid-bubble::after {
+                    top: 40% !important;
+                    left: 14% !important;
+                    width: 16% !important;
+                    height: 14% !important;
+                    background: rgba(255, 255, 255, 0.85) !important;
+                    filter: blur(0.5px) !important;
+                  }
+                  html.reelhouse-android .app-bottom-nav .app-bottom-nav-item {
+                    position: relative !important;
+                    z-index: 10 !important;
+                  }
+                  html.reelhouse-android .home-liquid-orb {
+                    animation: none !important;
+                  }
+                  html.reelhouse-android aside.mini-player[aria-label="Mini player"] {
+                    left: 12px !important;
+                    right: 12px !important;
+                    bottom: calc(78px + env(safe-area-inset-bottom)) !important;
+                    height: 58px !important;
+                    padding: 5px 7px !important;
+                    gap: 8px !important;
+                    border-radius: 15px !important;
+                    border: 1px solid #303138 !important;
+                    background: #1a1b20 !important;
+                    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.42) !important;
+                  }
+                  html.reelhouse-android .mini-player-art {
+                    width: 72px !important;
+                    height: 46px !important;
+                    border-radius: 10px !important;
+                  }
+                  html.reelhouse-android .mini-player-art-overlay {
+                    background: rgba(0, 0, 0, 0.22) !important;
+                  }
+                  html.reelhouse-android .mini-player p:first-child {
+                    font-size: 13px !important;
+                  }
+                  html.reelhouse-android .mini-player p + p {
+                    color: #888a93 !important;
+                    font-size: 10px !important;
+                  }
+                  html.reelhouse-android aside.mini-player[aria-label="Mini player"] button {
+                    width: 34px !important;
+                    height: 34px !important;
+                    flex: 0 0 34px !important;
+                    border: 0 !important;
+                    background: transparent !important;
+                  }
+                  html.reelhouse-android aside.mini-player[aria-label="Mini player"] button[aria-label="Play"],
+                  html.reelhouse-android aside.mini-player[aria-label="Mini player"] button[aria-label="Pause"] {
+                    color: #ffffff !important;
+                    background: #ff5368 !important;
+                  }
+                  html.reelhouse-android .mini-player-progress > span {
+                    background: #ff5368 !important;
+                  }
+                `;
+                (document.head || root).appendChild(style);
+              };
+
+              install();
+              if (!document.head) {
+                document.addEventListener('DOMContentLoaded', install, { once: true });
+              }
+            })();
+        """.trimIndent()
 
         private val LOCAL_FETCH_SCRIPT = """
             (() => {
@@ -827,7 +1616,7 @@ class MainActivity : ComponentActivity() {
                   body = await request.clone().text();
                 }
                 if (body != null && typeof body !== 'string') body = String(body);
-                console.debug('PERF_BUILD_ID=cache-debug-v2 phase=js_fetch route=' + url.pathname + ' id=' + id);
+                console.debug('PERF_BUILD_ID=offline-light-v3 phase=js_fetch route=' + url.pathname + ' id=' + id);
 
                 return new Promise((resolve) => {
                   const timer = setTimeout(() => {
@@ -854,64 +1643,120 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-class CustomAssetsPathHandler(
+/** Streams the static export directly from APK assets without a cache or network request. */
+private class StaticAssetsPathHandler(
     private val context: Context,
     private val pathPrefix: String = "web",
 ) : WebViewAssetLoader.PathHandler {
+    override fun handle(path: String): WebResourceResponse? {
+        val cleanPath = path.removePrefix("/")
+        if (cleanPath.split('/').any { it == ".." }) return null
 
-    private fun getMimeType(filePath: String): String {
-        val ext = filePath.substringAfterLast('.', "").lowercase()
-        return when (ext) {
-            "js", "mjs" -> "text/javascript"
-            "css" -> "text/css"
-            "html" -> "text/html"
-            "json" -> "application/json"
-            "png" -> "image/png"
-            "jpg", "jpeg" -> "image/jpeg"
-            "webp" -> "image/webp"
-            "svg" -> "image/svg+xml"
-            "woff" -> "font/woff"
-            "woff2" -> "font/woff2"
-            "ttf" -> "font/ttf"
-            "otf" -> "font/otf"
-            "ico" -> "image/x-icon"
-            "txt" -> "text/plain"
-            else -> "application/octet-stream"
+        val directAsset = if (cleanPath.isEmpty()) {
+            "$pathPrefix/index.html"
+        } else {
+            "$pathPrefix/$cleanPath"
         }
+
+        // Static export pages are emitted as route.html, while assets retain
+        // their original paths. This keeps both client and hard navigations
+        // local and avoids a full network round trip on every page change.
+        createResponse(directAsset)?.let { return it }
+
+        // Next's static export can only emit a placeholder file for dynamic
+        // routes such as /player/[id]. On Android those routes still need to
+        // work with the real local-download or video ID. Serve the exported
+        // placeholder route and substitute only the serialized placeholder
+        // parameter; the player then reads the real ID from useParams().
+        createDynamicRouteResponse(cleanPath)?.let { return it }
+
+        if (cleanPath.substringAfterLast('/', "").contains('.')) return null
+        createResponse("$pathPrefix/$cleanPath.html")?.let { return it }
+        createResponse("$pathPrefix/$cleanPath/index.html")?.let { return it }
+        return createResponse("$pathPrefix/index.html")
+    }
+
+    private fun createDynamicRouteResponse(cleanPath: String): WebResourceResponse? {
+        val route = DYNAMIC_ROUTES.firstOrNull { cleanPath.startsWith("$it/") }
+            ?: return null
+        val remainder = cleanPath.removePrefix("$route/")
+        if (remainder.isEmpty()) return null
+
+        val firstSlash = remainder.indexOf('/')
+        val rawIdWithExtension = if (firstSlash == -1) remainder else remainder.substring(0, firstSlash)
+        val isRouteDataFile = firstSlash == -1 && rawIdWithExtension.endsWith(".txt")
+        val rawId = if (isRouteDataFile) rawIdWithExtension.removeSuffix(".txt") else rawIdWithExtension
+        val routeId = Uri.decode(rawId)
+        if (!SAFE_ROUTE_ID.matches(routeId)) return null
+
+        val templatePath = when {
+            isRouteDataFile -> "$pathPrefix/$route/placeholder.txt"
+            firstSlash == -1 -> "$pathPrefix/$route/placeholder.html"
+            else -> {
+                val suffix = remainder.substring(firstSlash + 1)
+                if (suffix.isEmpty() || suffix.split('/').any { it == ".." }) return null
+                "$pathPrefix/$route/placeholder/$suffix"
+            }
+        }
+
+        val template = try {
+            context.assets.open(templatePath).bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } catch (_: Exception) {
+            return null
+        }
+        val rendered = template
+            .replace("\\\"placeholder\\\"", "\\\"$routeId\\\"")
+            .replace("\"placeholder\"", "\"$routeId\"")
+        return WebResourceResponse(
+            mimeType(templatePath),
+            "UTF-8",
+            ByteArrayInputStream(rendered.toByteArray(Charsets.UTF_8)),
+        )
     }
 
     private fun createResponse(assetPath: String): WebResourceResponse? {
-        return try {
-            val stream = context.assets.open(assetPath)
-            val mimeType = getMimeType(assetPath)
-            val encoding = if (mimeType.startsWith("text/") || mimeType == "application/json" || mimeType == "image/svg+xml") "UTF-8" else null
-            Log.d("CustomAssets", "Serving local asset: $assetPath ($mimeType)")
-            WebResourceResponse(mimeType, encoding, stream)
-        } catch (_: Exception) {
+        val mimeType = mimeType(assetPath)
+        val encoding = if (
+            mimeType.startsWith("text/") ||
+            mimeType == "application/json" ||
+            mimeType == "image/svg+xml"
+        ) {
+            "UTF-8"
+        } else {
             null
         }
-    }
 
-    override fun handle(path: String): WebResourceResponse? {
-        val cleanPath = path.removePrefix("/")
-        val assetPath = if (cleanPath.isEmpty()) "$pathPrefix/index.html" else "$pathPrefix/$cleanPath"
-
-        // 1. Direct asset load (e.g. web/_next/..., web/index.html, web/manifest.json)
-        createResponse(assetPath)?.let { return it }
-
-        // 2. Asset with file extension that was not found
-        if (cleanPath.substringAfterLast('/', "").contains(".")) {
-            Log.w("CustomAssets", "Asset file not found: $assetPath")
+        val stream = try {
+            context.assets.open(assetPath)
+        } catch (_: Exception) {
             return null
         }
-
-        // 3. Clean path + .html (e.g. web/downloader.html for /downloader)
-        createResponse("$pathPrefix/$cleanPath.html")?.let { return it }
-
-        // 4. Clean path + /index.html (e.g. web/downloader/index.html)
-        createResponse("$pathPrefix/$cleanPath/index.html")?.let { return it }
-
-        // 5. Fallback to main SPA index.html
-        return createResponse("$pathPrefix/index.html")
+        return WebResourceResponse(mimeType, encoding, stream)
     }
+
+    private fun mimeType(filePath: String): String = when (
+        filePath.substringAfterLast('.', "").lowercase()
+    ) {
+        "js", "mjs" -> "text/javascript"
+        "css" -> "text/css"
+        "html" -> "text/html"
+        "json", "map" -> "application/json"
+        "png" -> "image/png"
+        "jpg", "jpeg" -> "image/jpeg"
+        "webp" -> "image/webp"
+        "svg" -> "image/svg+xml"
+        "woff" -> "font/woff"
+        "woff2" -> "font/woff2"
+        "ttf" -> "font/ttf"
+        "otf" -> "font/otf"
+        "ico" -> "image/x-icon"
+        "txt" -> "text/plain"
+        else -> "application/octet-stream"
+    }
+
+    private companion object {
+        val DYNAMIC_ROUTES = setOf("downloads", "music", "player", "playlists", "watch")
+        val SAFE_ROUTE_ID = Regex("[A-Za-z0-9._~-]{1,200}")
+    }
+
 }
