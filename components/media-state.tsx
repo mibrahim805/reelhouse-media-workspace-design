@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { DownloadItem } from '@/components/download-store'
 import { useLibrary } from '@/components/library-store'
 import type { PlayerCommands, PlayerSource, PlayerStatus } from '@/types/player'
+import { isAndroidShell, postNativePlayerCommand, type NativePlayerState } from '@/lib/native-player-bridge'
 
 type Playable = Pick<DownloadItem, 'id'|'title'|'thumbnail'|'fileUrl'|'filename'|'source'|'channel'>
 type MediaState = {
@@ -119,6 +120,52 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
       setHydrated(true)
     }
   }, [])
+
+  useEffect(() => {
+    if (!hydrated || !isAndroidShell()) return
+    const handleNativeState = (event: Event) => {
+      const detail = (event as CustomEvent<NativePlayerState>).detail
+      if (!detail || typeof detail.active !== 'boolean') return
+      if (!detail.active) {
+        setCurrent(null)
+        setSource(null)
+        setPlayingState(false)
+        setStatus('idle')
+        return
+      }
+
+      const nextSource: PlayerSource | null = detail.online
+        ? (() => {
+            const videoId = detail.key.startsWith('youtube:') ? detail.key.slice('youtube:'.length) : ''
+            return videoId ? { type: 'youtube', videoId, title: detail.title || 'Online video', thumbnail: detail.thumbnail } : null
+          })()
+        : detail.key.startsWith('local-video:')
+          ? { type: 'local-video', id: detail.key.slice('local-video:'.length), title: detail.title || 'Offline video', src: '' , thumbnail: detail.thumbnail }
+          : null
+      if (!nextSource) return
+
+      setSource(previous => previous && sourceIdentity(previous) === sourceIdentity(nextSource)
+        ? { ...previous, title: nextSource.title, thumbnail: nextSource.thumbnail }
+        : nextSource)
+      setCurrent(previous => previous || {
+        id: nextSource.type === 'youtube' ? nextSource.videoId : nextSource.id,
+        title: nextSource.title,
+        thumbnail: nextSource.type === 'youtube' ? nextSource.thumbnail || '' : nextSource.thumbnail || '',
+        fileUrl: nextSource.type === 'youtube' ? '' : nextSource.src,
+        filename: '',
+        source: detail.online ? 'YouTube' : 'Offline',
+        channel: '',
+      })
+      setPositionState(Math.max(0, detail.position || 0))
+      setDuration(Math.max(0, detail.duration || 0))
+      setPlaybackRateState(Number.isFinite(detail.speed) ? detail.speed : 1)
+      setPlayingState(detail.playing)
+      setStatus(detail.error ? 'error' : detail.ended ? 'ended' : detail.buffering ? 'loading' : detail.playing ? 'playing' : 'paused')
+    }
+    window.addEventListener('reelhouse-native-player-state', handleNativeState)
+    postNativePlayerCommand('state')
+    return () => window.removeEventListener('reelhouse-native-player-state', handleNativeState)
+  }, [hydrated])
 
   const persistState = useCallback(() => {
     if (!hydratedRef.current) return
@@ -256,17 +303,20 @@ export function MediaProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const play = useCallback(() => {
+    if (isAndroidShell()) postNativePlayerCommand('play')
     void controlsRef.current?.play()
     setPlayingState(true)
     setStatus('playing')
   }, [])
 
   const pause = useCallback(() => {
+    if (isAndroidShell()) postNativePlayerCommand('pause')
     controlsRef.current?.pause()
     setPlaying(false)
   }, [setPlaying])
 
   const seek = useCallback((seconds: number) => {
+    if (isAndroidShell()) postNativePlayerCommand('seek', seconds)
     const active = controlsRef.current
     if (!active) return
     active.seek(seconds)
