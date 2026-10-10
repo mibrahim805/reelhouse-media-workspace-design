@@ -10,6 +10,7 @@ import { LocalVideoPlayerAdapter, type LocalVideoPlayerAdapterHandle } from '@/c
 import { YoutubePlayerAdapter, type YoutubePlayerAdapterHandle } from '@/components/player/adapters/youtube-player-adapter'
 import { saveResumePosition } from '@/components/player/resume-position'
 import type { PlayerCommands } from '@/types/player'
+import { isAndroidShell } from '@/lib/native-player-bridge'
 
 function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) {
   if (source.type === 'youtube') return `/watch/${encodeURIComponent(source.videoId)}`
@@ -18,7 +19,7 @@ function playerHref(source: NonNullable<ReturnType<typeof useMedia>['source']>) 
 
 export function MiniPlayer() {
   const media = useMedia()
-  const { playing, position, volume, muted, playbackRate, setDuration, setPlaying, setPosition, setStatus, registerControls, clearControls, play, pause, close } = media
+  const { playing, position, duration, volume, muted, playbackRate, status, setDuration, setPlaying, setPosition, setStatus, registerControls, clearControls, play, pause, close } = media
   const pathname = usePathname()
   const source = media.source
   const videoRef = useRef<LocalVideoPlayerAdapterHandle>(null)
@@ -27,7 +28,7 @@ export function MiniPlayer() {
   const activeControlsRef = useRef<PlayerCommands | null>(null)
   const sessionRef = useRef({ playing, position, volume, muted, playbackRate })
   useEffect(() => { sessionRef.current = { playing, position, volume, muted, playbackRate } }, [muted, playbackRate, playing, position, volume])
-  const isFullPlayer = pathname.startsWith('/watch/') || pathname.startsWith('/player/') || pathname.startsWith('/music/')
+  const isFullPlayer = pathname.startsWith('/watch/') || (!isAndroidShell() && (pathname.startsWith('/player/') || pathname.startsWith('/music/')))
   const sourceType = source?.type
   const sourceKey = source ? `${source.type}:${source.type === 'youtube' ? source.videoId : source.id}` : ''
   const onReady = useCallback((duration: number) => {
@@ -83,23 +84,26 @@ export function MiniPlayer() {
     }
   }, [clearControls, isFullPlayer, registerControls, setDuration, setPlaying, setPosition, source, sourceKey, sourceType])
 
-  if (!source || isFullPlayer) return null
+  if (!source || isFullPlayer || status === 'ended' || status === 'error') return null
 
   const title = source.title || media.current?.title || 'Now playing'
   const artwork = source.type === 'youtube' ? source.thumbnail : source.type === 'local-audio' ? source.artwork : source.thumbnail
+  const progress = duration > 0 ? Math.min(100, Math.max(0, (position / duration) * 100)) : 0
 
-  const miniEngine = source.type === 'youtube' ? <YoutubePlayerAdapter ref={youtubeRef} videoId={source.videoId} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : source.type === 'local-video' ? <LocalVideoPlayerAdapter ref={videoRef} src={source.src} poster={source.thumbnail} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : <LocalAudioPlayerAdapter ref={audioRef} src={source.src} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} />
+  const miniEngine = isAndroidShell() ? null : source.type === 'youtube' ? <YoutubePlayerAdapter ref={youtubeRef} videoId={source.videoId} title={source.title} thumbnail={source.thumbnail} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : source.type === 'local-video' ? <LocalVideoPlayerAdapter ref={videoRef} id={source.id} title={source.title} src={source.src} poster={source.thumbnail} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} /> : <LocalAudioPlayerAdapter ref={audioRef} src={source.src} onReady={onReady} onPlay={onPlay} onPause={onPause} onEnded={onEnded} onProgress={onProgress} onError={onError} />
 
   return (
-    <aside className="fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+8px)] z-40 mx-auto flex h-16 max-w-xl items-center gap-3 overflow-hidden rounded-2xl border border-[#292929] bg-[#151515]/95 px-2 shadow-2xl backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-96" aria-label="Mini player">
-      {source.type === 'local-video' ? (
-        <div className="h-12 w-20 shrink-0 overflow-hidden rounded-xl">{miniEngine}</div>
-      ) : (
-        <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded-xl bg-[#1d1d1d]">
-          <div className={source.type === 'local-audio' ? 'absolute size-px overflow-hidden opacity-0' : 'size-full'}>{miniEngine}</div>
-          {artwork ? <img src={artwork} alt="" className="size-full object-cover" /> : <div className="flex size-full items-center justify-center text-xs font-bold text-primary">RH</div>}
-        </div>
-      )}
+    <aside className="mini-player fixed inset-x-3 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+8px)] z-40 mx-auto flex h-16 max-w-xl items-center gap-3 overflow-hidden rounded-2xl border border-[#292929] bg-[#151515]/95 px-2 shadow-2xl backdrop-blur-xl md:bottom-4 md:left-auto md:right-4 md:mx-0 md:w-96" aria-label="Mini player">
+      <div className="mini-player-engine absolute size-px overflow-hidden opacity-0" aria-hidden="true">{miniEngine}</div>
+      <Link href={playerHref(source)} onClick={capturePosition} className="mini-player-art relative h-12 w-20 shrink-0 overflow-hidden rounded-xl bg-[#1d1d1d]">
+        <span className="mini-player-art-fallback absolute inset-0 flex items-center justify-center bg-[#25262c] text-white/75">
+          <Play className="ml-0.5 size-4 fill-current" />
+        </span>
+        {artwork ? <img src={artwork} alt="" className="absolute inset-0 size-full object-cover" onError={event => { event.currentTarget.style.display = 'none' }} /> : null}
+        <span className="mini-player-art-overlay absolute inset-0 flex items-center justify-center bg-black/20">
+          {playing ? <Pause className="size-4 fill-white text-white" /> : <Play className="ml-0.5 size-4 fill-white text-white" />}
+        </span>
+      </Link>
       <Link href={playerHref(source)} onClick={capturePosition} className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-white">{title}</p>
         <p className="truncate text-xs text-[#a3a3a3]">{source.type === 'youtube' ? source.channel || 'YouTube' : source.type === 'local-audio' ? source.artist || 'Audio' : source.channel || 'Downloaded video'}</p>
@@ -110,6 +114,9 @@ export function MiniPlayer() {
       <button onClick={close} className="flex size-9 items-center justify-center rounded-full border border-[#292929] text-[#a3a3a3] hover:bg-[#1d1d1d] hover:text-white" aria-label="Close">
         <X className="size-4" />
       </button>
+      <span className="mini-player-progress absolute inset-x-0 bottom-0 h-0.5 bg-white/10" aria-hidden="true">
+        <span className="block h-full bg-primary" style={{ width: `${progress}%` }} />
+      </span>
     </aside>
   )
 }
