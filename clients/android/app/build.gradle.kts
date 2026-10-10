@@ -45,10 +45,10 @@ android {
         applicationId = "com.reelhouse.app"
         minSdk = 24
         targetSdk = 35
-        versionCode = 40
-        versionName = "1.6.21"
+        versionCode = 41
+        versionName = "1.6.22"
 
-        buildConfigField("String", "PERF_BUILD_ID", "\"kubeletto-webview-hybrid-v1\"")
+        buildConfigField("String", "PERF_BUILD_ID", "\"kubeletto-webview-offline-light-v3\"")
         buildConfigField("boolean", "USE_BACKEND_FORMAT_EXTRACTION", "false")
         buildConfigField("boolean", "USE_PRESET_FORMAT_FALLBACK", "true")
         buildConfigField("boolean", "USE_LOCAL_FORMAT_EXTRACTION_FALLBACK", "true")
@@ -132,6 +132,10 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.activity:activity-compose:1.9.3")
     implementation("androidx.webkit:webkit:1.12.1")
+
+    // One reliable playback engine for downloaded files and extracted streams.
+    implementation("androidx.media3:media3-exoplayer:1.9.3")
+    implementation("androidx.media3:media3-ui:1.9.3")
 
     // Compose BOM
     implementation(platform("androidx.compose:compose-bom:2024.12.01"))
