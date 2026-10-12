@@ -65,7 +65,9 @@ jobs:
           OUTPUT_MODE=export pnpm build
 
       - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Build Android APK
         working-directory: clients/android
