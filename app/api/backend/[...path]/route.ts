@@ -1,5 +1,3 @@
-export const dynamic = 'force-dynamic'
-
 const BASE = (process.env.REELHOUSE_INTERNAL_BACKEND_URL || process.env.BACKEND_BASE_URL || 'http://127.0.0.1:8001').replace(/\/+$/, '')
 
 function clean(parts: string[]) {
