@@ -16,6 +16,7 @@ COPY lib/ ./lib/
 COPY providers/ ./providers/
 COPY public/ ./public/
 COPY services/ ./services/
+COPY scripts/ ./scripts/
 COPY types/ ./types/
 COPY components.json eslint.config.mjs next-env.d.ts next.config.mjs postcss.config.mjs tsconfig.json ./
 RUN pnpm build
